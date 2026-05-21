@@ -143,13 +143,17 @@ def build_lookup(df_base: pd.DataFrame, key_col: str) -> dict:
 # ---------------------------
 # Helpers ABRAMUS
 # ---------------------------
-def read_ecad_report(file_path: str) -> pd.DataFrame:
+def read_ecad_report(source) -> pd.DataFrame:
     """
     Lê o relatório ECAD (CSV com preâmbulo) detectando automaticamente
     a linha do header e usando separador ';' e encoding ISO-8859-1.
+    Aceita caminho de arquivo (str) ou objeto file-like (BytesIO).
     """
-    with open(file_path, 'rb') as f:
-        raw_bytes = f.read()
+    if hasattr(source, 'read'):
+        raw_bytes = source.read()
+    else:
+        with open(source, 'rb') as f:
+            raw_bytes = f.read()
     
     text = raw_bytes.decode("ISO-8859-1", errors="replace")
     lines = text.splitlines()
@@ -398,48 +402,60 @@ st.sidebar.markdown("---")
 
 if fonte == "ABRAMUS":
     st.header("📊 ABRAMUS - Processamento de Relatórios")
-    
-    # Verifica se a base existe
-    if not os.path.exists(CAMINHO_BASE_ABRAMUS):
-        st.error(f"❌ Base de catálogo não encontrada em:\n`{CAMINHO_BASE_ABRAMUS}`")
-        st.stop()
 
-    st.success(f"✅ Base de catálogo carregada: `{CAMINHO_BASE_ABRAMUS}`")
+    # --- Base de catálogo ---
+    if os.path.exists(CAMINHO_BASE_ABRAMUS):
+        base_source_abramus = CAMINHO_BASE_ABRAMUS
+        st.success(f"✅ Base de catálogo carregada: `{CAMINHO_BASE_ABRAMUS}`")
+    else:
+        st.warning("⚠️ Base de catálogo não encontrada no caminho padrão. Faça o upload:")
+        _uploaded_base_ab = st.file_uploader("Upload da base de catálogo ABRAMUS (.xlsx)", type=["xlsx"], key="base_abramus")
+        if _uploaded_base_ab is None:
+            st.info("Aguardando upload da base de catálogo.")
+            st.stop()
+        base_source_abramus = _uploaded_base_ab
+        st.success("✅ Base de catálogo carregada via upload.")
 
-    # Carrega períodos disponíveis
+    # --- Relatório ---
     periods = get_available_periods_abramus()
 
-    if not periods:
-        st.error(f"❌ Nenhum relatório ABRAMUS encontrado em:\n`{CAMINHO_ABRAMUS}`")
-        st.stop()
+    if periods:
+        st.subheader("Selecione o período do relatório")
+        col1, col2 = st.columns(2)
 
-    # Seleção de período
-    st.subheader("Selecione o período do relatório")
+        with col1:
+            anos_disponiveis = sorted(list(set([p[0] for p in periods])), reverse=True)
+            ano_selecionado = st.selectbox("Ano", anos_disponiveis)
 
-    col1, col2 = st.columns(2)
+        with col2:
+            meses_do_ano = [p for p in periods if p[0] == ano_selecionado]
+            meses_opcoes = [f"{p[1]:02d}. {p[2]} {str(p[0])[2:]}" for p in meses_do_ano]
+            mes_selecionado_idx = st.selectbox("Mês", range(len(meses_opcoes)), format_func=lambda x: meses_opcoes[x])
+            arquivo_selecionado = meses_do_ano[mes_selecionado_idx][3]
 
-    with col1:
-        anos_disponiveis = sorted(list(set([p[0] for p in periods])), reverse=True)
-        ano_selecionado = st.selectbox("Ano", anos_disponiveis)
-
-    with col2:
-        meses_do_ano = [p for p in periods if p[0] == ano_selecionado]
-        meses_opcoes = [f"{p[1]:02d}. {p[2]} {str(p[0])[2:]}" for p in meses_do_ano]
-        mes_selecionado_idx = st.selectbox("Mês", range(len(meses_opcoes)), format_func=lambda x: meses_opcoes[x])
-        
-        arquivo_selecionado = meses_do_ano[mes_selecionado_idx][3]
-
-    st.info(f"📁 Arquivo selecionado:\n`{arquivo_selecionado}`")
+        mes_num_selecionado = meses_do_ano[mes_selecionado_idx][1]
+        st.info(f"📁 Arquivo selecionado:\n`{arquivo_selecionado}`")
+        report_source_abramus = arquivo_selecionado
+    else:
+        st.warning("⚠️ Relatórios ABRAMUS não encontrados na rede. Faça o upload do arquivo:")
+        _uploaded_report_ab = st.file_uploader("Upload do relatório ABRAMUS (_XLS.CSV)", type=["csv"], key="report_abramus")
+        if _uploaded_report_ab is None:
+            st.info("Aguardando upload do relatório.")
+            st.stop()
+        st.success(f"✅ Arquivo `{_uploaded_report_ab.name}` carregado.")
+        report_source_abramus = _uploaded_report_ab
+        ano_selecionado = 0
+        mes_num_selecionado = 0
 
     # Botão para processar
     if st.button("🚀 Processar Cruzamento", type="primary"):
         try:
             with st.spinner("Carregando base de catálogo..."):
-                df_base = read_base_xlsx(CAMINHO_BASE_ABRAMUS)
+                df_base = read_base_xlsx(base_source_abramus)
                 df_base = normalize_catalog_column(df_base)
 
             with st.spinner("Carregando relatório ABRAMUS..."):
-                df_report = read_ecad_report(arquivo_selecionado)
+                df_report = read_ecad_report(report_source_abramus)
 
             # Verifica colunas-chave
             if "CÓD. OBRA" not in df_base.columns:
@@ -490,7 +506,7 @@ if fonte == "ABRAMUS":
                 st.download_button(
                     "⬇️ Baixar resultado agrupado (CSV)",
                     data=csv_bytes,
-                    file_name=f"relatorio_agrupado_abramus_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv",
+                    file_name=f"relatorio_agrupado_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
                     mime="text/csv",
                 )
                 
@@ -538,7 +554,7 @@ if fonte == "ABRAMUS":
                 st.download_button(
                     "⬇️ Baixar relatório DETALHADO com todas as obras (CSV)",
                     data=csv_detalhado,
-                    file_name=f"relatorio_detalhado_abramus_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv",
+                    file_name=f"relatorio_detalhado_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
                     mime="text/csv",
                     type="primary"
                 )
@@ -589,7 +605,7 @@ if fonte == "ABRAMUS":
                     st.download_button(
                         "⬇️ Baixar obras não mapeadas (CSV)",
                         data=csv_nao_mapeadas,
-                        file_name=f"obras_nao_mapeadas_abramus_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv",
+                        file_name=f"obras_nao_mapeadas_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
                         mime="text/csv",
                         type="secondary"
                     )
@@ -736,7 +752,7 @@ if fonte == "ABRAMUS":
                             st.download_button(
                                 "⬇️ Baixar TODAS as obras não mapeadas (com e sem sugestões)",
                                 data=csv_completo,
-                                file_name=f"obras_completo_abramus_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv",
+                                file_name=f"obras_completo_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
                                 mime="text/csv",
                                 type="primary"
                             )
@@ -751,7 +767,7 @@ if fonte == "ABRAMUS":
                         st.info("ℹ️ Integração com Reprtoir não disponível. Verifique o arquivo `.env` com `REPRTOIR_API_KEY`.")
                     else:
                         st.caption("Consulta a API do Reprtoir para identificar obras não mapeadas via ISWC ou título+autores.")
-                        _rep_key_ab = f"reprtoir_abramus_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}"
+                        _rep_key_ab = f"reprtoir_abramus_{ano_selecionado}_{mes_num_selecionado:02d}"
                         if st.button("🔎 Buscar no Reprtoir", key="btn_reprtoir_abramus"):
                             try:
                                 _client_rep = ReprtorirClient()
@@ -788,7 +804,7 @@ if fonte == "ABRAMUS":
                             _cols_rep_disp = [c for c in _cols_rep if c in _df_com_rep.columns]
                             st.dataframe(_df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False).head(100), use_container_width=True, height=400)
                             _csv_rep = _df_com_rep[_cols_rep_disp].to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
-                            st.download_button("⬇️ Baixar resultados Reprtoir (CSV)", data=_csv_rep, file_name=f"reprtoir_abramus_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv", mime="text/csv", key="dl_reprtoir_abramus")
+                            st.download_button("⬇️ Baixar resultados Reprtoir (CSV)", data=_csv_rep, file_name=f"reprtoir_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv", mime="text/csv", key="dl_reprtoir_abramus")
 
                 else:
                     st.success("✅ Todas as obras foram mapeadas com sucesso!")
@@ -809,49 +825,61 @@ if fonte == "ABRAMUS":
 # ---------------------------
 elif fonte == "SONY":
     st.header("🎵 SONY MUSIC PUBLISHING - Processamento de Relatórios")
-    
-    # Verifica se a base existe
-    if not os.path.exists(CAMINHO_BASE_SONY):
-        st.error(f"❌ Base de mapeamento não encontrada em:\n`{CAMINHO_BASE_SONY}`")
-        st.stop()
 
-    st.success(f"✅ Base de mapeamento carregada: `{CAMINHO_BASE_SONY}`")
+    # --- Base de mapeamento ---
+    if os.path.exists(CAMINHO_BASE_SONY):
+        base_source_sony = CAMINHO_BASE_SONY
+        st.success(f"✅ Base de mapeamento carregada: `{CAMINHO_BASE_SONY}`")
+    else:
+        st.warning("⚠️ Base de mapeamento não encontrada no caminho padrão. Faça o upload:")
+        _uploaded_base_so = st.file_uploader("Upload da base de mapeamento Sony (.xlsx)", type=["xlsx"], key="base_sony")
+        if _uploaded_base_so is None:
+            st.info("Aguardando upload da base de mapeamento.")
+            st.stop()
+        base_source_sony = _uploaded_base_so
+        st.success("✅ Base de mapeamento carregada via upload.")
 
-    # Carrega períodos disponíveis
+    # --- Relatório ---
     periods = get_available_periods_sony()
 
-    if not periods:
-        st.error(f"❌ Nenhum relatório SONY encontrado em:\n`{CAMINHO_SONY}`")
-        st.stop()
+    if periods:
+        st.subheader("Selecione o período do relatório")
+        col1, col2 = st.columns(2)
 
-    # Seleção de período
-    st.subheader("Selecione o período do relatório")
+        with col1:
+            anos_disponiveis = sorted(list(set([p[0] for p in periods])), reverse=True)
+            ano_selecionado = st.selectbox("Ano", anos_disponiveis)
 
-    col1, col2 = st.columns(2)
+        with col2:
+            meses_do_ano = [p for p in periods if p[0] == ano_selecionado]
+            meses_opcoes = [f"{p[1]:02d}. {p[2]} {str(p[0])[2:]}" for p in meses_do_ano]
+            mes_selecionado_idx = st.selectbox("Mês", range(len(meses_opcoes)), format_func=lambda x: meses_opcoes[x])
+            arquivo_selecionado = meses_do_ano[mes_selecionado_idx][3]
 
-    with col1:
-        anos_disponiveis = sorted(list(set([p[0] for p in periods])), reverse=True)
-        ano_selecionado = st.selectbox("Ano", anos_disponiveis)
-
-    with col2:
-        meses_do_ano = [p for p in periods if p[0] == ano_selecionado]
-        meses_opcoes = [f"{p[1]:02d}. {p[2]} {str(p[0])[2:]}" for p in meses_do_ano]
-        mes_selecionado_idx = st.selectbox("Mês", range(len(meses_opcoes)), format_func=lambda x: meses_opcoes[x])
-        
-        arquivo_selecionado = meses_do_ano[mes_selecionado_idx][3]
-
-    st.info(f"📁 Arquivo selecionado:\n`{arquivo_selecionado}`")
+        mes_num_selecionado = meses_do_ano[mes_selecionado_idx][1]
+        st.info(f"📁 Arquivo selecionado:\n`{arquivo_selecionado}`")
+        report_source_sony = arquivo_selecionado
+    else:
+        st.warning("⚠️ Relatórios SONY não encontrados na rede. Faça o upload do arquivo:")
+        _uploaded_report_so = st.file_uploader("Upload do relatório SONY (.xlsx)", type=["xlsx"], key="report_sony")
+        if _uploaded_report_so is None:
+            st.info("Aguardando upload do relatório.")
+            st.stop()
+        st.success(f"✅ Arquivo `{_uploaded_report_so.name}` carregado.")
+        report_source_sony = _uploaded_report_so
+        ano_selecionado = 0
+        mes_num_selecionado = 0
 
     # Botão para processar
     if st.button("🚀 Processar Cruzamento", type="primary"):
         try:
             with st.spinner("Carregando base de mapeamento Sony..."):
-                df_base_sony = read_mapping_sony(CAMINHO_BASE_SONY)
-                
+                df_base_sony = read_mapping_sony(base_source_sony)
+
                 # Renomeia Catalogo -> CATÁLOGO (padronização)
                 if "Catalogo" in df_base_sony.columns:
                     df_base_sony = df_base_sony.rename(columns={"Catalogo": "CATÁLOGO"})
-                
+
                 # Verifica colunas necessárias
                 if "Song No." not in df_base_sony.columns or "CATÁLOGO" not in df_base_sony.columns:
                     st.error(f"❌ Base de mapeamento não contém as colunas necessárias")
@@ -859,7 +887,7 @@ elif fonte == "SONY":
                     st.stop()
 
             with st.spinner("Carregando relatório Sony..."):
-                df_report = read_excel_xml(arquivo_selecionado)
+                df_report = read_excel_xml(report_source_sony)
                 
                 if "Song No." not in df_report.columns:
                     st.error("❌ Relatório não contém a coluna 'Song No.'")
@@ -899,7 +927,7 @@ elif fonte == "SONY":
                 st.download_button(
                     "⬇️ Baixar resultado agrupado (CSV)",
                     data=csv_bytes,
-                    file_name=f"relatorio_agrupado_sony_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv",
+                    file_name=f"relatorio_agrupado_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
                     mime="text/csv",
                 )
                 
@@ -946,7 +974,7 @@ elif fonte == "SONY":
                 st.download_button(
                     "⬇️ Baixar relatório DETALHADO com todas as músicas (CSV)",
                     data=csv_detalhado,
-                    file_name=f"relatorio_detalhado_sony_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv",
+                    file_name=f"relatorio_detalhado_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
                     mime="text/csv",
                     type="primary"
                 )
@@ -987,7 +1015,7 @@ elif fonte == "SONY":
                     st.download_button(
                         "⬇️ Baixar músicas não mapeadas (CSV)",
                         data=csv_nao_mapeadas,
-                        file_name=f"obras_nao_mapeadas_sony_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv",
+                        file_name=f"obras_nao_mapeadas_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
                         mime="text/csv",
                         type="secondary"
                     )
@@ -1150,7 +1178,7 @@ elif fonte == "SONY":
                             st.download_button(
                                 "⬇️ Baixar TODAS as músicas não mapeadas (com e sem sugestões)",
                                 data=csv_completo,
-                                file_name=f"obras_completo_sony_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv",
+                                file_name=f"obras_completo_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
                                 mime="text/csv",
                                 type="primary"
                             )
@@ -1165,7 +1193,7 @@ elif fonte == "SONY":
                         st.info("ℹ️ Integração com Reprtoir não disponível. Verifique o arquivo `.env` com `REPRTOIR_API_KEY`.")
                     else:
                         st.caption("Consulta a API do Reprtoir para identificar músicas não mapeadas via título+autores.")
-                        _rep_key_so = f"reprtoir_sony_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}"
+                        _rep_key_so = f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}"
                         if st.button("🔎 Buscar no Reprtoir", key="btn_reprtoir_sony"):
                             try:
                                 _client_rep = ReprtorirClient()
@@ -1207,7 +1235,7 @@ elif fonte == "SONY":
                             _cols_rep_disp = [c for c in _cols_rep if c in _df_com_rep.columns]
                             st.dataframe(_df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False).head(100), use_container_width=True, height=400)
                             _csv_rep = _df_com_rep[_cols_rep_disp].to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
-                            st.download_button("⬇️ Baixar resultados Reprtoir (CSV)", data=_csv_rep, file_name=f"reprtoir_sony_{ano_selecionado}_{meses_do_ano[mes_selecionado_idx][1]:02d}.csv", mime="text/csv", key="dl_reprtoir_sony")
+                            st.download_button("⬇️ Baixar resultados Reprtoir (CSV)", data=_csv_rep, file_name=f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv", mime="text/csv", key="dl_reprtoir_sony")
 
                 else:
                     st.success("✅ Todas as músicas foram mapeadas com sucesso!")
