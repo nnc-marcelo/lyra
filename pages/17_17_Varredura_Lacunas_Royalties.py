@@ -30,7 +30,8 @@ st.set_page_config(
 # ─────────────────────────────────────────────────────────────
 REPORT_DIR = Path(__file__).resolve().parents[1] / "data" / "varredura_lacunas"
 HTML_PATH = REPORT_DIR / "relatorio_royalties.html"
-CSV_PATH = REPORT_DIR / "relatorio_royalties.csv"
+CSV_PATH  = REPORT_DIR / "relatorio_royalties.csv"
+TS_PATH   = REPORT_DIR / "last_updated.txt"
 
 # Cadência esperada: diária. Acima disto, o relatório é considerado defasado.
 STALE_AFTER_DAYS = 2
@@ -49,7 +50,11 @@ if not HTML_PATH.exists():
     )
     st.stop()
 
-mtime = datetime.fromtimestamp(HTML_PATH.stat().st_mtime)
+if TS_PATH.exists():
+    mtime = datetime.fromisoformat(TS_PATH.read_text().strip())
+else:
+    mtime = datetime.fromtimestamp(HTML_PATH.stat().st_mtime)
+
 age_days = (datetime.now() - mtime).days
 
 if age_days >= STALE_AFTER_DAYS:
