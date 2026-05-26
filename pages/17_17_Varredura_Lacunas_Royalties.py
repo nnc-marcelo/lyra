@@ -3,7 +3,8 @@ Varredura de Lacunas — Royalties (visualizador)
 
 Exibe o relatório pré-gerado pela varredura da base histórica do rpa-royalties.
 A varredura roda de forma agendada (diária) numa máquina que enxerga o Z:,
-grava o HTML/CSV, e esta página apenas lê e exibe o artefato pronto.
+grava o HTML/CSV em rpa-royalties e os copia para lyra/data/varredura_lacunas/,
+fazendo push para o GitHub. O Streamlit Cloud lê o artefato direto deste repo.
 
 Nenhuma varredura, credencial ou acesso ao Z: acontece aqui.
 """
@@ -22,12 +23,12 @@ st.set_page_config(
 
 # ─────────────────────────────────────────────────────────────
 # Caminho do relatório pré-gerado
-# O script de varredura (rpa-royalties) grava o relatório aqui.
-# rpa-royalties e lyra são repositórios vizinhos sob .../GitHub/.
-# Ajuste REPORT_DIR se os repos não estiverem lado a lado.
+# O script de varredura (rpa-royalties) grava o relatório e o
+# copia para lyra/data/varredura_lacunas/ via run_varredura_diaria.bat,
+# que também faz push para o GitHub. Assim o Streamlit Cloud lê
+# o arquivo diretamente do próprio repo, sem depender de sibling.
 # ─────────────────────────────────────────────────────────────
-_GITHUB_ROOT = Path(__file__).resolve().parents[2]
-REPORT_DIR = _GITHUB_ROOT / "rpa-royalties" / "tools" / "data" / "varredura_lacunas"
+REPORT_DIR = Path(__file__).resolve().parents[1] / "data" / "varredura_lacunas"
 HTML_PATH = REPORT_DIR / "relatorio_royalties.html"
 CSV_PATH = REPORT_DIR / "relatorio_royalties.csv"
 
