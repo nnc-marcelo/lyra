@@ -49,6 +49,18 @@ if 'ingrooves_total_withheld' not in st.session_state:
 if 'ingrooves_processed_data' not in st.session_state:
     st.session_state['ingrooves_processed_data'] = None
 
+# Curve
+# -------------
+
+if 'curve_net_total' not in st.session_state:
+    st.session_state['curve_net_total'] = None
+if 'curve_withholding_total' not in st.session_state:
+    st.session_state['curve_withholding_total'] = None
+if 'curve_total_withheld' not in st.session_state:
+    st.session_state['curve_total_withheld'] = None
+if 'curve_processed_data' not in st.session_state:
+    st.session_state['curve_processed_data'] = None
+
 # Onerpm
 # -------------
 
@@ -79,6 +91,7 @@ report_option = st.selectbox(
     (
         'The Orchard (Europa)',
         'Ingrooves',
+        'Curve',
         'Onerpm'
     )
 )
@@ -108,6 +121,12 @@ if uploaded_file is not None:
         st.session_state['ingrooves_total_withheld'] = None
         st.session_state['ingrooves_processed_data'] = None
         
+        # Reset Curve
+        st.session_state['curve_net_total'] = None
+        st.session_state['curve_withholding_total'] = None
+        st.session_state['curve_total_withheld'] = None
+        st.session_state['curve_processed_data'] = None
+
         # Reset ONErpm
         st.session_state['onerpm_results'] = []
         st.session_state['total_by_currency'] = {}
@@ -383,6 +402,96 @@ if uploaded_file is not None:
             st.download_button(
                 label="Baixar arquivo processado",
                 data=st.session_state['ingrooves_processed_data'],
+                file_name=out_name,
+                mime=out_mime
+            )
+
+    #----------------------------------
+    # Processamento CURVE (aceita CSV e Excel)
+    #----------------------------------
+    elif report_option == 'Curve':
+
+        net_column = 'Net Payable'
+        tax_column = 'Specific Withholding Tax'
+
+        if st.button('Processar desconto', type='primary', key='process_curve'):
+            try:
+                uploaded_file.seek(0)
+                name = uploaded_file.name.lower()
+                is_csv = name.endswith('.csv')
+
+                if is_csv:
+                    df = pd.read_csv(uploaded_file, low_memory=False)
+                    out_name = f"{original_file_name}_withholding_excluded.csv"
+                    out_mime = "text/csv"
+                else:
+                    df = pd.read_excel(uploaded_file)
+                    out_name = adjust_file_name(original_file_name)
+                    out_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+                # Valida colunas necessárias
+                if net_column not in df.columns or tax_column not in df.columns:
+                    st.error(f"Colunas necessárias não encontradas. Esperado: '{net_column}' e '{tax_column}'.")
+                    st.write("Colunas disponíveis:", list(df.columns))
+                    st.stop()
+
+                # Remove a linha de total do relatório (vem sem 'Type'/'Contract Name')
+                if 'Type' in df.columns:
+                    df = df[df['Type'].notna()].copy()
+
+                # Garante numérico nas colunas de valor
+                df[net_column] = pd.to_numeric(df[net_column], errors='coerce').fillna(0.0)
+                df[tax_column] = pd.to_numeric(df[tax_column], errors='coerce').fillna(0.0)
+
+                net_total = float(df[net_column].sum())
+                st.session_state['curve_net_total'] = net_total
+
+                # O withholding do Curve já vem calculado por linha (Specific Withholding Tax),
+                # aplicado em todos os territórios. Desconta o imposto do Net Payable.
+                total_withheld = float(df[tax_column].sum())
+                df[net_column] = df[net_column] - df[tax_column]
+
+                withholding_total = float(df[net_column].sum())
+
+                st.session_state['curve_withholding_total'] = withholding_total
+                st.session_state['curve_total_withheld'] = total_withheld
+
+                # Prepara o arquivo para download
+                output = BytesIO()
+                if is_csv:
+                    output.write(df.to_csv(index=False).encode('utf-8'))
+                else:
+                    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+                    df.to_excel(writer, index=False)
+                    writer.close()
+                st.session_state['curve_processed_data'] = output.getvalue()
+
+            except Exception as e:
+                st.error(f"Erro durante o processamento: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
+                st.session_state['curve_net_total'] = None
+                st.session_state['curve_withholding_total'] = None
+                st.session_state['curve_total_withheld'] = None
+                st.session_state['curve_processed_data'] = None
+
+        # Exibe os resultados se existirem no session_state
+        if st.session_state['curve_net_total'] is not None:
+            st.write(f'O valor Net é **{st.session_state["curve_net_total"]:,.2f}**')
+            st.write(f'O total de withholding aplicado é **{st.session_state["curve_total_withheld"]:,.2f}**')
+            st.write(f':red[O valor Net menos withholding é **{st.session_state["curve_withholding_total"]:,.2f}**]')
+
+            is_csv = st.session_state['uploaded_file_name'].lower().endswith('.csv')
+            if is_csv:
+                out_name = f"{original_file_name}_withholding_excluded.csv"
+                out_mime = "text/csv"
+            else:
+                out_name = adjust_file_name(original_file_name)
+                out_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+            st.download_button(
+                label="Baixar arquivo processado",
+                data=st.session_state['curve_processed_data'],
                 file_name=out_name,
                 mime=out_mime
             )
