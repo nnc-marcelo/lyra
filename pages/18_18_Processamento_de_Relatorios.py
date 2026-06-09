@@ -3,6 +3,7 @@ import pandas as pd
 import openpyxl
 import io
 from io import BytesIO
+from decimal import Decimal
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
@@ -11,7 +12,7 @@ pd.set_option('display.max_colwidth', None)
 st.title("Processamento de Relatórios")
 st.caption("Transforma relatórios e prepara-os para o Reprtoir.")
 
-template = st.selectbox("STATEMENT TEMPLATE:", ["Nikita Digital", "Backoffice"])
+template = st.selectbox("STATEMENT TEMPLATE:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)"])
 
 # ============================================================================
 # TEMPLATE: NIKITA DIGITAL
@@ -320,6 +321,212 @@ def render_backoffice():
 
 
 # ============================================================================
+# TEMPLATE: YOUTUBE (CONSOLIDAÇÃO)
+# ============================================================================
+
+# Template-alvo: layout "asset raw" (27 colunas). Os relatórios "red_label"
+# (que começam com a linha "Asset Summary" e usam "Month") são remapeados para
+# este template; colunas sem equivalente ficam vazias.
+YT_TARGET = [
+    "Adjustment Type", "Day", "Country", "Asset ID", "Asset Title", "Asset Labels",
+    "Asset Channel ID", "Asset Type", "Custom ID", "ISRC", "UPC", "GRid", "Artist",
+    "Album", "Label", "Administer Publish Rights", "Owned Views",
+    "YouTube Revenue Split : Auction", "YouTube Revenue Split : Reserved",
+    "YouTube Revenue Split : Partner Sold YouTube Served",
+    "YouTube Revenue Split : Partner Sold Partner Served", "YouTube Revenue Split",
+    "Partner Revenue : Auction", "Partner Revenue : Reserved",
+    "Partner Revenue : Partner Sold YouTube Served",
+    "Partner Revenue : Partner Sold Partner Served", "Partner Revenue",
+]
+
+
+def _yt_fmt_money(x):
+    """Formata em pt-BR com prefixo US$ (receita YouTube é em dólar)."""
+    return f"US$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _yt_map_columns(src_cols):
+    """Mapeia cada coluna do template para a coluna de origem (ou None)."""
+    norm = {c.strip(): c for c in src_cols}
+
+    def find(*names):
+        for n in names:
+            if n in norm:
+                return norm[n]
+        return None
+
+    mapping = {}
+    for t in YT_TARGET:
+        if t == "Day":
+            mapping[t] = find("Day", "Month")      # red_label usa "Month"
+        elif t == "GRid":
+            mapping[t] = find("GRid", "GRID")       # red_label usa "GRID"
+        else:
+            mapping[t] = find(t)
+    return mapping
+
+
+def _yt_normalize_day(v):
+    """Unifica o período em AAAAMMDD (red_label mensal AAAAMM -> dia 01)."""
+    s = str(v).strip()
+    if len(s) == 6 and s.isdigit():
+        return s + "01"
+    return s
+
+
+def _yt_read_one(name, raw):
+    """Lê um relatório YouTube (.csv) e devolve o DataFrame já no template."""
+    text = raw.decode("latin-1")          # round-trip byte a byte
+    lines = text.splitlines()
+    hdr_i = None
+    for i, l in enumerate(lines):
+        if "Country" in l and "Partner Revenue" in l:
+            hdr_i = i
+            break
+    if hdr_i is None:
+        return None, "❌ cabeçalho (Country/Partner Revenue) não encontrado"
+
+    csv_text = "\n".join(lines[hdr_i:])
+    df = pd.read_csv(io.StringIO(csv_text), dtype=str, keep_default_na=False)
+    df.columns = [c.strip() for c in df.columns]
+
+    mapping = _yt_map_columns(df.columns)
+    out = pd.DataFrame(
+        {t: (df[src] if src is not None else "") for t, src in mapping.items()},
+        columns=YT_TARGET,
+    )
+    out["Day"] = out["Day"].map(_yt_normalize_day)
+    layout = "red_label" if "Month" in df.columns else "asset_raw"
+    return out, f"✅ {len(out):,} linhas (layout {layout})"
+
+
+@st.cache_data(show_spinner=False)
+def _yt_consolidate(files):
+    """files: tupla de (nome, bytes). Retorna (df_consolidado | None, infos)."""
+    frames, infos = [], []
+    for name, raw in files:
+        try:
+            df, info = _yt_read_one(name, raw)
+        except Exception as e:
+            df, info = None, f"❌ erro ao ler: {e}"
+        infos.append((name, info))
+        if df is not None:
+            frames.append(df)
+    if not frames:
+        return None, infos
+    return pd.concat(frames, ignore_index=True), infos
+
+
+def _yt_total(df):
+    return float(pd.to_numeric(df["Partner Revenue"], errors="coerce").fillna(0).sum())
+
+
+def _yt_debit_us(df):
+    """Aplica débito de 30% no Partner Revenue das linhas Country=US (Decimal exato)."""
+    out = df.copy()
+    mask = out["Country"].astype(str).str.strip().str.upper().eq("US")
+
+    def deb(s):
+        s = str(s).strip()
+        if s == "":
+            return s
+        try:
+            d = Decimal(s)
+        except Exception:
+            return s
+        nd = d * Decimal("0.7")            # debitar 30% == manter 70%
+        return s if nd == d else format(nd, "f")
+
+    out.loc[mask, "Partner Revenue"] = out.loc[mask, "Partner Revenue"].map(deb)
+    return out, int(mask.sum())
+
+
+def _yt_to_csv_bytes(df):
+    return df.to_csv(index=False, lineterminator="\n").encode("latin-1", errors="replace")
+
+
+def render_youtube():
+    st.caption("Consolida os 4 relatórios do YouTube no template asset raw e calcula o débito de 30% (US).")
+
+    uploaded_files = st.file_uploader(
+        "Faça o upload dos relatórios do YouTube (.csv)",
+        type=["csv"],
+        accept_multiple_files=True,
+        key="yt_files",
+    )
+
+    if not uploaded_files:
+        st.info(
+            "📤 Aguardando upload dos 4 relatórios YouTube "
+            "(asset_raw, ADJ_asset_raw, red_label_rawdata e adjustment_red_label_rawdata)."
+        )
+        return
+
+    files = tuple((f.name, f.getvalue()) for f in uploaded_files)
+    consolidated, infos = _yt_consolidate(files)
+
+    with st.expander(f"📋 Arquivos lidos ({len(infos)})", expanded=False):
+        for nome, info in infos:
+            st.markdown(f"**{nome}** — {info}")
+
+    if consolidated is None:
+        st.error("❌ Nenhum relatório válido foi reconhecido.")
+        return
+
+    total = _yt_total(consolidated)
+    st.success(
+        f"✅ Consolidado gerado: {len(consolidated):,} linhas · "
+        f"{len(consolidated.columns)} colunas (template asset raw, período AAAAMMDD)."
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("💰 Partner Revenue total", _yt_fmt_money(total))
+    with col2:
+        st.metric("🧾 Linhas consolidadas", f"{len(consolidated):,}")
+
+    with st.expander("👁️ Visualizar consolidado (100 primeiras linhas)", expanded=False):
+        st.dataframe(consolidated.head(100), use_container_width=True)
+
+    st.download_button(
+        label="📥 Baixar consolidado (sem débito)",
+        data=_yt_to_csv_bytes(consolidated),
+        file_name="YouTube_consolidado_asset_raw_template.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key="yt_dl_consolidado",
+    )
+
+    st.divider()
+    if st.button("📉 Calcular débito de 30% (US)", type="primary", use_container_width=True):
+        st.session_state["yt_debit_done"] = True
+
+    if st.session_state.get("yt_debit_done"):
+        debited, n_us = _yt_debit_us(consolidated)
+        total_deb = _yt_total(debited)
+        debito = total - total_deb
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("💰 Total original", _yt_fmt_money(total))
+        with c2:
+            st.metric("📉 Débito US (30%)", _yt_fmt_money(debito))
+        with c3:
+            st.metric("✅ Total debitado", _yt_fmt_money(total_deb), delta=round(-debito, 2))
+
+        st.caption(f"Linhas com Country = US: {n_us:,} (as de receita 0 permanecem inalteradas)")
+
+        st.download_button(
+            label="📥 Baixar consolidado DEBITADO (US -30%)",
+            data=_yt_to_csv_bytes(debited),
+            file_name="YouTube_consolidado_asset_raw_template_DEBITADO.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="yt_dl_debitado",
+        )
+
+
+# ============================================================================
 # ROTEAMENTO POR TEMPLATE
 # ============================================================================
 
@@ -329,3 +536,5 @@ if template == "Nikita Digital":
     render_nikita()
 elif template == "Backoffice":
     render_backoffice()
+elif template == "YouTube (Consolidação)":
+    render_youtube()
