@@ -2,6 +2,8 @@
 import io
 import os
 import sys
+import re
+import unicodedata
 from pathlib import Path
 import pandas as pd
 import streamlit as st
@@ -31,6 +33,9 @@ CAMINHO_ABRAMUS = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Catal
 
 CAMINHO_BASE_SONY = str(_PROJECT_ROOT / "data" / "mapping" / "Mapping_Sony.xlsx")
 CAMINHO_SONY = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Catalog\SONY MUSIC PUBLISHING"
+
+CAMINHO_BASE_VITALE = str(_PROJECT_ROOT / "data" / "mapping" / "Lista_Obras_Catalogo_Irmaos_Vitale.xlsx")
+CAMINHO_VITALE = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Catalog\IRMAOS VITALE"
 
 # ---------------------------
 # Helpers Gerais
@@ -377,7 +382,185 @@ def get_available_periods_sony() -> list:
             arquivo_xlsx = os.path.join(mes_path, xlsx_files[0])
             
             periods.append((ano, mes_num, mes_nome, arquivo_xlsx))
-    
+
+    return periods
+
+
+# ---------------------------
+# Helpers IRMÃOS VITALE
+# ---------------------------
+_SS_NS = "{urn:schemas-microsoft-com:office:spreadsheet}"
+
+# Coluna de título e de valor (repasse, em R$) de cada demonstrativo
+_VITALE_DEMOS = {
+    "DEX":       {"titulo": "Título",         "valor": "Valor Repasse"},
+    "DPV":       {"titulo": "Título",         "valor": "Valor Repasse"},
+    "Terceiros": {"titulo": "Título da Obra", "valor": "Valor Repassado"},
+}
+
+
+def _vitale_normalize_titulo(s) -> str:
+    """Normaliza título p/ cruzamento: maiúsculas, sem acento, espaços colapsados."""
+    s = str(s if s is not None else "").strip().upper()
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = re.sub(r"\s+", " ", s)
+    return s.strip()
+
+
+def read_spreadsheetml(source) -> pd.DataFrame:
+    """
+    Lê arquivo no formato SpreadsheetML 2003 (XML com extensão .XLS), usado pelos
+    demonstrativos Irmãos Vitale. Detecta a linha do cabeçalho automaticamente
+    (procura a linha com 'Ano' e 'Trimestre'). Aceita caminho (str) ou file-like.
+    """
+    if hasattr(source, "read"):
+        root = ET.fromstring(source.read())
+    else:
+        root = ET.parse(source).getroot()
+
+    ws = root.find(f".//{_SS_NS}Worksheet")
+    table = ws.find(f"{_SS_NS}Table") if ws is not None else None
+    if table is None:
+        return pd.DataFrame()
+
+    def parse_row(r):
+        cells = {}
+        col = 0
+        for c in r.findall(f"{_SS_NS}Cell"):
+            idx = c.get(f"{_SS_NS}Index")
+            col = int(idx) if idx else col + 1
+            d = c.find(f"{_SS_NS}Data")
+            cells[col] = d.text if (d is not None and d.text is not None) else ""
+        return cells
+
+    parsed = [parse_row(r) for r in table.findall(f"{_SS_NS}Row")]
+
+    header_idx = None
+    for i, rc in enumerate(parsed[:20]):
+        vals = {str(v).strip() for v in rc.values()}
+        if "Ano" in vals and "Trimestre" in vals:
+            header_idx = i
+            break
+    if header_idx is None:
+        raise ValueError("Cabeçalho não localizado no demonstrativo (esperado 'Ano'/'Trimestre').")
+
+    header = parsed[header_idx]
+    ncol = max(header.keys()) if header else 0
+    columns = [str(header.get(i, f"col{i}")).strip() for i in range(1, ncol + 1)]
+    records = [[rc.get(i, "") for i in range(1, ncol + 1)] for rc in parsed[header_idx + 1:]]
+    return pd.DataFrame(records, columns=columns)
+
+
+def read_vitale_demonstrativo(source, tipo: str) -> pd.DataFrame:
+    """
+    Lê um demonstrativo Vitale e devolve formato padronizado com as colunas
+    DEMONSTRATIVO, TÍTULO, VALOR (numérico, em R$). Remove linhas de subtotal
+    (título vazio) — somar as linhas de detalhe reproduz exatamente os subtotais.
+    """
+    cfg = _VITALE_DEMOS[tipo]
+    df = read_spreadsheetml(source)
+    cols = ["DEMONSTRATIVO", "TÍTULO", "VALOR"]
+    if df.empty:
+        return pd.DataFrame(columns=cols)
+
+    if cfg["titulo"] not in df.columns or cfg["valor"] not in df.columns:
+        raise ValueError(
+            f"Demonstrativo {tipo}: colunas esperadas não encontradas "
+            f"('{cfg['titulo']}'/'{cfg['valor']}'). Colunas: {list(df.columns)}"
+        )
+
+    out = pd.DataFrame()
+    out["TÍTULO"] = df[cfg["titulo"]].astype(str).str.strip()
+    out["VALOR"] = pd.to_numeric(
+        df[cfg["valor"]].astype(str).str.strip().replace("", "0"), errors="coerce"
+    ).fillna(0.0)
+    out["DEMONSTRATIVO"] = tipo
+
+    out = out[(out["TÍTULO"] != "") & (out["TÍTULO"].str.lower() != "nan")]
+    return out[cols]
+
+
+def build_titulo_lookup(df_base: pd.DataFrame) -> dict:
+    """
+    Cria dicionário título_normalizado -> catálogo a partir da base Vitale
+    (colunas 'Título' e 'Catálogo'). Catálogos repetidos juntam com ' | '.
+    """
+    cols = {c.strip().upper(): c for c in df_base.columns}
+    tit_col = cols.get("TÍTULO") or cols.get("TITULO")
+    cat_col = cols.get("CATÁLOGO") or cols.get("CATALOGO")
+    if not tit_col or not cat_col:
+        raise ValueError(f"Base não tem colunas 'Título'/'Catálogo'. Colunas: {list(df_base.columns)}")
+
+    tmp = df_base[[tit_col, cat_col]].copy()
+    tmp["__key"] = tmp[tit_col].apply(_vitale_normalize_titulo)
+    tmp[cat_col] = tmp[cat_col].astype(str).str.strip()
+    tmp = tmp[(tmp["__key"] != "") & (tmp[cat_col] != "") & (tmp[cat_col].str.lower() != "nan")]
+
+    return (
+        tmp.groupby("__key")[cat_col]
+        .apply(lambda s: " | ".join(sorted(set(s))))
+        .to_dict()
+    )
+
+
+def get_available_periods_vitale() -> list:
+    """
+    Escaneia a estrutura Vitale (ano/trimestre) e retorna períodos disponíveis.
+    Para cada trimestre localiza os demonstrativos DEX/DPV/Terceiros, ignorando
+    cópias e arquivos-stub bloqueados pela segurança (ex.: 85 bytes).
+    Retorna: [{"ano": int, "tri": int, "label": str, "arquivos": {tipo: caminho}}, ...]
+    """
+    periods = []
+    if not os.path.exists(CAMINHO_VITALE):
+        return periods
+
+    for ano_folder in sorted(os.listdir(CAMINHO_VITALE), reverse=True):
+        ano_path = os.path.join(CAMINHO_VITALE, ano_folder)
+        if not os.path.isdir(ano_path):
+            continue
+        try:
+            ano = int(ano_folder)
+        except ValueError:
+            continue
+
+        for tri_folder in sorted(os.listdir(ano_path)):
+            tri_path = os.path.join(ano_path, tri_folder)
+            if not os.path.isdir(tri_path):
+                continue
+            m = re.match(r"^\s*(\d)\s*T", tri_folder, re.IGNORECASE)
+            if not m:
+                continue
+            tri = int(m.group(1))
+            if tri < 1 or tri > 4:
+                continue
+
+            arquivos = {}
+            for raiz, _dirs, files in os.walk(tri_path):
+                for f in sorted(files):
+                    low = f.lower()
+                    if not low.endswith(".xls"):
+                        continue
+                    if "cop" in low:  # ignora "cópia"/"copia"/"- Copia"
+                        continue
+                    full = os.path.join(raiz, f)
+                    try:
+                        if os.path.getsize(full) < 1000:  # ignora stubs (ex.: 85 bytes)
+                            continue
+                    except OSError:
+                        continue
+                    for tipo in _VITALE_DEMOS:
+                        if tipo.lower() in low and tipo not in arquivos:
+                            arquivos[tipo] = full
+
+            if arquivos:
+                periods.append({
+                    "ano": ano,
+                    "tri": tri,
+                    "label": f"{tri}T {str(ano)[2:]}",
+                    "arquivos": arquivos,
+                })
+
     return periods
 
 
@@ -390,7 +573,7 @@ st.sidebar.header("⚙️ Configurações")
 # Seleção de fonte
 fonte = st.sidebar.selectbox(
     "Selecione a fonte de dados:",
-    ["ABRAMUS", "SONY"],
+    ["ABRAMUS", "SONY", "IRMÃOS VITALE"],
     index=0
 )
 
@@ -1239,10 +1422,187 @@ elif fonte == "SONY":
 
                 else:
                     st.success("✅ Todas as músicas foram mapeadas com sucesso!")
-                
+
             else:
                 st.warning("Coluna 'RoyAmt' não encontrada no relatório.")
                 st.dataframe(df_out, use_container_width=True, height=520)
+
+            st.success("✅ Processamento concluído!")
+
+        except Exception as e:
+            st.error(f"❌ Erro ao processar: {e}")
+            import traceback
+            st.code(traceback.format_exc())
+
+# ---------------------------
+# IRMÃOS VITALE
+# ---------------------------
+elif fonte == "IRMÃOS VITALE":
+    st.header("🎼 IRMÃOS VITALE - Processamento de Relatórios")
+
+    # --- Base de catálogo ---
+    if os.path.exists(CAMINHO_BASE_VITALE):
+        base_source_vitale = CAMINHO_BASE_VITALE
+        st.success(f"✅ Base de catálogo carregada: `{CAMINHO_BASE_VITALE}`")
+    else:
+        st.warning("⚠️ Base de catálogo não encontrada no caminho padrão. Faça o upload:")
+        _uploaded_base_vi = st.file_uploader("Upload da base de catálogo Irmãos Vitale (.xlsx)", type=["xlsx"], key="base_vitale")
+        if _uploaded_base_vi is None:
+            st.info("Aguardando upload da base de catálogo.")
+            st.stop()
+        base_source_vitale = _uploaded_base_vi
+        st.success("✅ Base de catálogo carregada via upload.")
+
+    # --- Relatórios (trimestrais) ---
+    periods = get_available_periods_vitale()
+
+    if periods:
+        st.subheader("Selecione o período do relatório")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            anos_disponiveis = sorted({p["ano"] for p in periods}, reverse=True)
+            ano_selecionado = st.selectbox("Ano", anos_disponiveis)
+
+        with col2:
+            tris_do_ano = [p for p in periods if p["ano"] == ano_selecionado]
+            tri_opcoes = [f"{p['tri']}º Trimestre" for p in tris_do_ano]
+            tri_idx = st.selectbox("Trimestre", range(len(tri_opcoes)), format_func=lambda x: tri_opcoes[x])
+            periodo_sel = tris_do_ano[tri_idx]
+
+        tri_num_selecionado = periodo_sel["tri"]
+        vitale_sources = periodo_sel["arquivos"]
+        st.info("📁 Demonstrativos encontrados: " + ", ".join(sorted(vitale_sources.keys())))
+    else:
+        st.warning("⚠️ Relatórios Irmãos Vitale não encontrados na rede. Faça o upload dos demonstrativos (.XLS):")
+        _uploaded_reports_vi = st.file_uploader(
+            "Upload dos demonstrativos Vitale (DEX / DPV / Terceiros)",
+            type=["xls"], accept_multiple_files=True, key="reports_vitale"
+        )
+        if not _uploaded_reports_vi:
+            st.info("Aguardando upload dos demonstrativos.")
+            st.stop()
+        vitale_sources = {}
+        for _up in _uploaded_reports_vi:
+            _low = _up.name.lower()
+            for _tipo in _VITALE_DEMOS:
+                if _tipo.lower() in _low:
+                    vitale_sources[_tipo] = _up
+        if not vitale_sources:
+            st.error("❌ Não identifiquei DEX/DPV/Terceiros nos nomes dos arquivos enviados.")
+            st.stop()
+        st.success("✅ Demonstrativos carregados: " + ", ".join(sorted(vitale_sources.keys())))
+        ano_selecionado = 0
+        tri_num_selecionado = 0
+
+    # Botão para processar
+    if st.button("🚀 Processar Cruzamento", type="primary"):
+        try:
+            with st.spinner("Carregando base de catálogo..."):
+                df_base = read_base_xlsx(base_source_vitale)
+                titulo_lookup = build_titulo_lookup(df_base)
+            st.info(f"📚 Lookup criado: {len(titulo_lookup)} títulos mapeados na base")
+
+            partes = []
+            for _tipo, _src in vitale_sources.items():
+                with st.spinner(f"Lendo demonstrativo {_tipo}..."):
+                    partes.append(read_vitale_demonstrativo(_src, _tipo))
+            df_all = pd.concat(partes, ignore_index=True) if partes else pd.DataFrame()
+
+            if df_all.empty:
+                st.warning("Nenhum dado encontrado nos demonstrativos.")
+                st.stop()
+
+            # Cruzamento por título normalizado
+            df_all["__key"] = df_all["TÍTULO"].apply(_vitale_normalize_titulo)
+            df_all["CATÁLOGO"] = df_all["__key"].map(titulo_lookup).fillna("")
+
+            # --- Resultado agrupado por catálogo ---
+            st.subheader("Resultado Agrupado por Catálogo")
+            df_grouped = (
+                df_all.groupby("CATÁLOGO", as_index=False)["VALOR"].sum()
+                .sort_values("VALOR", ascending=False)
+                .rename(columns={"VALOR": "Valor Repassado"})
+            )
+            st.dataframe(df_grouped, use_container_width=True, height=520)
+
+            total_valor = df_grouped["Valor Repassado"].sum()
+            st.markdown(f"**Total Repassado: R$ {total_valor:,.2f}**")
+
+            csv_bytes = df_grouped.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+            st.download_button(
+                "⬇️ Baixar resultado agrupado (CSV)",
+                data=csv_bytes,
+                file_name=f"relatorio_agrupado_vitale_{ano_selecionado}_{tri_num_selecionado}T.csv",
+                mime="text/csv",
+            )
+
+            # --- Distribuição por demonstrativo ---
+            st.markdown("**Distribuição por Demonstrativo:**")
+            demo_stats = (
+                df_all.groupby("DEMONSTRATIVO")
+                .agg(Registros=("VALOR", "count"), Total=("VALOR", "sum"))
+                .round(2).sort_values("Total", ascending=False)
+            )
+            st.dataframe(demo_stats, use_container_width=True)
+
+            # --- Detalhado por obra ---
+            st.markdown("---")
+            st.subheader("📋 Download com Detalhes das Obras")
+
+            df_detalhado = (
+                df_all.groupby(["CATÁLOGO", "TÍTULO", "DEMONSTRATIVO"], as_index=False)["VALOR"].sum()
+                .sort_values(["CATÁLOGO", "VALOR"], ascending=[True, False])
+                .rename(columns={"VALOR": "Valor Repassado"})
+            )
+
+            total_obras = df_all["__key"].nunique()
+            obras_mapeadas = df_all[df_all["CATÁLOGO"] != ""]["__key"].nunique()
+            obras_nao_mapeadas = total_obras - obras_mapeadas
+
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("📊 Obras (títulos únicos)", total_obras)
+            with c2:
+                st.metric("✅ Mapeadas", obras_mapeadas)
+            with c3:
+                st.metric("❌ Não Mapeadas", obras_nao_mapeadas)
+
+            st.dataframe(df_detalhado.head(50), use_container_width=True, height=300)
+            csv_det = df_detalhado.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+            st.download_button(
+                "⬇️ Baixar relatório DETALHADO (CSV)",
+                data=csv_det,
+                file_name=f"relatorio_detalhado_vitale_{ano_selecionado}_{tri_num_selecionado}T.csv",
+                mime="text/csv", type="primary",
+            )
+
+            # --- Obras não mapeadas ---
+            st.markdown("---")
+            st.subheader("🔍 Obras Não Mapeadas")
+            df_nm = df_all[df_all["CATÁLOGO"] == ""].copy()
+            if len(df_nm) > 0:
+                df_nm_grp = (
+                    df_nm.groupby("TÍTULO", as_index=False)
+                    .agg(
+                        Valor=("VALOR", "sum"),
+                        Demonstrativos=("DEMONSTRATIVO", lambda s: " | ".join(sorted(set(s)))),
+                    )
+                    .sort_values("Valor", ascending=False)
+                    .rename(columns={"Valor": "Valor Repassado"})
+                )
+                total_nm = df_nm_grp["Valor Repassado"].sum()
+                st.warning(f"⚠️ **{len(df_nm_grp)} títulos** não mapeados | **Total: R$ {total_nm:,.2f}**")
+                st.dataframe(df_nm_grp.head(100), use_container_width=True, height=300)
+                csv_nm = df_nm_grp.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                st.download_button(
+                    "⬇️ Baixar obras não mapeadas (CSV)",
+                    data=csv_nm,
+                    file_name=f"obras_nao_mapeadas_vitale_{ano_selecionado}_{tri_num_selecionado}T.csv",
+                    mime="text/csv", type="secondary",
+                )
+            else:
+                st.success("✅ Todas as obras foram mapeadas com sucesso!")
 
             st.success("✅ Processamento concluído!")
 
