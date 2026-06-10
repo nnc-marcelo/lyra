@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import io
+import re
 from io import BytesIO
 from decimal import Decimal
 import warnings
@@ -324,9 +325,11 @@ def render_backoffice():
 # TEMPLATE: YOUTUBE (CONSOLIDAÇÃO)
 # ============================================================================
 
-# Template-alvo: layout "asset raw" (27 colunas). Os relatórios "red_label"
-# (que começam com a linha "Asset Summary" e usam "Month") são remapeados para
-# este template; colunas sem equivalente ficam vazias.
+# Template-alvo: layout "asset raw" (27 colunas). Os demais formatos que o YouTube
+# envia são remapeados para este template (detecção automática):
+#   - "red label" (assinatura): começa com a linha "Asset Summary" e usa "Month";
+#   - "ads/AdSense": não tem coluna de período nem Adjustment Type/Asset Type.
+# Colunas sem equivalente ficam vazias; campos exigidos pelo Reprtoir são preenchidos.
 YT_TARGET = [
     "Adjustment Type", "Day", "Country", "Asset ID", "Asset Title", "Asset Labels",
     "Asset Channel ID", "Asset Type", "Custom ID", "ISRC", "UPC", "GRid", "Artist",
@@ -366,17 +369,30 @@ def _yt_map_columns(src_cols):
     return mapping
 
 
-def _yt_normalize_day(v):
-    """Unifica o período em AAAAMMDD (red_label mensal AAAAMM -> dia 01)."""
+def _yt_normalize_day(v, fallback=""):
+    """Unifica o período em AAAAMMDD. AAAAMM (red label) -> dia 01;
+    vazio (ads, sem período) -> data do statement (extraída do nome do arquivo)."""
     s = str(v).strip()
+    if s == "":
+        return fallback
     if len(s) == 6 and s.isdigit():
         return s + "01"
     return s
 
 
+def _yt_stmt_date(name):
+    """Extrai a data AAAAMMDD do nome do arquivo (usada quando o relatório não traz período)."""
+    found = re.findall(r"\d{8}", name)
+    return found[-1] if found else ""
+
+
 def _yt_read_one(name, raw):
-    """Lê um relatório YouTube (.csv) e devolve o DataFrame já no template."""
-    text = raw.decode("latin-1")          # round-trip byte a byte
+    """Lê um relatório YouTube (.csv) e devolve o DataFrame já no template asset raw.
+    Aceita os formatos asset raw, red label e ads/AdSense (detecção automática)."""
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")
     lines = text.splitlines()
     hdr_i = None
     for i, l in enumerate(lines):
@@ -395,9 +411,35 @@ def _yt_read_one(name, raw):
         {t: (df[src] if src is not None else "") for t, src in mapping.items()},
         columns=YT_TARGET,
     )
-    out["Day"] = out["Day"].map(_yt_normalize_day)
-    layout = "red_label" if "Month" in df.columns else "asset_raw"
-    return out, f"✅ {len(out):,} linhas (layout {layout})"
+    fb = _yt_stmt_date(name)
+    out["Day"] = out["Day"].map(lambda v: _yt_normalize_day(v, fb))
+
+    if "Month" in df.columns:
+        layout = "red label (assinatura)"
+    elif "Day" in df.columns:
+        layout = "asset raw (por canal)"
+    else:
+        layout = "ads/AdSense (período = data do arquivo)"
+    return out, f"✅ {len(out):,} linhas · {layout}"
+
+
+def _yt_fill_required(df):
+    """Preenche campos que o Reprtoir exige não-vazios (senão o parser quebra):
+    - Adjustment Type vazio -> 'None';
+    - Asset Type vazio -> busca por Asset ID nos demais relatórios, senão 'Sound Recording'.
+    (As linhas do formato ads não trazem essas colunas.)"""
+    aid = df["Asset ID"].astype(str).str.strip()
+    at = df["Asset Type"].astype(str).str.strip()
+    have = at != ""
+    lookup = dict(zip(aid[have], at[have]))
+    empty_at = ~have
+    if empty_at.any():
+        df.loc[empty_at, "Asset Type"] = (
+            aid[empty_at].map(lookup).fillna("Sound Recording").values
+        )
+    adj = df["Adjustment Type"].astype(str).str.strip()
+    df.loc[adj == "", "Adjustment Type"] = "None"
+    return df
 
 
 @st.cache_data(show_spinner=False)
@@ -414,7 +456,8 @@ def _yt_consolidate(files):
             frames.append(df)
     if not frames:
         return None, infos
-    return pd.concat(frames, ignore_index=True), infos
+    consolidated = _yt_fill_required(pd.concat(frames, ignore_index=True))
+    return consolidated, infos
 
 
 def _yt_total(df):
@@ -442,11 +485,12 @@ def _yt_debit_us(df):
 
 
 def _yt_to_csv_bytes(df):
-    return df.to_csv(index=False, lineterminator="\n").encode("latin-1", errors="replace")
+    """CSV no padrão aceito pelo Reprtoir: UTF-8, aspas mínimas (RFC 4180)."""
+    return df.to_csv(index=False, lineterminator="\n").encode("utf-8")
 
 
 def render_youtube():
-    st.caption("Consolida os 4 relatórios do YouTube no template asset raw e calcula o débito de 30% (US).")
+    st.caption("Consolida os relatórios do YouTube (vários formatos) no template asset raw e calcula o débito de 30% (US).")
 
     uploaded_files = st.file_uploader(
         "Faça o upload dos relatórios do YouTube (.csv)",
@@ -457,8 +501,10 @@ def render_youtube():
 
     if not uploaded_files:
         st.info(
-            "📤 Aguardando upload dos 4 relatórios YouTube "
-            "(asset_raw, ADJ_asset_raw, red_label_rawdata e adjustment_red_label_rawdata)."
+            "📤 Suba os relatórios do YouTube (.csv). Aceita os diferentes formatos que o YouTube "
+            "envia — **asset raw** (por canal), **red label** (assinatura, com a linha 'Asset Summary') "
+            "e **ads/AdSense** (sem coluna de período). São detectados automaticamente, unificados no "
+            "template asset raw (período `AAAAMMDD`) e os campos exigidos pelo Reprtoir são preenchidos."
         )
         return
 
