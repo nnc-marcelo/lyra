@@ -1,0 +1,8 @@
+# Tema da marca Nas Nuvens (lyra)
+[theme]
+base = "light"
+primaryColor = "#003fbc"               # azul da marca — botões, links, sliders, foco
+backgroundColor = "#ffffff"            # branco no conteúdo (tabelas legíveis)
+secondaryBackgroundColor = "#fff7e9"   # off-white da marca — sidebar, cards, expanders
+textColor = "#13213f"                  # navy escuro (mais quente que preto puro)
+font = "sans serif"

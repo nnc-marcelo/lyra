@@ -2,7 +2,7 @@
 # Home 🏠
 ---
 
-Bem-vindo ao Nas Nuvens App! Selecione uma página à esquerda para começar.
+Central de royalties e catálogo — Nas Nuvens App (lyra).
 """
 
 import streamlit as st
@@ -13,8 +13,14 @@ import streamlit as st
 
 st.set_page_config(page_title="Nas Nuvens App", page_icon="assets/lyra_favicon.png")
 
+st.logo("assets/lyra_lockup_horizontal.png", icon_image="assets/lyra_favicon.png")
+
 st.image("assets/lyra_lockup_horizontal.png", width=380)
 
-st.write("Bem-vindo ao Nas Nuvens App! Selecione uma página à esquerda para começar.")
+st.header("Central de royalties e catálogo")
+st.caption(
+    "Processe relatórios das distribuidoras, calcule taxas e descontos, "
+    "e cruze tudo com o catálogo Nas Nuvens."
+)
 
 # Deixar espaço para novas funcionalidades futuras
