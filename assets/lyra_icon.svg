@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="lyra selo">
+  <title>lyra — selo</title>
+  <circle cx="120" cy="120" r="108" fill="none" stroke="#003fbc" stroke-width="8"/>
+  <circle cx="120" cy="120" r="92" fill="none" stroke="#003fbc" stroke-width="3"/>
+  <g transform="translate(120,44.8) scale(1.6)" fill="none" stroke="#003fbc" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -30 8 C -24 10 -22 16 -26 20 C -34 28 -37 42 -34 56 C -30 74 -16 86 0 86 C 16 86 30 74 34 56 C 37 42 34 28 26 20 C 22 16 24 10 30 8" stroke-width="6"/>
+    <line x1="-26" y1="22" x2="26" y2="22" stroke-width="6"/>
+    <line x1="-12" y1="24" x2="-12" y2="72" stroke-width="2.6"/>
+    <line x1="0" y1="24" x2="0" y2="72" stroke-width="2.6"/>
+    <line x1="12" y1="24" x2="12" y2="72" stroke-width="2.6"/>
+  </g>
+</svg>

@@ -11,11 +11,9 @@ import streamlit as st
 # Nas Nuvens App
 #----------------------------------
 
-st.set_page_config(page_title="Nas Nuvens App", page_icon="NasNuvens_Logotipo_N.png")
+st.set_page_config(page_title="Nas Nuvens App", page_icon="assets/lyra_favicon.png")
 
-st.image("NasNuvens_Logotipo_N.png")
-
-st.title("Nas Nuvens App")
+st.image("assets/lyra_lockup_horizontal.png", width=380)
 
 st.write("Bem-vindo ao Nas Nuvens App! Selecione uma página à esquerda para começar.")
 

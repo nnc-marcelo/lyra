@@ -1,0 +1,9 @@
+# Claude Code local files
+.claude/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# OneDrive temp files
+*~RF*.TMP

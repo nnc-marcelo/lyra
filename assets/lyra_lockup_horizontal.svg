@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 140" role="img" aria-label="lyra — nas nuvens app">
+  <title>lyra — lockup horizontal</title>
+  <circle cx="75" cy="70" r="46" fill="none" stroke="#003fbc" stroke-width="4"/>
+  <circle cx="75" cy="70" r="39" fill="none" stroke="#003fbc" stroke-width="1.5"/>
+  <g transform="translate(75,40.86) scale(0.62)" fill="none" stroke="#003fbc" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -30 8 C -24 10 -22 16 -26 20 C -34 28 -37 42 -34 56 C -30 74 -16 86 0 86 C 16 86 30 74 34 56 C 37 42 34 28 26 20 C 22 16 24 10 30 8" stroke-width="6"/>
+    <line x1="-26" y1="22" x2="26" y2="22" stroke-width="6"/>
+    <line x1="-12" y1="24" x2="-12" y2="72" stroke-width="2.6"/>
+    <line x1="0" y1="24" x2="0" y2="72" stroke-width="2.6"/>
+    <line x1="12" y1="24" x2="12" y2="72" stroke-width="2.6"/>
+  </g>
+  <line x1="140" y1="36" x2="140" y2="104" stroke="#9ecbf4" stroke-width="1.5"/>
+  <text x="168" y="83" fill="#003fbc" font-family="'Elza Text', Arial, sans-serif" font-size="48" font-weight="500" letter-spacing="-1.5">lyra</text>
+  <text x="171" y="105" fill="#d3744f" font-family="'Elza Text', Arial, sans-serif" font-size="13" letter-spacing="1.5">nas nuvens app</text>
+</svg>
