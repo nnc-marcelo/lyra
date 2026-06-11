@@ -13,7 +13,7 @@ pd.set_option('display.max_colwidth', None)
 st.title("Processamento de Relatórios")
 st.caption("Transforma relatórios e prepara-os para o Reprtoir.")
 
-template = st.selectbox("STATEMENT TEMPLATE:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)"])
+template = st.selectbox("STATEMENT TEMPLATE:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell"])
 
 # ============================================================================
 # TEMPLATE: NIKITA DIGITAL
@@ -573,6 +573,92 @@ def render_youtube():
 
 
 # ============================================================================
+# TEMPLATE: WARNER CHAPPELL
+# ============================================================================
+
+# Ajuste do campo `royalty_period`: os statements trazem o trimestre como
+# AAAAMM+AAAAMM (ex.: 202601202603 = 1T/2026). Tratamos o trimestre pelo
+# ÚLTIMO mês, então mantemos apenas os 6 últimos dígitos (-> 202603).
+#
+# IMPORTANTE: o arquivo é processado como TEXTO CRU (round-trip latin-1),
+# alterando somente o primeiro campo de cada linha. Os valores decimais de
+# alta precisão (ex.: 0.00094950021848810393...) e tudo mais são preservados
+# byte a byte — pandas reparsearia esses números e perderia precisão.
+
+
+def _wc_fix_periods(raw):
+    """Recebe os bytes do CSV e devolve (bytes_processados, mapeamentos, n_avisos).
+    `mapeamentos`: dict {(periodo_original, periodo_novo): contagem}."""
+    text = raw.decode("latin-1")
+    lines = text.split("\n")            # LF -> split/join é lossless
+    out = [lines[0]]                    # cabeçalho inalterado
+    changes, issues = {}, 0
+    for line in lines[1:]:
+        if line.strip() == "":
+            out.append(line)           # preserva eventuais linhas em branco
+            continue
+        comma = line.find(",")
+        period = line[:comma] if comma != -1 else ""
+        if comma != -1 and period.isdigit() and len(period) >= 6:
+            new = period[-6:]          # mantém apenas o último mês do trimestre
+            out.append(new + line[comma:])
+            changes[(period, new)] = changes.get((period, new), 0) + 1
+        else:
+            out.append(line)           # campo inicial inesperado -> mantém intacto
+            issues += 1
+    return "\n".join(out).encode("latin-1"), changes, issues
+
+
+def render_warner():
+    st.caption(
+        "Ajusta a coluna `royalty_period` do statement da Warner Chappell: mantém apenas o "
+        "último mês do trimestre (ex.: `202601202603` → `202603`). Só a data muda — os valores "
+        "decimais são preservados exatamente."
+    )
+
+    uploaded = st.file_uploader("Upload do statement (.csv)", type=["csv"], key="wc_file")
+    if not uploaded:
+        st.info("📤 Suba o statement da Warner Chappell (.csv).")
+        return
+
+    raw = uploaded.getvalue()
+    processed, changes, issues = _wc_fix_periods(raw)
+
+    total_alteradas = sum(changes.values())
+    st.success(f"✅ {total_alteradas:,} linha(s) ajustada(s).")
+
+    if changes:
+        df_map = pd.DataFrame(
+            [{"royalty_period (original)": o, "royalty_period (novo)": n, "Linhas": c}
+             for (o, n), c in sorted(changes.items())]
+        )
+        st.dataframe(df_map, use_container_width=True, hide_index=True)
+
+    if issues:
+        st.warning(
+            f"⚠️ {issues} linha(s) não reconhecida(s) (campo inicial não numérico) — "
+            "mantidas como estavam."
+        )
+
+    with st.expander("👁️ Visualizar (100 primeiras linhas)", expanded=False):
+        preview = pd.read_csv(
+            io.BytesIO(processed), dtype=str, keep_default_na=False,
+            encoding="latin-1", nrows=100,
+        )
+        st.dataframe(preview, use_container_width=True)
+
+    base = uploaded.name.rsplit(".", 1)[0]
+    st.download_button(
+        label="📥 Baixar statement processado",
+        data=processed,
+        file_name=f"{base}_processado.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key="wc_dl",
+    )
+
+
+# ============================================================================
 # ROTEAMENTO POR TEMPLATE
 # ============================================================================
 
@@ -584,3 +670,5 @@ elif template == "Backoffice":
     render_backoffice()
 elif template == "YouTube (Consolidação)":
     render_youtube()
+elif template == "Warner Chappell":
+    render_warner()
