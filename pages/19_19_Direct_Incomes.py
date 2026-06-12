@@ -53,6 +53,30 @@ def rule_label(r):
     return "  |  ".join(p for p in partes if p)
 
 
+def rules_to_dataframe(regras):
+    """Achata as regras em uma linha por receita, para a visão de lista."""
+    rows = []
+    for r in regras:
+        for inc in r.get("incomes", []):
+            org = float(inc.get("org_pct") or 0)
+            rights = float(inc.get("rights_pct") or 0)
+            rows.append({
+                "Fonte": r.get("fonte", ""),
+                "Catálogo": r.get("catalogo", ""),
+                "Histórico": r.get("historico") or "",
+                "Money In": r.get("money_in") or "",
+                "Receita": inc.get("descricao", ""),
+                "Money Out": inc.get("money_out", ""),
+                "Org %": org,
+                "Rights %": rights,
+                "Total %": round(org + rights, 2),
+            })
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values(["Fonte", "Catálogo", "Histórico"], kind="stable").reset_index(drop=True)
+    return df
+
+
 # Estado: carrega as regras uma vez por sessão
 if "di_rules" not in st.session_state:
     st.session_state.di_rules = load_rules()
@@ -199,7 +223,7 @@ if periodo != data.get("periodo", ""):
 
 st.caption(f"📚 {len(data.get('regras', []))} regras carregadas de `data/direct_incomes/regras.json`")
 
-tab_calc, tab_rules = st.tabs(["🧮 Calcular", "⚙️ Regras"])
+tab_calc, tab_lista, tab_rules = st.tabs(["🧮 Calcular", "📋 Lista de regras", "⚙️ Editar regras"])
 
 
 # ===========================================================================
@@ -281,6 +305,73 @@ with tab_calc:
             st.markdown("##### ⚠️ Transações ignoradas (sem regra)")
             st.dataframe(df_ign, use_container_width=True)
             st.caption(f"💰 Total ignorado: R$ {df_ign['Valor'].sum():,.2f}")
+
+
+# ===========================================================================
+# ABA: LISTA DE REGRAS (visão geral, somente leitura)
+# ===========================================================================
+with tab_lista:
+    st.markdown("##### Todas as regras")
+    st.caption("Agrupadas por fonte e catálogo, com os percentuais de cada receita.")
+
+    regras_all = data.get("regras", [])
+    df_rules = rules_to_dataframe(regras_all)
+
+    if df_rules.empty:
+        st.info("Nenhuma regra cadastrada ainda. Crie a primeira na aba **Editar regras**.")
+    else:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Regras", len(regras_all))
+        c2.metric("Fontes", df_rules["Fonte"].nunique())
+        c3.metric("Linhas de receita", len(df_rules))
+
+        # Alerta: regras cujas fatias (Org % + Rights %) não somam ~100%
+        fora = []
+        for r in regras_all:
+            soma = sum(float(i.get("org_pct") or 0) + float(i.get("rights_pct") or 0) for i in r.get("incomes", []))
+            if abs(soma - 100) > 0.05:
+                fora.append({
+                    "Catálogo": r.get("catalogo", ""),
+                    "Fonte": r.get("fonte", ""),
+                    "Histórico": r.get("historico") or "-",
+                    "Soma %": round(soma, 2),
+                })
+        if fora:
+            with st.expander(f"⚠️ {len(fora)} regra(s) cujas fatias não somam 100%"):
+                st.dataframe(pd.DataFrame(fora), use_container_width=True, hide_index=True)
+
+        # Filtro por fonte
+        fontes = sorted(df_rules["Fonte"].unique())
+        sel_fontes = st.multiselect("Filtrar por fonte", fontes, placeholder="Todas as fontes")
+        view = df_rules if not sel_fontes else df_rules[df_rules["Fonte"].isin(sel_fontes)]
+
+        pct_cfg = {
+            "Org %": st.column_config.NumberColumn("Org %", format="%.2f%%"),
+            "Rights %": st.column_config.NumberColumn("Rights %", format="%.2f%%"),
+            "Total %": st.column_config.NumberColumn("Total %", format="%.2f%%"),
+        }
+
+        # Agrupado por fonte -> (catálogo / histórico)
+        for fonte, g in view.groupby("Fonte"):
+            n_regras = g[["Catálogo", "Histórico"]].drop_duplicates().shape[0]
+            with st.expander(f"🎵 {fonte}  ·  {n_regras} regra(s)"):
+                st.dataframe(
+                    g.drop(columns=["Fonte"]).reset_index(drop=True),
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=pct_cfg,
+                )
+
+        st.divider()
+        with st.expander("📄 Ver tabela completa (plana)"):
+            st.dataframe(view, use_container_width=True, hide_index=True, column_config=pct_cfg)
+
+        st.download_button(
+            "📥 Baixar lista de regras (CSV)",
+            data=view.to_csv(index=False).encode("utf-8-sig"),
+            file_name="direct_incomes_regras.csv",
+            mime="text/csv",
+        )
 
 
 # ===========================================================================
