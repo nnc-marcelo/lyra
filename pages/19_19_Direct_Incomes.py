@@ -132,6 +132,15 @@ def processar(df_input, data):
     df = df_input.copy()
     if COL_HISTORICO not in df.columns:
         df[COL_HISTORICO] = pd.NA
+
+    # Remove rodapés/linhas de junk do export do Power BI
+    # (linha "Total", "Filtros aplicados:", linhas em branco — ficam sem Catálogo/Fonte)
+    df = df[df[COL_CATALOGO].notna() & df[COL_FONTE].notna()].copy()
+
+    # Normaliza chaves (espaços acidentais), datas e valores
+    df[COL_CATALOGO] = df[COL_CATALOGO].astype(str).str.strip()
+    df[COL_FONTE] = df[COL_FONTE].astype(str).str.strip()
+    df[COL_DATA] = pd.to_datetime(df[COL_DATA], errors="coerce")
     df[COL_VALOR] = coerce_money(df[COL_VALOR])
 
     def group_key(row):
@@ -232,18 +241,25 @@ tab_calc, tab_lista, tab_rules = st.tabs(["🧮 Calcular", "📋 Lista de regras
 with tab_calc:
     st.markdown("##### Processar extrato do Power BI")
     st.caption(
-        f"O CSV deve conter as colunas: `{COL_DATA}`, `{COL_CATALOGO}`, "
-        f"`{COL_FONTE}`, `{COL_HISTORICO}` (opcional) e `{COL_VALOR}`."
+        f"O arquivo deve conter as colunas: `{COL_DATA}`, `{COL_CATALOGO}`, "
+        f"`{COL_FONTE}`, `{COL_HISTORICO}` (opcional) e `{COL_VALOR}`. "
+        "Linhas de rodapé do Power BI (Total, Filtros aplicados, em branco) são ignoradas automaticamente."
     )
 
-    uploaded = st.file_uploader("Faça o upload do CSV exportado do Power BI", type=["csv"])
+    uploaded = st.file_uploader(
+        "Faça o upload do extrato do Power BI (.csv, .xlsx ou .xls)",
+        type=["csv", "xlsx", "xls"],
+    )
 
     if uploaded is not None:
         try:
             uploaded.seek(0)
-            df_input = pd.read_csv(uploaded, sep=None, engine="python")
+            if uploaded.name.lower().endswith(".csv"):
+                df_input = pd.read_csv(uploaded, sep=None, engine="python")
+            else:
+                df_input = pd.read_excel(uploaded)
         except Exception as e:
-            st.error(f"Não consegui ler o CSV: {e}")
+            st.error(f"Não consegui ler o arquivo: {e}")
             df_input = None
 
         if df_input is not None:
