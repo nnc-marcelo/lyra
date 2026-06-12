@@ -1,0 +1,831 @@
+{
+  "periodo": "2025Q4",
+  "regras": [
+    {
+      "catalogo": "BETO CORREA",
+      "fonte": "SOCINPRO",
+      "historico": null,
+      "money_in": "SOCINPRO",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - BETO CORREA - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (BETO CORREA) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - BETO CORREA - RECUPERAVEL (20%)",
+          "money_out": "BETO CORREA (BETO CORREA) (BC PRODUCAO) (WS - 20%)",
+          "org_pct": 10,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "BETO CORREA",
+      "fonte": "UNIVERSAL MUSIC PUBLISHING",
+      "historico": null,
+      "money_in": "UNIVERSAL MUSIC PUBLISHING",
+      "incomes": [
+        {
+          "descricao": "UMPG - BETO CORREA - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (BETO CORREA) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "UMPG - BETO CORREA - RECUPERAVEL (20%)",
+          "money_out": "BETO CORREA (BETO CORREA) (BC PRODUCAO) (WS - 20%)",
+          "org_pct": 10,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "BETO CORREA",
+      "fonte": "NOSSA MUSICA",
+      "historico": null,
+      "money_in": "NOSSA MUSICA",
+      "incomes": [
+        {
+          "descricao": "NOSSA MUSICA - BETO CORREA - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (BETO CORREA) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "NOSSA MUSICA - BETO CORREA - RECUPERAVEL (20%)",
+          "money_out": "BETO CORREA (BETO CORREA) (BC PRODUCAO) (WS - 20%)",
+          "org_pct": 10,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "TICO SANTA CRUZ",
+      "fonte": "UBC",
+      "historico": null,
+      "money_in": "UBC",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - TICO SANTA CRUZ / OUTRO LUGAR - NN AQUISICAO (77,5%)",
+          "money_out": "NAS NUVENS (TICO SANTA CRUZ) (PS - 77,5%)",
+          "org_pct": 0,
+          "rights_pct": 77.5
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - TICO SANTA CRUZ / OUTRO LUGAR - RECUPERAVEL (22,5%)",
+          "money_out": "TICO SANTA CRUZ (TICO SANTA CRUZ) (OUTRO LUGAR) (PS - 22,5%)",
+          "org_pct": 10,
+          "rights_pct": 12.5
+        }
+      ]
+    },
+    {
+      "catalogo": "TICO SANTA CRUZ",
+      "fonte": "WARNER CHAPPELL",
+      "historico": null,
+      "money_in": "WARNER CHAPPELL",
+      "incomes": [
+        {
+          "descricao": "WARNER CHAPPELL - TICO SANTA CRUZ / OUTRO LUGAR - NN AQUISICAO (77,5%)",
+          "money_out": "NAS NUVENS (TICO SANTA CRUZ) (PS - 77,5%)",
+          "org_pct": 0,
+          "rights_pct": 77.5
+        },
+        {
+          "descricao": "WARNER CHAPPELL - TICO SANTA CRUZ / OUTRO LUGAR - RECUPERAVEL (22,5%)",
+          "money_out": "TICO SANTA CRUZ (TICO SANTA CRUZ) (OUTRO LUGAR) (PS - 22,5%)",
+          "org_pct": 10,
+          "rights_pct": 12.5
+        }
+      ]
+    },
+    {
+      "catalogo": "ACCIOLY",
+      "fonte": "UBC",
+      "historico": "REPASSE - Lalu",
+      "money_in": "UBC",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - ACCIOLY EDITORA - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (ACCIOLY / LALU) (PS - 12,5%)",
+          "org_pct": 0,
+          "rights_pct": 50
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - ACCIOLY EDITORA - REPASSE (50%)",
+          "money_out": "ACCIOLY EDITORA (ACCIOLY) (PS - 12,5%)",
+          "org_pct": 30,
+          "rights_pct": 20
+        }
+      ]
+    },
+    {
+      "catalogo": "ACCIOLY",
+      "fonte": "UBC",
+      "historico": "ADMINISTRACAO LALU EDICOES",
+      "money_in": "UBC",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - ACCIOLY EDITORA - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (ACCIOLY / LALU) (PS - 12,5%)",
+          "org_pct": 0,
+          "rights_pct": 50
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - ACCIOLY EDITORA - REPASSE (50%)",
+          "money_out": "ACCIOLY EDITORA (ACCIOLY) (PS - 12,5%)",
+          "org_pct": 30,
+          "rights_pct": 20
+        }
+      ]
+    },
+    {
+      "catalogo": "ACCIOLY",
+      "fonte": "POLY SOM COMERCIO E INDUSTRIA",
+      "historico": null,
+      "money_in": "SOMAX",
+      "incomes": [
+        {
+          "descricao": "POLYSOM - ACCIOLY EDITORA - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (ACCIOLY NETO) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 50
+        },
+        {
+          "descricao": "POLYSOM - ACCIOLY EDITORA - REPASSE (50%)",
+          "money_out": "ACCIOLY NETO (ACCIOLY EDITORA) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 50
+        }
+      ]
+    },
+    {
+      "catalogo": "CARLINHOS BROWN",
+      "fonte": "ADA",
+      "historico": null,
+      "money_in": "ADA",
+      "incomes": [
+        {
+          "descricao": "ADA - CARLINHOS BROWN / CANDYALL - NN AQUISICAO (75%)",
+          "money_out": "NAS NUVENS (CARLINHOS BROWN / CANDYALL) (LS - 75%)",
+          "org_pct": 0,
+          "rights_pct": 75
+        },
+        {
+          "descricao": "ADA - CARLINHOS BROWN / CANDYALL - RECUPERAVEL (25%)",
+          "money_out": "CANDYALL (CARLINHOS BROWN) (LS - 25%)",
+          "org_pct": 15,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "CARLINHOS BROWN",
+      "fonte": "UBC",
+      "historico": null,
+      "money_in": "UBC",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - CARLINHOS BROWN / CANDYALL - NN AQUISICAO (75%)",
+          "money_out": "NAS NUVENS (CARLINHOS BROWN / CANDYALL) (PS - 75%)",
+          "org_pct": 0,
+          "rights_pct": 75
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - CARLINHOS BROWN / CANDYALL - RECUPERAVEL (25%)",
+          "money_out": "CANDYALL (CARLINHOS BROWN) (PS - 25%)",
+          "org_pct": 15,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "CARLINHOS BROWN",
+      "fonte": "MEDIA IP RIGHTS",
+      "historico": null,
+      "money_in": "MEDIA IP RIGHTS",
+      "incomes": [
+        {
+          "descricao": "CONEXOS INTERNACIONAIS - CARLINHOS BROWN / CANDYALL - NN AQUISICAO (75%)",
+          "money_out": "NAS NUVENS (CARLINHOS BROWN / CANDYALL) (LS - 75%)",
+          "org_pct": 0,
+          "rights_pct": 75
+        },
+        {
+          "descricao": "CONEXOS INTERNACIONAIS - CARLINHOS BROWN / CANDYALL - RECUPERAVEL (25%)",
+          "money_out": "CANDYALL (CARLINHOS BROWN) (LS - 25%)",
+          "org_pct": 15,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "CARLINHOS BROWN",
+      "fonte": "MONTE CRIACAO",
+      "historico": null,
+      "money_in": "MONTE CRIACAO",
+      "incomes": [
+        {
+          "descricao": "MONTE CRIACAO - CARLINHOS BROWN / CANDYALL - NN AQUISICAO (75%)",
+          "money_out": "NAS NUVENS (CARLINHOS BROWN / CANDYALL) (LS - 75%)",
+          "org_pct": 0,
+          "rights_pct": 75
+        },
+        {
+          "descricao": "MONTE CRIACAO - CARLINHOS BROWN / CANDYALL - RECUPERAVEL (25%)",
+          "money_out": "CANDYALL (CARLINHOS BROWN) (LS - 25%)",
+          "org_pct": 15,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "CARLINHOS BROWN",
+      "fonte": "SACEM",
+      "historico": null,
+      "money_in": "SACEM",
+      "incomes": [
+        {
+          "descricao": "SACEM - CARLINHOS BROWN / CANDYALL - NN AQUISICAO (75%)",
+          "money_out": "NAS NUVENS (CARLINHOS BROWN / CANDYALL) (LS - 75%)",
+          "org_pct": 0,
+          "rights_pct": 75
+        },
+        {
+          "descricao": "SACEM - CARLINHOS BROWN / CANDYALL - RECUPERAVEL (25%)",
+          "money_out": "CANDYALL (CARLINHOS BROWN) (LS - 25%)",
+          "org_pct": 15,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "CARLINHOS BROWN",
+      "fonte": "UNIVERSAL MUSIC",
+      "historico": null,
+      "money_in": "UNIVERSAL MUSIC",
+      "incomes": [
+        {
+          "descricao": "UNIVERSAL MUSIC - CARLINHOS BROWN / CANDYALL - NN AQUISICAO (75%)",
+          "money_out": "NAS NUVENS (CARLINHOS BROWN / CANDYALL) (LS - 75%)",
+          "org_pct": 0,
+          "rights_pct": 75
+        },
+        {
+          "descricao": "UNIVERSAL MUSIC - CARLINHOS BROWN / CANDYALL - RECUPERAVEL (25%)",
+          "money_out": "CANDYALL (CARLINHOS BROWN) (LS - 25%)",
+          "org_pct": 15,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "LAZAO",
+      "fonte": "ABRAMUS",
+      "historico": "TRANSFERIDO DE POP MUNDI PRODUCOES ARTISTICAS LTDA",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - POP MUNDI - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (PS) - LAZAO (12,5%)",
+          "org_pct": 0,
+          "rights_pct": 100
+        }
+      ]
+    },
+    {
+      "catalogo": "LAZAO",
+      "fonte": "ABRAMUS",
+      "historico": "VENDA CATALOGO - CESSAO - POP MUNDI PRODUCOES ARTISTICAS LTDA",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - POP MUNDI - RECUPERAVEL (50%)",
+          "money_out": "POP MUNDI - LAZAO (12,5%)",
+          "org_pct": 60,
+          "rights_pct": 40
+        }
+      ]
+    },
+    {
+      "catalogo": "CELSO FONSECA",
+      "fonte": "UBC",
+      "historico": "ADMINISTRACAO CELSO JOSE DA FONSECA",
+      "money_in": "UBC",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - CELSO FONSECA - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (CELSO FONSECA) (PS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - CELSO FONSECA - RECUPERAVEL (20%)",
+          "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
+          "org_pct": 5,
+          "rights_pct": 15
+        }
+      ]
+    },
+    {
+      "catalogo": "CELSO FONSECA",
+      "fonte": "UBC",
+      "historico": null,
+      "money_in": "UBC",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - CELSO FONSECA + POLAROIDES - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (CELSO FONSECA) (PS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - CELSO FONSECA + POLAROIDES - RECUPERAVEL (20%)",
+          "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
+          "org_pct": 5,
+          "rights_pct": 15
+        }
+      ]
+    },
+    {
+      "catalogo": "CELSO FONSECA",
+      "fonte": "UBC",
+      "historico": "REPASSE CELSO FONSECA",
+      "money_in": "UBC",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - POLAROIDES (PF) - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (CELSO FONSECA) (PS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - POLAROIDES (PF) - RECUPERAVEL (20%)",
+          "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
+          "org_pct": 5,
+          "rights_pct": 15
+        }
+      ]
+    },
+    {
+      "catalogo": "CELSO FONSECA",
+      "fonte": "COSTA & VALLE",
+      "historico": null,
+      "money_in": "COSTA & VALLE",
+      "incomes": [
+        {
+          "descricao": "CONEXOS INTERNACIONAIS - CELSO FONSECA / POLAROIDES - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (CELSO FONSECA) (PS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "CONEXOS INTERNACIONAIS - CELSO FONSECA / POLAROIDES - RECUPERAVEL (20%)",
+          "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
+          "org_pct": 5,
+          "rights_pct": 15
+        }
+      ]
+    },
+    {
+      "catalogo": "CELSO FONSECA",
+      "fonte": "DUBAS",
+      "historico": null,
+      "money_in": "DUBAS",
+      "incomes": [
+        {
+          "descricao": "DUBAS - CELSO FONSECA / POLAROIDES - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (CELSO FONSECA) (PS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "DUBAS - CELSO FONSECA / POLAROIDES - RECUPERAVEL (20%)",
+          "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
+          "org_pct": 5,
+          "rights_pct": 15
+        }
+      ]
+    },
+    {
+      "catalogo": "CELSO FONSECA",
+      "fonte": "WARNER CHAPPELL",
+      "historico": null,
+      "money_in": "WARNER CHAPPELL",
+      "incomes": [
+        {
+          "descricao": "WARNER CHAPPELL - CELSO FONSECA - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (CELSO FONSECA) (PS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "WARNER CHAPPELL - CELSO FONSECA - RECUPERAVEL (20%)",
+          "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
+          "org_pct": 5,
+          "rights_pct": 15
+        }
+      ]
+    },
+    {
+      "catalogo": "CELSO FONSECA",
+      "fonte": "SACEM",
+      "historico": null,
+      "money_in": "SACEM",
+      "incomes": [
+        {
+          "descricao": "SACEM - CELSO FONSECA - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (CELSO FONSECA) (PS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "SACEM - CELSO FONSECA - RECUPERAVEL (20%)",
+          "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
+          "org_pct": 5,
+          "rights_pct": 15
+        }
+      ]
+    },
+    {
+      "catalogo": "BETO JAMAICA",
+      "fonte": "ABRAMUS",
+      "historico": null,
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - BETO JAMAICA - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (BETO JAMAICA) (WS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 66.67
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - BETO JAMAICA - RECUPERAVEL (25%)",
+          "money_out": "BETO JAMAICA (BETO JAMAICA / RECOUP) (WS - 25%)",
+          "org_pct": 6.66,
+          "rights_pct": 26.67
+        }
+      ]
+    },
+    {
+      "catalogo": "BETO JAMAICA",
+      "fonte": "WARNER CHAPPELL",
+      "historico": null,
+      "money_in": "WARNER CHAPPELL",
+      "incomes": [
+        {
+          "descricao": "WARNER CHAPPELL - BETO JAMAICA - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (BETO JAMAICA) (WS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 66.67
+        },
+        {
+          "descricao": "WARNER CHAPPELL - BETO JAMAICA - RECUPERAVEL (25%)",
+          "money_out": "BETO JAMAICA (BETO JAMAICA / RECOUP) (WS - 25%)",
+          "org_pct": 6.66,
+          "rights_pct": 26.67
+        }
+      ]
+    },
+    {
+      "catalogo": "VINICIUS JUNQUEIRA",
+      "fonte": "ABRAMUS",
+      "historico": null,
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - VINICIUS JUNQUEIRA - NN AQUISICAO (30%)",
+          "money_out": "NAS NUVENS (VINICIUS JUNQUEIRA) (WS - 30%)",
+          "org_pct": 0,
+          "rights_pct": 60
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - VINICIUS JUNQUEIRA - RECUPERAVEL (20%)",
+          "money_out": "VINICIUS JUNQUEIRA (VINICIUS JUNQUEIRA / RECOUP) (WS - 20%)",
+          "org_pct": 0,
+          "rights_pct": 40
+        }
+      ]
+    },
+    {
+      "catalogo": "LUIZA POSSI",
+      "fonte": "ABRAMUS",
+      "historico": "VENDA CATALOGO - CESSAO - LUIZA POSSI GADELHA",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - LUIZA POSSI - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (LUIZA POSSI) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 100
+        }
+      ]
+    },
+    {
+      "catalogo": "LUIZA POSSI",
+      "fonte": "ABRAMUS",
+      "historico": "VENDA CATALOGO - CESSAO - HELENA PRODUCOES ARTISTICAS LTDA ME",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - LUIZA POSSI (HELENA) - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (LUIZA POSSI) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 100
+        }
+      ]
+    },
+    {
+      "catalogo": "LUIZA POSSI",
+      "fonte": "ABRAMUS",
+      "historico": "TRANSFERIDO DE LUIZA POSSI GADELHA",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - LUIZA POSSI - RECUPERAVEL (20%)",
+          "money_out": "LUIZA POSSI (LUIZA POSSI) (HELENA PRODUCOES) (WS - 20%)",
+          "org_pct": 50,
+          "rights_pct": 50
+        }
+      ]
+    },
+    {
+      "catalogo": "LUIZA POSSI",
+      "fonte": "ABRAMUS",
+      "historico": "TRANSFERIDO DE HELENA",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - LUIZA POSSI (HELENA) - RECUPERAVEL (20%)",
+          "money_out": "LUIZA POSSI (LUIZA POSSI) (HELENA PRODUCOES) (WS - 20%)",
+          "org_pct": 50,
+          "rights_pct": 50
+        }
+      ]
+    },
+    {
+      "catalogo": "LUIZA POSSI",
+      "fonte": "WARNER CHAPPELL",
+      "historico": null,
+      "money_in": "WARNER CHAPPELL",
+      "incomes": [
+        {
+          "descricao": "WARNER CHAPPELL - LUIZA POSSI - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (LUIZA POSSI) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "WARNER CHAPPELL - LUIZA POSSI - RECUPERAVEL (20%)",
+          "money_out": "LUIZA POSSI (LUIZA POSSI) (HELENA PRODUCOES) (WS - 20%)",
+          "org_pct": 10,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "LUIZA POSSI",
+      "fonte": "INDIE RECORDS",
+      "historico": null,
+      "money_in": "INDIE RECORDS",
+      "incomes": [
+        {
+          "descricao": "INDIE RECORDS - LUIZA POSSI - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (LUIZA POSSI) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "INDIE RECORDS - LUIZA POSSI - RECUPERAVEL (20%)",
+          "money_out": "LUIZA POSSI (LUIZA POSSI) (HELENA PRODUCOES) (WS - 20%)",
+          "org_pct": 10,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "LUIZA POSSI",
+      "fonte": "UNIVERSAL MUSIC",
+      "historico": null,
+      "money_in": "UNIVERSAL MUSIC LTDA",
+      "incomes": [
+        {
+          "descricao": "UNIVERSAL MUSIC - LUIZA POSSI - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (LUIZA POSSI) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "UNIVERSAL MUSIC - LUIZA POSSI - RECUPERAVEL (20%)",
+          "money_out": "LUIZA POSSI (LUIZA POSSI) (HELENA PRODUCOES) (WS - 20%)",
+          "org_pct": 10,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "ZEIDER",
+      "fonte": "ABRAMUS",
+      "historico": "VENDA CATALOGO - CESSAO - ZEIDER FERNANDO PIRES",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - ZEIDER - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (ZEIDER) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 100
+        }
+      ]
+    },
+    {
+      "catalogo": "ZEIDER",
+      "fonte": "ABRAMUS",
+      "historico": "TRANSFERIDO DE ZEIDER FERNANDO PIRES",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - ZEIDER - RECUPERAVEL (25%)",
+          "money_out": "ZEIDER (ZEIDER) (Z PRODUCOES / RECOUP) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 100
+        }
+      ]
+    },
+    {
+      "catalogo": "ZEIDER",
+      "fonte": "ABRAMUS",
+      "historico": "VENDA CATALOGO - CESSAO - Z PRODUCOES ARTISTICAS LTDA - ME",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - Z PROD - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (ZEIDER) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 100
+        }
+      ]
+    },
+    {
+      "catalogo": "ZEIDER",
+      "fonte": "ABRAMUS",
+      "historico": "TRANSFERIDO DE Z PRODUCOES ARTISTICAS LTDA - ME",
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - Z PROD - RECUPERAVEL (25%)",
+          "money_out": "ZEIDER (ZEIDER) (Z PRODUCOES / RECOUP) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 100
+        }
+      ]
+    },
+    {
+      "catalogo": "ZEIDER",
+      "fonte": "UNIVERSAL MUSIC",
+      "historico": null,
+      "money_in": "UNIVERSAL MUSIC LTDA",
+      "incomes": [
+        {
+          "descricao": "UNIVERSAL MUSIC - ZEIDER - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (ZEIDER) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 66.67
+        },
+        {
+          "descricao": "UNIVERSAL MUSIC - ZEIDER - RECUPERAVEL (25%)",
+          "money_out": "ZEIDER (ZEIDER) (Z PRODUCOES / RECOUP) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 33.33
+        }
+      ]
+    },
+    {
+      "catalogo": "ZEIDER",
+      "fonte": "UNIVERSAL MUSIC PUBLISHING",
+      "historico": null,
+      "money_in": "UNIVERSAL MUSIC PUBLISHING",
+      "incomes": [
+        {
+          "descricao": "UNIVERSAL MUSIC PUBLISHING - ZEIDER - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (ZEIDER) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 66.67
+        },
+        {
+          "descricao": "UNIVERSAL MUSIC PUBLISHING - ZEIDER - RECUPERAVEL (25%)",
+          "money_out": "ZEIDER (ZEIDER) (Z PRODUCOES / RECOUP) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 33.33
+        }
+      ]
+    },
+    {
+      "catalogo": "ROSENBLIT",
+      "fonte": "UBC",
+      "historico": null,
+      "money_in": "UBC",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - ROSENBLIT - NN AQUISICAO (55%)",
+          "money_out": "NAS NUVENS (ROSENBLIT) (WS - 55%)",
+          "org_pct": 0,
+          "rights_pct": 55
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - ROSENBLIT - RECUPERAVEL (35%)",
+          "money_out": "ALBERTO ROSENBLIT (ROSENBLIT / RECOUP) (WS - 35%)",
+          "org_pct": 0,
+          "rights_pct": 35
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - ROSENBLIT - ORB MUSIC FEE (10%)",
+          "money_out": "ORB MUSIC (ROSENBLIT) (FEE) (WS - 10%)",
+          "org_pct": 0,
+          "rights_pct": 10
+        }
+      ]
+    },
+    {
+      "catalogo": "DADI",
+      "fonte": "ABRAMUS",
+      "historico": null,
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - DADI - NN AQUISICAO (70%)",
+          "money_out": "NAS NUVENS (DADI) (WS - 70%)",
+          "org_pct": 0,
+          "rights_pct": 70
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - DADI - RECUPERAVEL (30%)",
+          "money_out": "DADI (DADI/ RECOUP) (WS - 30%)",
+          "org_pct": 15,
+          "rights_pct": 15
+        }
+      ]
+    },
+    {
+      "catalogo": "ANDRE MORAES",
+      "fonte": "SOCINPRO",
+      "historico": null,
+      "money_in": "SOCINPRO",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - ANDRE MORAES - NN AQUISICAO (50%)",
+          "money_out": "NAS NUVENS (ANDRE MORAES) (WS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 50
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - ANDRE MORAES - RECUPERAVEL (50%)",
+          "money_out": "ANDRE MORAES (ANDRE MORAES/ RECOUP) (WS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 50
+        }
+      ]
+    },
+    {
+      "catalogo": "PROJOTA",
+      "fonte": "ABRAMUS",
+      "historico": null,
+      "money_in": "ABRAMUS",
+      "incomes": [
+        {
+          "descricao": "EXECUCAO PUBLICA - PROJOTA - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (PROJOTA) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "EXECUCAO PUBLICA - PROJOTA - RECUPERAVEL (20%)",
+          "money_out": "PROJOTA (PROJOTA) (WS - 20%)",
+          "org_pct": 4,
+          "rights_pct": 16
+        }
+      ]
+    },
+    {
+      "catalogo": "PROJOTA",
+      "fonte": "UNIVERSAL MUSIC PUBLISHING",
+      "historico": null,
+      "money_in": "UNIVERSAL MUSIC PUBLISHING",
+      "incomes": [
+        {
+          "descricao": "UNIVERSAL MUSIC PUBLISHING - PROJOTA - NN AQUISICAO (80%)",
+          "money_out": "NAS NUVENS (PROJOTA) (WS - 80%)",
+          "org_pct": 0,
+          "rights_pct": 80
+        },
+        {
+          "descricao": "UNIVERSAL MUSIC PUBLISHING - PROJOTA - RECUPERAVEL (20%)",
+          "money_out": "PROJOTA (PROJOTA) (WS - 20%)",
+          "org_pct": 4,
+          "rights_pct": 16
+        }
+      ]
+    }
+  ]
+}
