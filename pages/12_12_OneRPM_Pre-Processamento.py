@@ -1,7 +1,21 @@
 import streamlit as st
 import pandas as pd
 import io
+import re
 from datetime import datetime
+
+
+def _extract_date_from_filename(filename: str) -> str:
+    """Extrai data do nome do arquivo no formato YYYYMMDD para uso como sufixo.
+    Aceita YYYY-MM-DD ou YYYYMMDD em qualquer posição do nome.
+    Fallback: data de hoje."""
+    m = re.search(r'(\d{4})-(\d{2})-(\d{2})', filename)
+    if m:
+        return m.group(1) + m.group(2) + m.group(3)
+    m = re.search(r'(\d{8})', filename)
+    if m:
+        return m.group(1)
+    return datetime.now().strftime('%Y%m%d')
 
 st.title("Processamento de Royalties")
 
@@ -27,6 +41,8 @@ else:
 
 if uploaded_files:
     try:
+        report_date = _extract_date_from_filename(uploaded_files[0].name)
+
         # ============================================================================
         # PROCESSAMENTO PUBLISHING RIGHTS
         # ============================================================================
@@ -138,7 +154,7 @@ if uploaded_files:
                 st.download_button(
                     label="📥 Download Publishing Rights (Todas as moedas)",
                     data=excel_data_all,
-                    file_name=f"Publishing_Rights_COMPLETO_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    file_name=f"Publishing_Rights_COMPLETO_{report_date}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
@@ -160,7 +176,7 @@ if uploaded_files:
                         st.download_button(
                             label=f"Download {currency}",
                             data=excel_data,
-                            file_name=f"Publishing_Rights_{currency}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                            file_name=f"Publishing_Rights_{currency}_{report_date}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
@@ -463,7 +479,7 @@ if uploaded_files:
                         st.download_button(
                             label="📥 Download Masters (Todas as moedas)",
                             data=excel_data_all,
-                            file_name=f"Masters_COMPLETO_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                            file_name=f"Masters_COMPLETO_{report_date}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="frag_dl_masters_all"
@@ -477,7 +493,7 @@ if uploaded_files:
                             st.download_button(
                                 label=f"Download Masters {currency}",
                                 data=excel_data,
-                                file_name=f"Masters_{currency}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                                file_name=f"Masters_{currency}_{report_date}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 key=f"frag_dl_masters_{currency}"
@@ -490,7 +506,7 @@ if uploaded_files:
                         st.download_button(
                             label="📥 Download Youtube (Todas as moedas)",
                             data=excel_data_all,
-                            file_name=f"Youtube_COMPLETO_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                            file_name=f"Youtube_COMPLETO_{report_date}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="frag_dl_youtube_all"
@@ -504,7 +520,7 @@ if uploaded_files:
                             st.download_button(
                                 label=f"Download Youtube {currency}",
                                 data=excel_data,
-                                file_name=f"Youtube_{currency}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                                file_name=f"Youtube_{currency}_{report_date}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 key=f"frag_dl_youtube_{currency}"
@@ -517,7 +533,7 @@ if uploaded_files:
                         st.download_button(
                             label="📥 Download Publishing (Todas as moedas)",
                             data=excel_data_all,
-                            file_name=f"Publishing_Rights_COMPLETO_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                            file_name=f"Publishing_Rights_COMPLETO_{report_date}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="frag_dl_pub_all"
@@ -531,7 +547,7 @@ if uploaded_files:
                             st.download_button(
                                 label=f"Download Publishing {currency}",
                                 data=excel_data,
-                                file_name=f"Publishing_Rights_{currency}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                                file_name=f"Publishing_Rights_{currency}_{report_date}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 key=f"frag_dl_pub_{currency}"
@@ -842,7 +858,7 @@ if uploaded_files:
                     st.download_button(
                         label="📥 Download Masters (Todas as moedas)",
                         data=excel_data_all,
-                        file_name=f"Masters_COMPLETO_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                        file_name=f"Masters_COMPLETO_{report_date}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
@@ -858,7 +874,7 @@ if uploaded_files:
                         st.download_button(
                             label=f"Download Masters {currency}",
                             data=excel_data,
-                            file_name=f"Masters_{currency}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                            file_name=f"Masters_{currency}_{report_date}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
@@ -872,7 +888,7 @@ if uploaded_files:
                     st.download_button(
                         label="📥 Download Youtube (Todas as moedas)",
                         data=excel_data_all,
-                        file_name=f"Youtube_COMPLETO_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                        file_name=f"Youtube_COMPLETO_{report_date}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
@@ -888,7 +904,7 @@ if uploaded_files:
                         st.download_button(
                             label=f"Download Youtube {currency}",
                             data=excel_data,
-                            file_name=f"Youtube_{currency}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                            file_name=f"Youtube_{currency}_{report_date}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
