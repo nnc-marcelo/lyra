@@ -143,6 +143,10 @@ if uploaded_files:
             
             # Função para criar arquivo Excel
             def to_excel(df):
+                df = df.copy()
+                for col in df.columns:
+                    if pd.api.types.is_datetime64_any_dtype(df[col]):
+                        df[col] = df[col].dt.strftime('%Y-%m-%d')
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df.to_excel(writer, index=False)
@@ -842,6 +846,10 @@ if uploaded_files:
             
             # Função para criar arquivo Excel
             def to_excel(df):
+                df = df.copy()
+                for col in df.columns:
+                    if pd.api.types.is_datetime64_any_dtype(df[col]):
+                        df[col] = df[col].dt.strftime('%Y-%m-%d')
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df.to_excel(writer, index=False)
