@@ -1,33 +1,102 @@
 import streamlit as st
 import pandas as pd
 import json
+import unicodedata
 from pathlib import Path
-from io import BytesIO
 from datetime import datetime
 
 # ============================================================================
 # Direct Incomes
-# Calcula a distribuição de receitas diretas (Power BI -> Reprtoir) a partir
-# de regras por (Catálogo, Fonte[, Histórico]) que são editáveis pelo app.
-# As regras ficam em data/direct_incomes/regras.json (persistidas em disco).
+# Distribui receitas diretas (extrato do BI -> Reprtoir) a partir de regras por
+# (Catálogo, Fonte) com discriminação opcional por Titular e Origem/Detalhe.
+# As regras ficam em data/direct_incomes/regras.json (persistidas em disco) e
+# são editáveis pela própria página.
 # ============================================================================
 
 st.title("Direct Incomes")
 st.caption(
-    "Distribui receitas diretas por catálogo/fonte e gera o arquivo pronto "
+    "Distribui receitas diretas por catálogo/fonte/titular e gera o arquivo pronto "
     "para o Reprtoir. As regras de cálculo são editáveis aqui mesmo, sem mexer no código."
 )
+
+with st.expander("ℹ️ O que é esta página e como usar", expanded=False):
+    st.markdown(
+"""
+**O que faz**
+
+Distribui as *Direct Incomes* (receitas diretas) a partir do extrato do BI e gera o CSV pronto para
+importar no Reprtoir.
+
+**Como filtra**
+
+Usa apenas as linhas de **Direct Income** (coluna `Motivo Processamento`). Rodapés do BI (Total,
+"Filtros aplicados") são descartados. O extrato exportado do BI já vem do período escolhido.
+
+**Como calcula (regras)**
+
+Cada receita vem de uma regra por **Catálogo + Fonte**, com **Titular** e **Origem/Detalhe** opcionais.
+A regra mais específica vence: se houver uma com o titular/origem da transação, ela é usada; senão cai
+na regra geral de Catálogo+Fonte. O titular casa de forma tolerante (ignora acento/maiúsculas e aceita
+abreviações como "Hele" → "Helena"). As regras ficam em `data/direct_incomes/regras.json` e são
+editáveis nas abas **Lista de regras** e **Editar regras**.
+
+**Douglas Cezar** é calculado à parte (por obra) na página **Douglas Cezar EP Calculator**, porque o
+split dele depende de cada obra ser adquirida ou não. Aqui ele é ignorado de propósito.
+
+**Como usar**
+
+1. Defina o **período** (prefixo dos nomes das receitas, ex.: `2026M04`).
+2. Na aba **Calcular**, faça o upload do extrato (xlsx/csv) e clique em **Processar receitas**.
+3. Confira a validação de totais e baixe o **CSV (Reprtoir)**.
+4. Gere o Douglas pela página dele e junte ao import final.
+"""
+    )
 
 RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "direct_incomes" / "regras.json"
 
 INCOME_COLS = ["descricao", "money_out", "org_pct", "rights_pct"]
 
-# Colunas esperadas no CSV exportado do Power BI
-COL_DATA = "Data Pagamento"
-COL_CATALOGO = "Catalogo"
-COL_FONTE = "Fonte"
-COL_HISTORICO = "Historico"
-COL_VALOR = "Valor"
+# Nomes de coluna aceitos no extrato do BI (novo template). Cada campo aceita
+# variações de nome; a leitura escolhe a primeira que existir.
+COL_CANDIDATES = {
+    "data": ["Data Pagamento", "Data"],
+    "catalogo": ["Catalogo", "Catálogo"],
+    "fonte": ["Fonte"],
+    "titular": ["Titular / Conta", "Titular", "Titular/Conta"],
+    "origem": ["Origem/Detalhe", "Origem / Detalhe", "Origem"],
+    "valor": ["Valor BRL", "Valor"],
+    "processamento": ["Processamento"],
+    "motivo": ["Motivo Processamento", "Motivo"],
+}
+
+
+# ---------------------------------------------------------------------------
+# Utilidades
+# ---------------------------------------------------------------------------
+def normalize(s):
+    """Maiúsculas, sem acento, espaços colapsados — para comparar chaves."""
+    s = str(s if s is not None else "")
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
+    return " ".join(s.upper().split())
+
+
+def coerce_money(series):
+    """Converte a coluna de valor para número, aceitando 1234.56 e 1.234,56."""
+    s = series.astype(str).str.strip()
+    num = pd.to_numeric(s, errors="coerce")
+    if num.isna().mean() > 0.3:
+        s2 = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+        num = pd.to_numeric(s2, errors="coerce")
+    return num.fillna(0.0)
+
+
+def norm_date(value):
+    if isinstance(value, pd.Timestamp):
+        return value.strftime("%Y-%m-%d")
+    try:
+        return pd.to_datetime(value).strftime("%Y-%m-%d")
+    except Exception:
+        return datetime.now().strftime("%Y-%m-%d")
 
 
 # ---------------------------------------------------------------------------
@@ -48,8 +117,10 @@ def save_rules(data):
 
 def rule_label(r):
     partes = [r.get("catalogo", ""), r.get("fonte", "")]
-    if r.get("historico"):
-        partes.append(r["historico"])
+    if r.get("titular"):
+        partes.append(f"👤 {r['titular']}")
+    if r.get("origem"):
+        partes.append(f"🔖 {r['origem']}")
     return "  |  ".join(p for p in partes if p)
 
 
@@ -63,7 +134,8 @@ def rules_to_dataframe(regras):
             rows.append({
                 "Fonte": r.get("fonte", ""),
                 "Catálogo": r.get("catalogo", ""),
-                "Histórico": r.get("historico") or "",
+                "Titular": r.get("titular") or "",
+                "Origem": r.get("origem") or "",
                 "Money In": r.get("money_in") or "",
                 "Receita": inc.get("descricao", ""),
                 "Money Out": inc.get("money_out", ""),
@@ -73,117 +145,161 @@ def rules_to_dataframe(regras):
             })
     df = pd.DataFrame(rows)
     if not df.empty:
-        df = df.sort_values(["Fonte", "Catálogo", "Histórico"], kind="stable").reset_index(drop=True)
+        df = df.sort_values(["Fonte", "Catálogo", "Titular", "Origem"], kind="stable").reset_index(drop=True)
     return df
 
 
-# Estado: carrega as regras uma vez por sessão
-if "di_rules" not in st.session_state:
-    st.session_state.di_rules = load_rules()
+# ---------------------------------------------------------------------------
+# Casamento de regras
+# ---------------------------------------------------------------------------
+def titular_match(rule_tit, row_tit):
+    """Match tolerante de titular (resolve 'Hele'/'Helena', 'Z Produções', etc.)."""
+    a, b = normalize(rule_tit), normalize(row_tit)
+    if not a:
+        return True  # regra sem titular = curinga
+    if a == b or b.startswith(a) or a.startswith(b):
+        return True
+    at = a.split()[0] if a else ""
+    bt = b.split()[0] if b else ""
+    return bool(at and bt) and (at.startswith(bt) or bt.startswith(at))
 
-data = st.session_state.di_rules
+
+def origem_match(rule_org, row_org):
+    if not rule_org:
+        return True  # regra sem origem = curinga
+    return normalize(rule_org) == normalize(row_org)
+
+
+def find_rule(regras, cat, fonte, titular, origem):
+    """Acha a regra mais específica que casa com (cat, fonte, titular, origem)."""
+    ncat, nfonte = normalize(cat), normalize(fonte)
+    best, best_score = None, -1
+    for r in regras:
+        if normalize(r.get("catalogo")) != ncat or normalize(r.get("fonte")) != nfonte:
+            continue
+        rt, ro = r.get("titular"), r.get("origem")
+        if not titular_match(rt, titular):
+            continue
+        if not origem_match(ro, origem):
+            continue
+        score = (1 if rt else 0) + (1 if ro else 0)
+        if score > best_score:
+            best, best_score = r, score
+    return best
+
+
+# ---------------------------------------------------------------------------
+# Leitura do extrato do BI (novo template)
+# ---------------------------------------------------------------------------
+def pick_col(df, names):
+    low = {str(c).strip().lower(): c for c in df.columns}
+    for n in names:
+        if n.lower() in low:
+            return low[n.lower()]
+    for c in df.columns:
+        cl = str(c).strip().lower()
+        if any(cl.startswith(n.lower()) for n in names):
+            return c
+    return None
+
+
+def read_input(uploaded):
+    """Lê o extrato e devolve (df_normalizado, info). df tem colunas:
+    Catalogo, Fonte, Titular, Origem, Valor, Data."""
+    uploaded.seek(0)
+    if uploaded.name.lower().endswith(".csv"):
+        raw = pd.read_csv(uploaded, sep=None, engine="python")
+    else:
+        raw = pd.read_excel(uploaded)
+
+    cols = {k: pick_col(raw, v) for k, v in COL_CANDIDATES.items()}
+    faltando = [k for k in ("data", "catalogo", "fonte", "valor") if cols[k] is None]
+    if faltando:
+        return None, {"erro": f"Colunas obrigatórias não encontradas: {faltando}",
+                      "disponiveis": list(raw.columns)}
+
+    df = pd.DataFrame({
+        "Catalogo": raw[cols["catalogo"]],
+        "Fonte": raw[cols["fonte"]],
+        "Titular": raw[cols["titular"]] if cols["titular"] else "",
+        "Origem": raw[cols["origem"]] if cols["origem"] else "",
+        "Valor": raw[cols["valor"]],
+        "Data": raw[cols["data"]],
+    })
+    if cols["processamento"]:
+        df["Processamento"] = raw[cols["processamento"]]
+    if cols["motivo"]:
+        df["Motivo"] = raw[cols["motivo"]]
+
+    n_total = len(df)
+
+    # Remove rodapés do BI (Total / Filtros aplicados / em branco): sem catálogo/fonte
+    df = df[df["Catalogo"].notna() & df["Fonte"].notna()].copy()
+    n_sem_rodape = len(df)
+
+    # Mantém apenas as linhas de Direct Income (coluna Motivo Processamento)
+    n_proc = None
+    if "Motivo" in df.columns:
+        mask = df["Motivo"].astype(str).str.contains("Direct Income", case=False, na=False)
+        df = df[mask].copy()
+        n_proc = len(df)
+
+    for c in ("Catalogo", "Fonte", "Titular", "Origem"):
+        df[c] = df[c].fillna("").astype(str).str.strip()
+    df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
+    df["Valor"] = coerce_money(df["Valor"])
+
+    info = {"n_total": n_total, "n_rodape": n_total - n_sem_rodape, "n_proc": n_proc, "n_final": len(df)}
+    return df, info
 
 
 # ---------------------------------------------------------------------------
 # Cálculo
 # ---------------------------------------------------------------------------
-def build_lookup(regras):
-    """Indexa as regras por (cat, fonte) ou (cat, fonte, hist)."""
-    lut = {}
-    for r in regras:
-        cat, fonte, hist = r["catalogo"], r["fonte"], r.get("historico")
-        key = (cat, fonte, hist) if hist else (cat, fonte)
-        lut[key] = r
-    return lut
-
-
-def coerce_money(series):
-    """Converte a coluna de valor para número, aceitando 1234.56 e 1.234,56."""
-    s = series.astype(str).str.strip()
-    num = pd.to_numeric(s, errors="coerce")
-    # Se muitos falharam, tenta formato brasileiro (milhar '.' e decimal ',')
-    if num.isna().mean() > 0.3:
-        s2 = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
-        num = pd.to_numeric(s2, errors="coerce")
-    return num.fillna(0.0)
-
-
-def norm_date(value):
-    if isinstance(value, pd.Timestamp):
-        return value.strftime("%Y-%m-%d")
-    if isinstance(value, str):
-        try:
-            return pd.to_datetime(value).strftime("%Y-%m-%d")
-        except Exception:
-            return datetime.now().strftime("%Y-%m-%d")
-    try:
-        return pd.to_datetime(value).strftime("%Y-%m-%d")
-    except Exception:
-        return datetime.now().strftime("%Y-%m-%d")
-
-
-def processar(df_input, data):
-    """Agrupa o CSV, aplica as regras e devolve (df_receitas, df_ignorados)."""
+def processar(df_norm, data):
+    """Resolve a regra de cada linha e consolida POR REGRA CASADA (não por titular).
+    Catálogos com regra geral (titular vazio) viram 1 grupo; catálogos com regras
+    por titular/origem (ZEIDER, LUIZA...) ficam separados. Devolve (receitas, ignorados)."""
     regras = data.get("regras", [])
     periodo = (data.get("periodo") or "").strip()
-    lut = build_lookup(regras)
-    keys = set(lut.keys())
 
-    df = df_input.copy()
-    if COL_HISTORICO not in df.columns:
-        df[COL_HISTORICO] = pd.NA
+    df = df_norm.copy()
 
-    # Remove rodapés/linhas de junk do export do Power BI
-    # (linha "Total", "Filtros aplicados:", linhas em branco — ficam sem Catálogo/Fonte)
-    df = df[df[COL_CATALOGO].notna() & df[COL_FONTE].notna()].copy()
+    # 1) Regra de cada linha + chave de consolidação
+    rule_por_linha, buckets = [], []
+    for _, row in df.iterrows():
+        cat, fonte = row["Catalogo"], row["Fonte"]
+        if normalize(cat) == "DOUGLAS CEZAR":
+            rule_por_linha.append("DOUGLAS")
+            buckets.append(f"DOUGLAS|{normalize(cat)}|{normalize(fonte)}")
+            continue
+        rule = find_rule(regras, cat, fonte, row["Titular"], row["Origem"])
+        rule_por_linha.append(rule)
+        if rule is not None:
+            buckets.append(f"REGRA|{id(rule)}")  # consolida tudo que casa a mesma regra
+        else:
+            buckets.append("SEM|" + "|".join(normalize(x) for x in
+                            (cat, fonte, row["Titular"], row["Origem"])))
+    df = df.assign(_rule=rule_por_linha, _bucket=buckets)
 
-    # Normaliza chaves (espaços acidentais), datas e valores
-    df[COL_CATALOGO] = df[COL_CATALOGO].astype(str).str.strip()
-    df[COL_FONTE] = df[COL_FONTE].astype(str).str.strip()
-    df[COL_DATA] = pd.to_datetime(df[COL_DATA], errors="coerce")
-    df[COL_VALOR] = coerce_money(df[COL_VALOR])
+    receitas, ignorados = [], []
+    for _, sub in df.groupby("_bucket", sort=False):
+        first = sub.iloc[0]
+        rule = first["_rule"]
+        cat, fonte = first["Catalogo"], first["Fonte"]
+        titular, origem = first["Titular"], first["Origem"]
+        valor = round(float(sub["Valor"].sum()), 2)
+        data_pg = norm_date(sub["Data"].max())
 
-    def group_key(row):
-        cat, fonte, hist = row[COL_CATALOGO], row[COL_FONTE], row[COL_HISTORICO]
-        if pd.notna(hist) and (cat, fonte, hist) in keys:
-            return (cat, fonte, hist)
-        return (cat, fonte)
-
-    df["_gk"] = df.apply(group_key, axis=1)
-    grouped = (
-        df.groupby("_gk", dropna=False)
-        .agg(
-            Catalogo=(COL_CATALOGO, "first"),
-            Fonte=(COL_FONTE, "first"),
-            Historico=(COL_HISTORICO, "first"),
-            Valor=(COL_VALOR, "sum"),
-            Data=(COL_DATA, "max"),
-        )
-        .reset_index(drop=True)
-    )
-    grouped["Valor"] = grouped["Valor"].round(2)
-
-    receitas = []
-    ignorados = []
-
-    for _, row in grouped.iterrows():
-        cat, fonte, hist = row["Catalogo"], row["Fonte"], row["Historico"]
-        valor = float(row["Valor"])
-        data_pg = norm_date(row["Data"])
-
-        rule = lut.get((cat, fonte, hist)) if pd.notna(hist) else None
-        if rule is None:
-            rule = lut.get((cat, fonte))
-
-        if rule is None or valor <= 0:
-            ignorados.append({
-                "Catalogo": cat,
-                "Fonte": fonte,
-                "Historico": hist if pd.notna(hist) else "-",
-                "Valor": valor,
-                "Data": data_pg,
-                "Motivo": "Sem regra" if rule is None else "Valor <= 0",
-            })
+        if isinstance(rule, str):  # DOUGLAS
+            ignorados.append({"Catalogo": cat, "Fonte": fonte, "Titular": titular or "-",
+                              "Origem": origem or "-", "Valor": valor, "Data": data_pg,
+                              "Motivo": "Calculado por obra (página Douglas Cezar EP Calculator)"})
+            continue
+        if rule is None or valor == 0:
+            ignorados.append({"Catalogo": cat, "Fonte": fonte, "Titular": titular or "-",
+                              "Origem": origem or "-", "Valor": valor, "Data": data_pg,
+                              "Motivo": "Sem regra" if rule is None else "Valor zero"})
             continue
 
         for inc in rule["incomes"]:
@@ -219,16 +335,23 @@ def processar(df_input, data):
     return pd.DataFrame(receitas), pd.DataFrame(ignorados)
 
 
+# Estado: carrega as regras uma vez por sessão
+if "di_rules" not in st.session_state:
+    st.session_state.di_rules = load_rules()
+
+data = st.session_state.di_rules
+
+
 # ---------------------------------------------------------------------------
-# Período (compartilhado entre as duas abas)
+# Período (compartilhado entre as abas)
 # ---------------------------------------------------------------------------
 periodo = st.text_input(
     "Período (prefixo dos nomes das receitas)",
     value=data.get("periodo", ""),
-    help="Ex.: 2025Q4. Aplicado automaticamente no início de cada nome de receita.",
+    help="Ex.: 2026M04. Aplicado automaticamente no início de cada nome de receita.",
 )
 if periodo != data.get("periodo", ""):
-    data["periodo"] = periodo  # persiste só ao salvar regras; calc usa o valor atual
+    data["periodo"] = periodo  # calc usa o valor atual; é gravado ao salvar uma regra
 
 st.caption(f"📚 {len(data.get('regras', []))} regras carregadas de `data/direct_incomes/regras.json`")
 
@@ -239,43 +362,39 @@ tab_calc, tab_lista, tab_rules = st.tabs(["🧮 Calcular", "📋 Lista de regras
 # ABA: CALCULAR
 # ===========================================================================
 with tab_calc:
-    st.markdown("##### Processar extrato do Power BI")
+    st.markdown("##### Processar extrato do BI")
     st.caption(
-        f"O arquivo deve conter as colunas: `{COL_DATA}`, `{COL_CATALOGO}`, "
-        f"`{COL_FONTE}`, `{COL_HISTORICO}` (opcional) e `{COL_VALOR}`. "
-        "Linhas de rodapé do Power BI (Total, Filtros aplicados, em branco) são ignoradas automaticamente."
+        "O arquivo deve conter as colunas: `Data`, `Catalogo`, `Fonte`, "
+        "`Titular / Conta`, `Origem/Detalhe`, `Valor BRL` e `Motivo Processamento`. "
+        "Linhas de rodapé (Total, Filtros aplicados) e que não sejam de **Direct Income** "
+        "(pela coluna Motivo) são ignoradas."
     )
 
     uploaded = st.file_uploader(
-        "Faça o upload do extrato do Power BI (.csv, .xlsx ou .xls)",
-        type=["csv", "xlsx", "xls"],
+        "Faça o upload do extrato do BI (.xlsx, .xls ou .csv)",
+        type=["xlsx", "xls", "csv"],
     )
 
     if uploaded is not None:
-        try:
-            uploaded.seek(0)
-            if uploaded.name.lower().endswith(".csv"):
-                df_input = pd.read_csv(uploaded, sep=None, engine="python")
-            else:
-                df_input = pd.read_excel(uploaded)
-        except Exception as e:
-            st.error(f"Não consegui ler o arquivo: {e}")
-            df_input = None
+        df_norm, info = read_input(uploaded)
+        if df_norm is None:
+            st.error(info["erro"])
+            st.write("Colunas disponíveis:", info["disponiveis"])
+        else:
+            partes = [f"{info['n_total']} linhas no arquivo"]
+            if info["n_rodape"]:
+                partes.append(f"{info['n_rodape']} rodapé(s) removido(s)")
+            if info["n_proc"] is not None:
+                partes.append(f"{info['n_final']} de Direct Income")
+            st.success(" · ".join(partes) + ".")
 
-        if df_input is not None:
-            faltando = [c for c in (COL_DATA, COL_CATALOGO, COL_FONTE, COL_VALOR) if c not in df_input.columns]
-            if faltando:
-                st.error(f"Colunas obrigatórias não encontradas: {faltando}")
-                st.write("Colunas disponíveis:", list(df_input.columns))
-            else:
-                st.success(f"Arquivo carregado: {len(df_input)} transações.")
-                with st.expander("Ver dados originais"):
-                    st.dataframe(df_input, use_container_width=True)
+            with st.expander("Ver dados lidos"):
+                st.dataframe(df_norm, use_container_width=True, hide_index=True)
 
-                if st.button("Processar receitas", type="primary"):
-                    df_out, df_ign = processar(df_input, data)
-                    st.session_state["di_result"] = df_out
-                    st.session_state["di_ignorados"] = df_ign
+            if st.button("Processar receitas", type="primary"):
+                df_out, df_ign = processar(df_norm, data)
+                st.session_state["di_result"] = df_out
+                st.session_state["di_ignorados"] = df_ign
 
     # Resultado (persiste no estado para não sumir ao baixar)
     if "di_result" in st.session_state:
@@ -285,13 +404,13 @@ with tab_calc:
         st.divider()
         c1, c2, c3 = st.columns(3)
         c1.metric("Receitas geradas", len(df_out))
-        c2.metric("Ignoradas", len(df_ign))
+        c2.metric("Grupos ignorados", len(df_ign))
         bruto = df_out["Gross Amount"].drop_duplicates().sum() if len(df_out) else 0.0
         c3.metric("Bruto distribuído", f"R$ {bruto:,.2f}")
 
         if len(df_out):
             st.markdown("##### Resultado")
-            st.dataframe(df_out, use_container_width=True)
+            st.dataframe(df_out, use_container_width=True, hide_index=True)
 
             # Validação: soma dos Net por Gross deve fechar com o Gross
             val = df_out.groupby("Gross Amount").agg(Net=("Net Amount (*)", "sum")).reset_index()
@@ -301,9 +420,8 @@ with tab_calc:
                 st.success(f"✅ Validação de totais OK ({len(val)}/{len(val)} grupos fecham com o bruto).")
             else:
                 st.warning("⚠️ Há grupos cujo Net não fecha com o Gross:")
-                st.dataframe(val[val["Diferença"].abs() >= 0.01], use_container_width=True)
+                st.dataframe(val[val["Diferença"].abs() >= 0.01], use_container_width=True, hide_index=True)
 
-            # Download CSV pronto para o Reprtoir
             csv_bytes = df_out.to_csv(index=False).encode("utf-8-sig")
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             per = (data.get("periodo") or "").strip() or "sem_periodo"
@@ -318,8 +436,8 @@ with tab_calc:
             st.info("Nenhuma receita gerada — verifique se há regras para os catálogos do arquivo.")
 
         if len(df_ign):
-            st.markdown("##### ⚠️ Transações ignoradas (sem regra)")
-            st.dataframe(df_ign, use_container_width=True)
+            st.markdown("##### ⚠️ Grupos ignorados (sem regra)")
+            st.dataframe(df_ign, use_container_width=True, hide_index=True)
             st.caption(f"💰 Total ignorado: R$ {df_ign['Valor'].sum():,.2f}")
 
 
@@ -328,7 +446,7 @@ with tab_calc:
 # ===========================================================================
 with tab_lista:
     st.markdown("##### Todas as regras")
-    st.caption("Agrupadas por fonte e catálogo, com os percentuais de cada receita.")
+    st.caption("Agrupadas por fonte e catálogo, com titular, origem e os percentuais de cada receita.")
 
     regras_all = data.get("regras", [])
     df_rules = rules_to_dataframe(regras_all)
@@ -349,14 +467,14 @@ with tab_lista:
                 fora.append({
                     "Catálogo": r.get("catalogo", ""),
                     "Fonte": r.get("fonte", ""),
-                    "Histórico": r.get("historico") or "-",
+                    "Titular": r.get("titular") or "-",
+                    "Origem": r.get("origem") or "-",
                     "Soma %": round(soma, 2),
                 })
         if fora:
             with st.expander(f"⚠️ {len(fora)} regra(s) cujas fatias não somam 100%"):
                 st.dataframe(pd.DataFrame(fora), use_container_width=True, hide_index=True)
 
-        # Filtro por fonte
         fontes = sorted(df_rules["Fonte"].unique())
         sel_fontes = st.multiselect("Filtrar por fonte", fontes, placeholder="Todas as fontes")
         view = df_rules if not sel_fontes else df_rules[df_rules["Fonte"].isin(sel_fontes)]
@@ -367,12 +485,11 @@ with tab_lista:
             "Total %": st.column_config.NumberColumn("Total %", format="%.2f%%"),
         }
 
-        # Agrupado por fonte -> (catálogo / histórico)
-        for fonte, g in view.groupby("Fonte"):
-            n_regras = g[["Catálogo", "Histórico"]].drop_duplicates().shape[0]
+        for fonte, gdf in view.groupby("Fonte"):
+            n_regras = gdf[["Catálogo", "Titular", "Origem"]].drop_duplicates().shape[0]
             with st.expander(f"🎵 {fonte}  ·  {n_regras} regra(s)"):
                 st.dataframe(
-                    g.drop(columns=["Fonte"]).reset_index(drop=True),
+                    gdf.drop(columns=["Fonte"]).reset_index(drop=True),
                     use_container_width=True,
                     hide_index=True,
                     column_config=pct_cfg,
@@ -391,20 +508,20 @@ with tab_lista:
 
 
 # ===========================================================================
-# ABA: REGRAS (editor completo)
+# ABA: EDITAR REGRAS (editor completo)
 # ===========================================================================
 with tab_rules:
     st.markdown("##### Editor de regras")
     st.caption(
-        "Cada regra é uma combinação de **Catálogo + Fonte (+ Histórico opcional)**. "
-        "O Histórico tem prioridade: se existir uma regra com o histórico exato da transação, "
-        "ela é usada; senão cai na regra geral de Catálogo+Fonte."
+        "Cada regra é uma combinação de **Catálogo + Fonte**, com **Titular** e **Origem** opcionais. "
+        "A regra mais específica vence: se houver uma regra com o titular/origem da transação, ela é "
+        "usada; senão cai na regra geral de Catálogo+Fonte. O titular casa de forma tolerante "
+        "(ignora acento/maiúsculas e aceita abreviações como 'Hele' → 'Helena')."
     )
 
     regras = data.setdefault("regras", [])
 
-    # Filtro de busca + seleção
-    busca = st.text_input("🔎 Buscar (catálogo, fonte ou histórico)", key="di_busca").strip().lower()
+    busca = st.text_input("🔎 Buscar (catálogo, fonte, titular ou origem)", key="di_busca").strip().lower()
     idxs = list(range(len(regras)))
     if busca:
         idxs = [i for i in idxs if busca in rule_label(regras[i]).lower()]
@@ -419,7 +536,7 @@ with tab_rules:
 
     nova = sel == "➕ Nova regra"
     atual = (
-        {"catalogo": "", "fonte": "", "historico": "", "money_in": "", "incomes": []}
+        {"catalogo": "", "fonte": "", "titular": "", "origem": "", "money_in": "", "incomes": []}
         if nova else regras[sel]
     )
 
@@ -429,11 +546,16 @@ with tab_rules:
         f_fonte = c2.text_input("Fonte", value=atual.get("fonte", ""))
 
         c3, c4 = st.columns(2)
-        f_historico = c3.text_input(
-            "Histórico (opcional)", value=atual.get("historico") or "",
-            help="Deixe vazio para a regra geral de Catálogo+Fonte.",
+        f_titular = c3.text_input(
+            "Titular / Conta (opcional)", value=atual.get("titular") or "",
+            help="Ex.: ZEIDER, Z PRODUCOES, HELENA. Vazio = vale para qualquer titular.",
         )
-        f_money_in = c4.text_input("Contract - Money In", value=atual.get("money_in") or "")
+        f_origem = c4.text_input(
+            "Origem/Detalhe (opcional)", value=atual.get("origem") or "",
+            help="Ex.: VENDA CATALOGO, TRANSFERIDO. Vazio = vale para qualquer origem.",
+        )
+
+        f_money_in = st.text_input("Contract - Money In", value=atual.get("money_in") or "")
 
         st.markdown("**Receitas (incomes)**")
         st.caption(
@@ -460,7 +582,6 @@ with tab_rules:
         submitted = st.form_submit_button("💾 Salvar regra", type="primary")
 
     if submitted:
-        # Limpa linhas vazias e normaliza
         incomes = []
         for _, r in edited.iterrows():
             desc = str(r.get("descricao") or "").strip()
@@ -489,24 +610,26 @@ with tab_rules:
             nova_regra = {
                 "catalogo": f_catalogo.strip(),
                 "fonte": f_fonte.strip(),
-                "historico": f_historico.strip() or None,
+                "titular": f_titular.strip() or None,
+                "origem": f_origem.strip() or None,
                 "money_in": f_money_in.strip(),
                 "incomes": incomes,
             }
-            # Detecta duplicidade de chave (em outra posição)
-            nova_key = (nova_regra["catalogo"], nova_regra["fonte"], nova_regra["historico"])
+            nova_key = (normalize(nova_regra["catalogo"]), normalize(nova_regra["fonte"]),
+                        normalize(nova_regra["titular"]), normalize(nova_regra["origem"]))
             dup = any(
-                (r["catalogo"], r["fonte"], r.get("historico")) == nova_key
+                (normalize(r["catalogo"]), normalize(r["fonte"]),
+                 normalize(r.get("titular")), normalize(r.get("origem"))) == nova_key
                 for j, r in enumerate(regras) if nova or j != sel
             )
             if dup:
-                st.warning("Já existe uma regra com esse Catálogo + Fonte + Histórico. Edite-a em vez de duplicar.")
+                st.warning("Já existe uma regra com esse Catálogo + Fonte + Titular + Origem. Edite-a em vez de duplicar.")
             else:
                 if nova:
                     regras.append(nova_regra)
                 else:
                     regras[sel] = nova_regra
-                data["periodo"] = periodo  # garante período atual no arquivo
+                data["periodo"] = periodo
                 save_rules(data)
                 soma = sum(i["org_pct"] + i["rights_pct"] for i in incomes)
                 st.success("Regra salva em disco. ✅")
@@ -514,16 +637,15 @@ with tab_rules:
                     st.warning(f"Atenção: a soma das fatias é {soma:.2f}% (esperado ~100%). Confira os percentuais.")
                 st.rerun()
 
-    # Ações fora do formulário (duplicar / excluir) — só para regra existente
     if not nova:
         st.divider()
         cda, cdb, _ = st.columns([1, 1, 2])
         if cda.button("📋 Duplicar regra"):
             copia = json.loads(json.dumps(regras[sel]))
-            copia["historico"] = (copia.get("historico") or "") + " (cópia)"
+            copia["titular"] = (copia.get("titular") or "") + " (cópia)"
             regras.append(copia)
             save_rules(data)
-            st.success("Regra duplicada. Edite a cópia (ajuste o histórico).")
+            st.success("Regra duplicada. Edite a cópia (ajuste titular/origem).")
             st.rerun()
 
         if cdb.button("🗑️ Excluir regra", type="secondary"):
@@ -532,7 +654,6 @@ with tab_rules:
             st.success("Regra excluída.")
             st.rerun()
 
-    # Prévia de como os nomes ficam com o período aplicado
     if not nova and atual.get("incomes"):
         with st.expander("👁️ Prévia dos nomes com o período aplicado"):
             per = (periodo or "").strip()

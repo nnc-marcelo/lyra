@@ -2,9 +2,31 @@
   "periodo": "2025Q4",
   "regras": [
     {
+      "catalogo": "PREDELLA",
+      "fonte": "ONERPM",
+      "titular": null,
+      "origem": null,
+      "money_in": "ONERPM",
+      "incomes": [
+        {
+          "descricao": "(COSTA GOLD/ ONERPM) NAS NUVENS (50%)",
+          "money_out": "NAS NUVENS (COSTA GOLD) (LS - 50%)",
+          "org_pct": 0,
+          "rights_pct": 50
+        },
+        {
+          "descricao": "(COSTA GOLD/ ONERPM) REALIZAVEL (50%)",
+          "money_out": "COSTA GOLD (REALIZAVEL) (LS - 45%)",
+          "org_pct": 0,
+          "rights_pct": 50
+        }
+      ]
+    },
+    {
       "catalogo": "BETO CORREA",
       "fonte": "SOCINPRO",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "SOCINPRO",
       "incomes": [
         {
@@ -24,7 +46,8 @@
     {
       "catalogo": "BETO CORREA",
       "fonte": "UNIVERSAL MUSIC PUBLISHING",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UNIVERSAL MUSIC PUBLISHING",
       "incomes": [
         {
@@ -44,7 +67,8 @@
     {
       "catalogo": "BETO CORREA",
       "fonte": "NOSSA MUSICA",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "NOSSA MUSICA",
       "incomes": [
         {
@@ -64,7 +88,8 @@
     {
       "catalogo": "TICO SANTA CRUZ",
       "fonte": "UBC",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UBC",
       "incomes": [
         {
@@ -84,7 +109,8 @@
     {
       "catalogo": "TICO SANTA CRUZ",
       "fonte": "WARNER CHAPPELL",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "WARNER CHAPPELL",
       "incomes": [
         {
@@ -104,7 +130,8 @@
     {
       "catalogo": "ACCIOLY",
       "fonte": "UBC",
-      "historico": "REPASSE - Lalu",
+      "titular": null,
+      "origem": null,
       "money_in": "UBC",
       "incomes": [
         {
@@ -123,28 +150,9 @@
     },
     {
       "catalogo": "ACCIOLY",
-      "fonte": "UBC",
-      "historico": "ADMINISTRACAO LALU EDICOES",
-      "money_in": "UBC",
-      "incomes": [
-        {
-          "descricao": "EXECUCAO PUBLICA - ACCIOLY EDITORA - NN AQUISICAO (50%)",
-          "money_out": "NAS NUVENS (ACCIOLY / LALU) (PS - 12,5%)",
-          "org_pct": 0,
-          "rights_pct": 50
-        },
-        {
-          "descricao": "EXECUCAO PUBLICA - ACCIOLY EDITORA - REPASSE (50%)",
-          "money_out": "ACCIOLY EDITORA (ACCIOLY) (PS - 12,5%)",
-          "org_pct": 30,
-          "rights_pct": 20
-        }
-      ]
-    },
-    {
-      "catalogo": "ACCIOLY",
-      "fonte": "POLY SOM COMERCIO E INDUSTRIA",
-      "historico": null,
+      "fonte": "POLYSOM",
+      "titular": null,
+      "origem": null,
       "money_in": "SOMAX",
       "incomes": [
         {
@@ -164,7 +172,8 @@
     {
       "catalogo": "CARLINHOS BROWN",
       "fonte": "ADA",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "ADA",
       "incomes": [
         {
@@ -184,7 +193,8 @@
     {
       "catalogo": "CARLINHOS BROWN",
       "fonte": "UBC",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UBC",
       "incomes": [
         {
@@ -204,7 +214,8 @@
     {
       "catalogo": "CARLINHOS BROWN",
       "fonte": "MEDIA IP RIGHTS",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "MEDIA IP RIGHTS",
       "incomes": [
         {
@@ -224,7 +235,8 @@
     {
       "catalogo": "CARLINHOS BROWN",
       "fonte": "MONTE CRIACAO",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "MONTE CRIACAO",
       "incomes": [
         {
@@ -244,7 +256,8 @@
     {
       "catalogo": "CARLINHOS BROWN",
       "fonte": "SACEM",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "SACEM",
       "incomes": [
         {
@@ -264,7 +277,8 @@
     {
       "catalogo": "CARLINHOS BROWN",
       "fonte": "UNIVERSAL MUSIC",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UNIVERSAL MUSIC",
       "incomes": [
         {
@@ -284,7 +298,8 @@
     {
       "catalogo": "LAZAO",
       "fonte": "ABRAMUS",
-      "historico": "TRANSFERIDO DE POP MUNDI PRODUCOES ARTISTICAS LTDA",
+      "titular": "POP MUNDI",
+      "origem": "VENDA CATALOGO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -298,7 +313,8 @@
     {
       "catalogo": "LAZAO",
       "fonte": "ABRAMUS",
-      "historico": "VENDA CATALOGO - CESSAO - POP MUNDI PRODUCOES ARTISTICAS LTDA",
+      "titular": "POP MUNDI",
+      "origem": "TRANSFERIDO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -312,7 +328,8 @@
     {
       "catalogo": "CELSO FONSECA",
       "fonte": "UBC",
-      "historico": "ADMINISTRACAO CELSO JOSE DA FONSECA",
+      "titular": "CELSO FONSECA",
+      "origem": null,
       "money_in": "UBC",
       "incomes": [
         {
@@ -332,7 +349,8 @@
     {
       "catalogo": "CELSO FONSECA",
       "fonte": "UBC",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UBC",
       "incomes": [
         {
@@ -352,7 +370,8 @@
     {
       "catalogo": "CELSO FONSECA",
       "fonte": "UBC",
-      "historico": "REPASSE CELSO FONSECA",
+      "titular": "POLAROIDE",
+      "origem": null,
       "money_in": "UBC",
       "incomes": [
         {
@@ -372,7 +391,8 @@
     {
       "catalogo": "CELSO FONSECA",
       "fonte": "COSTA & VALLE",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "COSTA & VALLE",
       "incomes": [
         {
@@ -392,7 +412,8 @@
     {
       "catalogo": "CELSO FONSECA",
       "fonte": "DUBAS",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "DUBAS",
       "incomes": [
         {
@@ -412,7 +433,8 @@
     {
       "catalogo": "CELSO FONSECA",
       "fonte": "WARNER CHAPPELL",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "WARNER CHAPPELL",
       "incomes": [
         {
@@ -432,7 +454,8 @@
     {
       "catalogo": "CELSO FONSECA",
       "fonte": "SACEM",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "SACEM",
       "incomes": [
         {
@@ -452,7 +475,8 @@
     {
       "catalogo": "BETO JAMAICA",
       "fonte": "ABRAMUS",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -472,7 +496,8 @@
     {
       "catalogo": "BETO JAMAICA",
       "fonte": "WARNER CHAPPELL",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "WARNER CHAPPELL",
       "incomes": [
         {
@@ -492,7 +517,8 @@
     {
       "catalogo": "VINICIUS JUNQUEIRA",
       "fonte": "ABRAMUS",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -512,7 +538,8 @@
     {
       "catalogo": "LUIZA POSSI",
       "fonte": "ABRAMUS",
-      "historico": "VENDA CATALOGO - CESSAO - LUIZA POSSI GADELHA",
+      "titular": "LUIZA POSSI",
+      "origem": "VENDA CATALOGO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -526,7 +553,8 @@
     {
       "catalogo": "LUIZA POSSI",
       "fonte": "ABRAMUS",
-      "historico": "VENDA CATALOGO - CESSAO - HELENA PRODUCOES ARTISTICAS LTDA ME",
+      "titular": "HELENA",
+      "origem": "VENDA CATALOGO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -540,7 +568,8 @@
     {
       "catalogo": "LUIZA POSSI",
       "fonte": "ABRAMUS",
-      "historico": "TRANSFERIDO DE LUIZA POSSI GADELHA",
+      "titular": "LUIZA POSSI",
+      "origem": "TRANSFERIDO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -554,7 +583,8 @@
     {
       "catalogo": "LUIZA POSSI",
       "fonte": "ABRAMUS",
-      "historico": "TRANSFERIDO DE HELENA",
+      "titular": "HELENA",
+      "origem": "TRANSFERIDO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -568,7 +598,8 @@
     {
       "catalogo": "LUIZA POSSI",
       "fonte": "WARNER CHAPPELL",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "WARNER CHAPPELL",
       "incomes": [
         {
@@ -588,7 +619,8 @@
     {
       "catalogo": "LUIZA POSSI",
       "fonte": "INDIE RECORDS",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "INDIE RECORDS",
       "incomes": [
         {
@@ -608,7 +640,8 @@
     {
       "catalogo": "LUIZA POSSI",
       "fonte": "UNIVERSAL MUSIC",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UNIVERSAL MUSIC LTDA",
       "incomes": [
         {
@@ -628,7 +661,8 @@
     {
       "catalogo": "ZEIDER",
       "fonte": "ABRAMUS",
-      "historico": "VENDA CATALOGO - CESSAO - ZEIDER FERNANDO PIRES",
+      "titular": "ZEIDER",
+      "origem": "VENDA CATALOGO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -642,7 +676,8 @@
     {
       "catalogo": "ZEIDER",
       "fonte": "ABRAMUS",
-      "historico": "TRANSFERIDO DE ZEIDER FERNANDO PIRES",
+      "titular": "ZEIDER",
+      "origem": "TRANSFERIDO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -656,7 +691,8 @@
     {
       "catalogo": "ZEIDER",
       "fonte": "ABRAMUS",
-      "historico": "VENDA CATALOGO - CESSAO - Z PRODUCOES ARTISTICAS LTDA - ME",
+      "titular": "Z PRODUCOES",
+      "origem": "VENDA CATALOGO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -670,7 +706,8 @@
     {
       "catalogo": "ZEIDER",
       "fonte": "ABRAMUS",
-      "historico": "TRANSFERIDO DE Z PRODUCOES ARTISTICAS LTDA - ME",
+      "titular": "Z PRODUCOES",
+      "origem": "TRANSFERIDO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -684,7 +721,8 @@
     {
       "catalogo": "ZEIDER",
       "fonte": "UNIVERSAL MUSIC",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UNIVERSAL MUSIC LTDA",
       "incomes": [
         {
@@ -704,7 +742,8 @@
     {
       "catalogo": "ZEIDER",
       "fonte": "UNIVERSAL MUSIC PUBLISHING",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UNIVERSAL MUSIC PUBLISHING",
       "incomes": [
         {
@@ -724,7 +763,8 @@
     {
       "catalogo": "ROSENBLIT",
       "fonte": "UBC",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UBC",
       "incomes": [
         {
@@ -750,7 +790,8 @@
     {
       "catalogo": "DADI",
       "fonte": "ABRAMUS",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -770,7 +811,8 @@
     {
       "catalogo": "ANDRE MORAES",
       "fonte": "SOCINPRO",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "SOCINPRO",
       "incomes": [
         {
@@ -790,7 +832,8 @@
     {
       "catalogo": "PROJOTA",
       "fonte": "ABRAMUS",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -810,7 +853,8 @@
     {
       "catalogo": "PROJOTA",
       "fonte": "UNIVERSAL MUSIC PUBLISHING",
-      "historico": null,
+      "titular": null,
+      "origem": null,
       "money_in": "UNIVERSAL MUSIC PUBLISHING",
       "incomes": [
         {
