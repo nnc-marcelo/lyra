@@ -16,6 +16,7 @@ Precisa ser regerado sempre que uma credencial nova for cadastrada no
 rpa-royalties (fora do escopo desta página).
 """
 
+import html
 import io
 import json
 import re
@@ -46,11 +47,15 @@ _LEFT_COLUMN_FRACTION = 0.68
 
 
 @st.cache_data
-def load_mapping() -> dict:
+def load_mapping_rows() -> list:
     if not MAPPING_PATH.exists():
-        return {}
-    data = json.loads(MAPPING_PATH.read_text(encoding="utf-8"))
-    return {row["ecad_code"]: row for row in data if row.get("ecad_code")}
+        return []
+    return json.loads(MAPPING_PATH.read_text(encoding="utf-8"))
+
+
+def build_ecad_index(rows: list) -> dict:
+    """Só as ativas (com ecad_code) entram no índice usado pra reconhecer arquivo."""
+    return {row["ecad_code"]: row for row in rows if row.get("ecad_code")}
 
 
 def month_folder_name(year: int, month: int) -> str:
@@ -130,6 +135,81 @@ def collect_zip_files(uploaded_zip: zipfile.ZipFile) -> list[tuple[str, bytes]]:
     return list(dedup.items())
 
 
+def render_html_table(headers: list[str], body_rows_html: list[str], max_height: str = "420px"):
+    """Tabela HTML padrão do app: cabeçalho cinza translúcido + blur (tema-agnóstico,
+    ao contrário de cor fixa ou variável CSS do Streamlit que não existe de verdade)."""
+    thead_cells = "".join(f'<th style="text-align:left;padding:6px 10px;">{html.escape(h)}</th>' for h in headers)
+    table_html = (
+        f'<div style="max-height:{max_height}; overflow-y:auto; border:1px solid rgba(128,128,128,0.3); border-radius:6px;">'
+        '<table style="width:100%; border-collapse:collapse; font-size:13px;">'
+        '<thead style="position:sticky; top:0; background:rgba(128,128,128,0.15); backdrop-filter:blur(4px);">'
+        f"<tr>{thead_cells}</tr></thead><tbody>" + "".join(body_rows_html) + "</tbody></table></div>"
+    )
+    st.markdown(table_html, unsafe_allow_html=True)
+
+
+def simple_row(cells: list, style: str = "") -> str:
+    tds = "".join(f'<td style="padding:6px 10px;">{html.escape(str(c))}</td>' for c in cells)
+    return f'<tr style="{style}">{tds}</tr>'
+
+
+def render_credentials_table(rows: list, query: str = ""):
+    """Tabela com credenciais ativas 'acesas' e suspensas 'apagadas'."""
+    q = query.strip().lower()
+    filtered = [
+        r for r in rows
+        if not q or q in (r.get("artist") or "").lower() or q in (r.get("account") or "").lower()
+    ]
+    filtered = sorted(filtered, key=lambda r: (not r.get("active"), (r.get("artist") or "").lower()))
+
+    rows_html = []
+    for r in filtered:
+        active = bool(r.get("active"))
+        artist = html.escape(r.get("artist") or "")
+        account = html.escape(r.get("account") or "")
+        ecad = html.escape(r.get("ecad_code") or "—")
+        if active:
+            dot_color = "var(--text-success, #1D9E75)"
+            text_style = "opacity: 1;"
+            label = "ativa"
+        else:
+            dot_color = "var(--text-muted, #888780)"
+            text_style = "opacity: 0.4;"
+            label = "suspensa"
+        rows_html.append(
+            f'<tr style="{text_style}" title="{label}">'
+            f'<td style="padding:6px 10px;">'
+            f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;'
+            f'background:{dot_color};margin-right:8px;"></span>{artist}</td>'
+            f'<td style="padding:6px 10px;">{account}</td>'
+            f'<td style="padding:6px 10px;font-family:monospace;">{ecad}</td>'
+            f"</tr>"
+        )
+
+    render_html_table(["Artista", "Conta", "ECAD"], rows_html)
+    st.caption(f"{len(filtered)} de {len(rows)} — 🟢 acesa = reconhece automático · apagada = ainda suspensa/sem código")
+
+
+def build_coverage(rows: list, account_counter: dict) -> list:
+    """Cruza as credenciais ativas com o que realmente apareceu nesse upload."""
+    coverage = []
+    for r in rows:
+        if not r.get("active"):
+            continue
+        key = (r["artist"], r["account"])
+        count = account_counter.get(key)
+        coverage.append({
+            "status": "✅ organizada" if count else "⚠️ não apareceu",
+            "Artista": r["artist"],
+            "Conta": r["account"],
+            "Tipo": r.get("access_type") or "—",
+            "Arquivos": count or 0,
+        })
+    # faltantes primeiro, pra chamar atenção
+    coverage.sort(key=lambda c: (c["status"] != "⚠️ não apareceu", c["Artista"].lower()))
+    return coverage
+
+
 def organize(files: list[tuple[str, bytes]], mapping: dict):
     """Retorna (zip_bytes, resumo_por_conta, orfaos) onde orfaos é uma lista
     de dicts com código, arquivo de exemplo e melhor palpite de identidade."""
@@ -177,13 +257,18 @@ def main():
         "um .zip pronto pra você extrair e colar direto no lugar certo."
     )
 
-    mapping = load_mapping()
-    if not mapping:
+    rows = load_mapping_rows()
+    if not rows:
         st.error(
             "Mapeamento de credenciais não encontrado ou vazio "
             f"(`{MAPPING_PATH}`). Fale com o Marcelo antes de usar esta página."
         )
         return
+    mapping = build_ecad_index(rows)
+
+    with st.expander(f"Ver credenciais cadastradas ({len(rows)})"):
+        query = st.text_input("Buscar por artista ou conta", key="cred_search")
+        render_credentials_table(rows, query)
 
     uploaded = st.file_uploader("Anexe o .zip de comprovantes", type="zip")
     if uploaded is None:
@@ -213,9 +298,9 @@ def main():
 
     if account_counter:
         st.subheader("Resumo por conta")
-        st.dataframe(
-            [{"Artista": a, "Conta": c, "Arquivos": n} for (a, c), n in sorted(account_counter.items())],
-            use_container_width=True, hide_index=True,
+        render_html_table(
+            ["Artista", "Conta", "Arquivos"],
+            [simple_row([a, c, n]) for (a, c), n in sorted(account_counter.items())],
         )
 
     if orphans:
@@ -225,11 +310,28 @@ def main():
             "Avise o Marcelo com o código e o titular/artista (quando identificado) "
             "pra ele cadastrar na base."
         )
-        st.dataframe(
-            [{"Código ECAD": o["code"], "Arquivos": o["arquivos"],
-              "Titular (palpite)": o["titular"], "Artista (palpite)": o["artista"]} for o in orphans],
-            use_container_width=True, hide_index=True,
+        render_html_table(
+            ["Código ECAD", "Arquivos", "Titular (palpite)", "Artista (palpite)"],
+            [simple_row([o["code"], o["arquivos"], o["titular"], o["artista"]]) for o in orphans],
         )
+
+    st.divider()
+    st.subheader("Conferência — o que foi organizado neste envio")
+    coverage = build_coverage(rows, account_counter)
+    faltantes = [c for c in coverage if c["status"] == "⚠️ não apareceu"]
+    if faltantes:
+        st.warning(
+            f"{len(faltantes)} conta(s) ativa(s) não apareceram neste .zip — "
+            "confira manualmente se era esperado (ex.: conta sem movimento no mês)."
+        )
+    else:
+        st.success("Todas as contas ativas apareceram neste envio.")
+    render_html_table(
+        ["Status", "Artista", "Conta", "Tipo", "Arquivos"],
+        [simple_row([c["status"], c["Artista"], c["Conta"], c["Tipo"], c["Arquivos"]],
+                    style="" if c["status"] == "✅ organizada" else "background: rgba(230,150,20,0.08);")
+         for c in coverage],
+    )
 
     st.divider()
     hoje = datetime.now().strftime("%Y-%m-%d")
