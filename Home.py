@@ -11,7 +11,7 @@ import streamlit as st
 # Nas Nuvens App
 #----------------------------------
 
-st.set_page_config(page_title="Nas Nuvens App", page_icon="assets/lyra_favicon.png")
+st.set_page_config(page_title="Lyra", page_icon="assets/lyra_favicon.png")
 
 st.logo("assets/lyra_lockup_horizontal.png", icon_image="assets/lyra_favicon.png")
 
