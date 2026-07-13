@@ -1,10 +1,12 @@
-streamlit
-pandas
-openpyxl
-xlsxwriter
-numpy
-pdfplumber
-babel
-plotly
-python-dotenv
-requests
+# Versões fixadas nas que rodam localmente (conhecidas-boas).
+# Antes estava sem pin: cada commit diário de dados disparava um rebuild no
+# Streamlit Cloud que instalava a versão MAIS NOVA de tudo — um release novo
+# quebrava o app sem ninguém mexer no código. Fixar torna o build reprodutível.
+streamlit==1.54.0
+pandas==2.3.3
+openpyxl==3.1.5
+xlsxwriter==3.2.9
+numpy==2.4.2
+pdfplumber==0.11.9
+requests==2.32.3
+python-dotenv==1.0.1
