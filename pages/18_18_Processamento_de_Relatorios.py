@@ -417,9 +417,12 @@ def _yt_read_one(name, raw):
     if hdr_i is None:
         return None, "❌ cabeçalho (Country/Partner Revenue) não encontrado"
 
-    csv_text = "\n".join(lines[hdr_i:])
+    # Alguns exports (red label) trazem lixo de ";" no fim de cada linha
+    # (ex.: "...Partner Revenue;;" no cabeçalho e "...0.00008249951;;" nos dados).
+    # Isso suja o nome da última coluna e impede o parse numérico -> limpamos.
+    csv_text = "\n".join(l.rstrip("; \t\r") for l in lines[hdr_i:])
     df = pd.read_csv(io.StringIO(csv_text), dtype=str, keep_default_na=False)
-    df.columns = [c.strip() for c in df.columns]
+    df.columns = [c.strip().rstrip(";").strip() for c in df.columns]
 
     mapping = _yt_map_columns(df.columns)
     out = pd.DataFrame(
