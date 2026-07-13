@@ -13,7 +13,6 @@ from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="Varredura de Lacunas — Royalties",
@@ -90,4 +89,4 @@ with col2:
 
 st.divider()
 
-components.html(html, height=1100, scrolling=True)
+st.html(html)
