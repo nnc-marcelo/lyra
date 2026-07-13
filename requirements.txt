@@ -6,3 +6,5 @@ numpy
 pdfplumber
 babel
 plotly
+python-dotenv
+requests
