@@ -1,19 +1,23 @@
 """
-Organizador de Comprovantes — ABRAMUS
+Organizador de Comprovantes — ABRAMUS / UBC
 
-Recebe o .zip de comprovantes baixado do portal da ABRAMUS, identifica de
-qual conta/artista é cada arquivo (pelo código ECAD no nome) e devolve um
-.zip já organizado na estrutura de pastas usada na base
-(Artista\\ABRAMUS\\Conta\\Ano\\Mês\\arquivo), pronto pra extrair e colar.
+Recebe o .zip de comprovantes baixado do portal (ABRAMUS ou UBC), identifica de
+qual conta/artista é cada arquivo (pelo código ECAD no nome) e devolve um .zip
+já organizado na estrutura de pastas usada na base
+(Artista\\<ENTIDADE>\\Conta\\Ano\\Mês\\arquivo), pronto pra extrair e colar.
+
+A entidade é escolhida num seletor na barra lateral — o fluxo é idêntico pras
+duas; só muda o padrão de código no nome do arquivo e o mapeamento de
+credenciais usado.
 
 Não escreve em lugar nenhum da base, não mexe em credencial nenhuma, e não
-guarda nada do que for enviado — tudo é processado em memória e descartado
-ao fim da sessão.
+guarda nada do que for enviado — tudo é processado em memória e descartado ao
+fim da sessão.
 
-O mapeamento (data/mapping/abramus_credentials_map.json) só tem código
-ECAD/ABRAMUS, nome de artista/conta e caminho relativo — sem login nem senha.
-Precisa ser regerado sempre que uma credencial nova for cadastrada no
-rpa-royalties (fora do escopo desta página).
+Os mapeamentos (data/mapping/{abramus,ubc}_credentials_map.json) só têm código
+ECAD, nome de artista/conta e caminho relativo — sem login nem senha. Cada um
+precisa ser regerado (pelos exporters export_{abramus,ubc}_mapping_to_lyra.py em
+rpa-royalties) sempre que uma credencial nova for cadastrada na base.
 """
 
 import html
@@ -28,9 +32,9 @@ from pathlib import Path
 import pdfplumber
 import streamlit as st
 
-st.set_page_config(page_title="Organizador de Comprovantes — ABRAMUS", page_icon="🗂️", layout="wide")
+st.set_page_config(page_title="Organizador de Comprovantes", page_icon="🗂️", layout="wide")
 
-MAPPING_PATH = Path(__file__).resolve().parents[1] / "data" / "mapping" / "abramus_credentials_map.json"
+MAPPING_DIR = Path(__file__).resolve().parents[1] / "data" / "mapping"
 
 PT_MONTHS_SHORT = {
     1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr",
@@ -38,44 +42,51 @@ PT_MONTHS_SHORT = {
     9: "Set", 10: "Out", 11: "Nov", 12: "Dez",
 }
 
-_CODE_RE = re.compile(r"_201_0*(\d+)")
-_YM_RE = re.compile(r"^(?P<y>20\d{2})_(?P<m>\d{1,2})[_\-]")
+# ---------------------------------------------------------------------------
+# Extração de código ECAD do nome do arquivo — específico por entidade
+# ---------------------------------------------------------------------------
 
-_ABRAMUS_CODE_RE = re.compile(r"ABRAMUS\s*(\d+)", re.IGNORECASE)
-_ECAD_CODE_RE = re.compile(r"ECAD\s*(\d+)", re.IGNORECASE)
-_LEFT_COLUMN_FRACTION = 0.68
-
-
-@st.cache_data
-def load_mapping_rows() -> list:
-    if not MAPPING_PATH.exists():
-        return []
-    return json.loads(MAPPING_PATH.read_text(encoding="utf-8"))
+# ABRAMUS: código sempre no token _201_XXXXXXXX (demonstrativos e recibos).
+_ABRAMUS_FILE_RE = re.compile(r"_201_0*(\d+)")
+# UBC: demonstrativo nacional no token _093_XXXXXXXX. Os demais (INT, REC) não
+# têm token de tipo — o código ECAD é o 4º campo separado por "_".
+_UBC_FILE_RE = re.compile(r"_093_(\d+)")
 
 
-def build_ecad_index(rows: list) -> dict:
-    """Só as ativas (com ecad_code) entram no índice usado pra reconhecer arquivo."""
-    return {row["ecad_code"]: row for row in rows if row.get("ecad_code")}
-
-
-def month_folder_name(year: int, month: int) -> str:
-    mm = PT_MONTHS_SHORT.get(month, f"{month:02d}")
-    return f"{month:02d}. {mm} {str(year)[-2:]}"
-
-
-def extract_code(name: str):
-    m = _CODE_RE.search(name)
+def extract_code_abramus(name: str):
+    m = _ABRAMUS_FILE_RE.search(name)
     return m.group(1) if m else None
 
 
-def extract_year_month(name: str):
-    m = _YM_RE.match(name)
+def _extract_ubc_positional(name: str):
+    """Pega o código ECAD do 4º campo do nome (…_<masterOrZeros>_<ECAD>_…).
+    Vale tanto pra recibo (_REC) quanto pro demonstrativo internacional (_INT)."""
+    parts = name.split("_")
+    if len(parts) >= 4:
+        candidate = parts[3].split(".")[0]
+        try:
+            return str(int(candidate))
+        except ValueError:
+            pass
+    return None
+
+
+def extract_code_ubc(name: str):
+    m = _UBC_FILE_RE.search(name)
     if m:
-        return int(m.group("y")), int(m.group("m"))
-    return None, None
+        return str(int(m.group(1)))
+    return _extract_ubc_positional(name)
 
 
-def extract_identity_from_pdf(pdf_bytes: bytes) -> dict:
+# ---------------------------------------------------------------------------
+# Palpite de identidade a partir do PDF — específico da ABRAMUS
+# ---------------------------------------------------------------------------
+
+_ABRAMUS_ANCHOR_RE = re.compile(r"ABRAMUS\s*(\d+)", re.IGNORECASE)
+_LEFT_COLUMN_FRACTION = 0.68
+
+
+def extract_identity_abramus(pdf_bytes: bytes) -> dict:
     """Melhor esforço: lê a coluna esquerda da 1ª página e usa a linha
     'ABRAMUS<código>' como âncora pra achar titular/artista. Se não achar,
     devolve vazio — a pessoa vê só o código mesmo."""
@@ -89,11 +100,11 @@ def extract_identity_from_pdf(pdf_bytes: bytes) -> dict:
         return info
 
     lines = [l.strip() for l in text.splitlines() if l.strip()]
-    idx = next((i for i, l in enumerate(lines) if _ABRAMUS_CODE_RE.search(l)), None)
+    idx = next((i for i, l in enumerate(lines) if _ABRAMUS_ANCHOR_RE.search(l)), None)
     if idx is None:
         return info
 
-    m = _ABRAMUS_CODE_RE.search(lines[idx])
+    m = _ABRAMUS_ANCHOR_RE.search(lines[idx])
     if m:
         info["abramus_code"] = m.group(1)
     if idx - 1 >= 0:
@@ -103,7 +114,62 @@ def extract_identity_from_pdf(pdf_bytes: bytes) -> dict:
     return info
 
 
-def collect_zip_files(uploaded_zip: zipfile.ZipFile) -> list[tuple[str, bytes]]:
+# ---------------------------------------------------------------------------
+# Configuração por entidade
+# ---------------------------------------------------------------------------
+
+ENTITIES = {
+    "ABRAMUS": {
+        "mapping_file": "abramus_credentials_map.json",
+        "extract_code": extract_code_abramus,
+        "folder": "ABRAMUS",
+        "filename_hint": "..._201_XXXXXXXX...",
+        "pdf_identity": extract_identity_abramus,
+    },
+    "UBC": {
+        "mapping_file": "ubc_credentials_map.json",
+        "extract_code": extract_code_ubc,
+        "folder": "UBC",
+        "filename_hint": "..._093_XXXXXXXX... (nacional) ou ..._<ECAD>_INT/REC... (internacional)",
+        "pdf_identity": None,  # layout do PDF UBC difere; sem palpite de titular
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Mapeamento de credenciais
+# ---------------------------------------------------------------------------
+
+@st.cache_data
+def load_mapping_rows(mapping_path: str) -> list:
+    p = Path(mapping_path)
+    if not p.exists():
+        return []
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def build_ecad_index(rows: list) -> dict:
+    """Só as ativas (com ecad_code) entram no índice usado pra reconhecer arquivo."""
+    return {row["ecad_code"]: row for row in rows if row.get("ecad_code")}
+
+
+def month_folder_name(year: int, month: int) -> str:
+    mm = PT_MONTHS_SHORT.get(month, f"{month:02d}")
+    return f"{month:02d}. {mm} {str(year)[-2:]}"
+
+
+def extract_year_month(name: str):
+    """Ano/mês no início do nome; fallback em qualquer posição, pra nomes
+    prefixados (ex.: 'DEM. INTERNACIONAL(2026_05_...)')."""
+    m = re.match(r"^(?P<y>20\d{2})_(?P<m>\d{1,2})[_\-]", name)
+    if not m:
+        m = re.search(r"(?P<y>20\d{2})_(?P<m>\d{1,2})[_\-]", name)
+    if m:
+        return int(m.group("y")), int(m.group("m"))
+    return None, None
+
+
+def collect_zip_files(uploaded_zip: zipfile.ZipFile, extract_code) -> list[tuple[str, bytes]]:
     """Extrai recursivamente: arquivos soltos e o conteúdo de zips aninhados
     (ex.: _REC.zip, _VCV.zip), sempre que reconhecer o padrão de código."""
     collected = []
@@ -210,7 +276,7 @@ def build_coverage(rows: list, account_counter: dict) -> list:
     return coverage
 
 
-def organize(files: list[tuple[str, bytes]], mapping: dict):
+def organize(files: list[tuple[str, bytes]], mapping: dict, extract_code, folder: str, pdf_identity):
     """Retorna (zip_bytes, resumo_por_conta, orfaos) onde orfaos é uma lista
     de dicts com código, arquivo de exemplo e melhor palpite de identidade."""
     out_buffer = io.BytesIO()
@@ -229,7 +295,7 @@ def organize(files: list[tuple[str, bytes]], mapping: dict):
                 base = cred["relative_path"]
                 account_counter[(cred["artist"], cred["account"])] += 1
             else:
-                base = f"_ORPHANS\\CODE_{code}"
+                base = f"_ORPHANS\\{folder}\\CODE_{code}"
                 orphan_codes[code].append((name, content))
 
             dest = f"{base}\\{year}\\{month_folder_name(year, month)}\\{name}".replace("\\", "/")
@@ -237,8 +303,11 @@ def organize(files: list[tuple[str, bytes]], mapping: dict):
 
     orphan_summary = []
     for code, entries in orphan_codes.items():
-        pdf_entry = next((c for n, c in entries if n.lower().endswith(".pdf")), None)
-        identity = extract_identity_from_pdf(pdf_entry) if pdf_entry else {}
+        identity = {}
+        if pdf_identity is not None:
+            pdf_entry = next((c for n, c in entries if n.lower().endswith(".pdf")), None)
+            if pdf_entry:
+                identity = pdf_identity(pdf_entry)
         orphan_summary.append({
             "code": code,
             "arquivos": len(entries),
@@ -250,43 +319,55 @@ def organize(files: list[tuple[str, bytes]], mapping: dict):
 
 
 def main():
-    st.title("🗂️ Organizador de Comprovantes — ABRAMUS")
+    st.title("🗂️ Organizador de Comprovantes")
+
+    st.sidebar.header("⚙️ Configurações")
+    entity_name = st.sidebar.selectbox("Entidade", list(ENTITIES.keys()), index=0)
+    cfg = ENTITIES[entity_name]
+    st.sidebar.markdown("---")
+
     st.caption(
-        "Anexe o .zip de comprovantes baixado do portal da ABRAMUS. "
+        f"Anexe o .zip de comprovantes baixado do portal da **{entity_name}**. "
         "A página organiza tudo na estrutura de pastas da base e devolve "
         "um .zip pronto pra você extrair e colar direto no lugar certo."
     )
 
-    rows = load_mapping_rows()
+    mapping_path = MAPPING_DIR / cfg["mapping_file"]
+    rows = load_mapping_rows(str(mapping_path))
     if not rows:
         st.error(
-            "Mapeamento de credenciais não encontrado ou vazio "
-            f"(`{MAPPING_PATH}`). Fale com o Marcelo antes de usar esta página."
+            f"Mapeamento de credenciais da {entity_name} não encontrado ou vazio "
+            f"(`{mapping_path}`). Rode o exporter em rpa-royalties pra gerar, "
+            "ou fale com o Marcelo antes de usar esta página."
         )
         return
     mapping = build_ecad_index(rows)
 
-    with st.expander(f"Ver credenciais cadastradas ({len(rows)})"):
-        query = st.text_input("Buscar por artista ou conta", key="cred_search")
+    with st.expander(f"Ver credenciais {entity_name} cadastradas ({len(rows)})"):
+        query = st.text_input("Buscar por artista ou conta", key=f"cred_search_{entity_name}")
         render_credentials_table(rows, query)
 
-    uploaded = st.file_uploader("Anexe o .zip de comprovantes", type="zip")
+    uploaded = st.file_uploader(
+        "Anexe o .zip de comprovantes", type="zip", key=f"uploader_{entity_name}"
+    )
     if uploaded is None:
         return
 
     with st.spinner("Lendo e organizando os arquivos..."):
         try:
             with zipfile.ZipFile(uploaded) as z:
-                files = collect_zip_files(z)
+                files = collect_zip_files(z, cfg["extract_code"])
         except zipfile.BadZipFile:
             st.error("Não consegui abrir esse arquivo como .zip. Confira se o upload não corrompeu.")
             return
 
         if not files:
-            st.warning("Nenhum arquivo reconhecido dentro do .zip (padrão esperado: `..._201_XXXXXXXX...`).")
+            st.warning(f"Nenhum arquivo reconhecido dentro do .zip (padrão esperado: `{cfg['filename_hint']}`).")
             return
 
-        out_bytes, account_counter, orphans = organize(files, mapping)
+        out_bytes, account_counter, orphans = organize(
+            files, mapping, cfg["extract_code"], cfg["folder"], cfg["pdf_identity"]
+        )
 
     st.success(f"{len(files)} arquivo(s) processado(s).")
 
@@ -306,7 +387,7 @@ def main():
     if orphans:
         st.subheader("⚠️ Códigos não reconhecidos")
         st.caption(
-            "Foram incluídos no .zip dentro de `_ORPHANS`, pra nada se perder. "
+            f"Foram incluídos no .zip dentro de `_ORPHANS\\{cfg['folder']}`, pra nada se perder. "
             "Avise o Marcelo com o código e o titular/artista (quando identificado) "
             "pra ele cadastrar na base."
         )
@@ -338,7 +419,7 @@ def main():
     st.download_button(
         "⬇️ Baixar .zip organizado",
         data=out_bytes,
-        file_name=f"comprovantes_organizados_{hoje}.zip",
+        file_name=f"comprovantes_organizados_{cfg['folder'].lower()}_{hoje}.zip",
         mime="application/zip",
         use_container_width=True,
     )
