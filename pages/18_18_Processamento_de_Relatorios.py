@@ -83,6 +83,7 @@ def detectar_formato_arquivo(file):
         - None: arquivo inválido ou muito pequeno
     """
     try:
+        file.seek(0)
         df_test = pd.read_excel(file, nrows=7)
 
         if len(df_test) < 1:
@@ -102,17 +103,26 @@ def detectar_formato_arquivo(file):
     except Exception:
         return None
     finally:
-        file.seek(0)
+        try:
+            file.seek(0)
+        except (OSError, AttributeError):
+            pass
 
 
 def ler_arquivo_backoffice(file):
     """Lê arquivo Backoffice detectando automaticamente o formato."""
+    try:
+        file.seek(0)
+    except (OSError, AttributeError):
+        pass
+
     header_pos = detectar_formato_arquivo(file)
 
     if header_pos is None:
         return None, "❌ Arquivo muito pequeno ou formato inválido", False
 
     try:
+        file.seek(0)
         df = pd.read_excel(file, header=header_pos)
         if len(df) == 0:
             return None, "⚠️ Arquivo sem dados", False
@@ -120,6 +130,11 @@ def ler_arquivo_backoffice(file):
         return df, info, True
     except Exception as e:
         return None, f"❌ Erro ao ler: {str(e)}", False
+    finally:
+        try:
+            file.seek(0)
+        except (OSError, AttributeError):
+            pass
 
 
 def render_backoffice():
@@ -153,9 +168,9 @@ def render_backoffice():
 
     col1, col2 = st.columns(2)
     with col1:
-        concat_button = st.button('🔗 Concatenar arquivos', type='secondary', use_container_width=True)
+        concat_button = st.button('🔗 Concatenar arquivos', type='secondary', use_container_width=True, key='backoffice_concat')
     with col2:
-        totals_button = st.button('🧮 Calcular totais', type='primary', use_container_width=True)
+        totals_button = st.button('🧮 Calcular totais', type='primary', use_container_width=True, key='backoffice_totals')
 
     # ---- CONCATENAR ----
     if concat_button:
