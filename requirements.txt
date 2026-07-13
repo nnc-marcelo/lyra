@@ -1,12 +1,20 @@
-# Versões fixadas nas que rodam localmente (conhecidas-boas).
+# Versões fixadas para um build reprodutível.
 # Antes estava sem pin: cada commit diário de dados disparava um rebuild no
 # Streamlit Cloud que instalava a versão MAIS NOVA de tudo — um release novo
 # quebrava o app sem ninguém mexer no código. Fixar torna o build reprodutível.
+#
+# ATENÇÃO ao alvo do pin: o Streamlit Cloud roda no Python do .python-version
+# (3.11 / Linux), NÃO no Python local (que pode ser mais novo). Pinar o "mais
+# novo de tudo" capturado num Python local recente gerava SEGFAULT no Cloud
+# (mismatch de ABI numpy<->pyarrow nas wheels do 3.11). Por isso o stack nativo
+# abaixo é fixado numa combinação estável e com wheels sólidas para 3.11/Linux,
+# e o pyarrow (usado pelo Streamlit p/ renderizar dataframes) agora é pinado.
 streamlit==1.54.0
 pandas==2.3.3
+numpy==2.2.6
+pyarrow==18.1.0
 openpyxl==3.1.5
 xlsxwriter==3.2.9
-numpy==2.4.2
 pdfplumber==0.11.9
 requests==2.32.3
 python-dotenv==1.0.1
