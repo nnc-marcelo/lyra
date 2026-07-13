@@ -24,3 +24,4 @@ st.caption(
 )
 
 # Deixar espaço para novas funcionalidades futuras
+# Deploy fix
