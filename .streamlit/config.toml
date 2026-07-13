@@ -1,13 +1,8 @@
 [client]
 showErrorDetails = false
-logger.level = "warning"
-
-[logger]
-level = "warning"
 
 [server]
 maxUploadSize = 500
-enableXsrfProtection = true
 
 # Tema da marca Nas Nuvens (lyra)
 [theme]
