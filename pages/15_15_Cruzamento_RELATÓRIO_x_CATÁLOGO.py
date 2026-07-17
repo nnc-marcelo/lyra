@@ -3,9 +3,12 @@ import io
 import os
 import sys
 import re
+import base64
 import unicodedata
+from io import BytesIO
 from pathlib import Path
 import pandas as pd
+import requests
 import streamlit as st
 import zipfile
 import xml.etree.ElementTree as ET
@@ -39,6 +42,72 @@ CAMINHO_VITALE = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Catalo
 
 CAMINHO_BASE_INGROOVES = str(_PROJECT_ROOT / "data" / "mapping" / "mapping-artistas-ingrooves.xlsx")
 CAMINHO_INGROOVES = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Catalog\INGROOVES"
+
+# ---------------------------
+# GitHub (salvar mapeamento colaborativo direto no repositório)
+# ---------------------------
+GITHUB_MAPPING_PATH = "data/mapping/mapping-artistas-ingrooves.xlsx"
+
+
+def get_github_config():
+    """
+    Lê credenciais do GitHub em st.secrets (seção [github]: token, repo, branch).
+    Retorna None se não estiver configurado, para o app funcionar normalmente
+    sem essa funcionalidade (ex.: ambiente local sem secrets.toml).
+    """
+    try:
+        cfg = st.secrets["github"]
+        token = cfg["token"]
+    except Exception:
+        return None
+    if not token:
+        return None
+    return {
+        "token": token,
+        "repo": cfg.get("repo", "nnc-marcelo/lyra"),
+        "branch": cfg.get("branch", "main"),
+    }
+
+
+def _github_headers(token: str) -> dict:
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def github_fetch_mapping(gh_config: dict, path: str = GITHUB_MAPPING_PATH):
+    """Busca a versão mais recente do arquivo de mapeamento direto do GitHub."""
+    url = f"https://api.github.com/repos/{gh_config['repo']}/contents/{path}"
+    resp = requests.get(
+        url, headers=_github_headers(gh_config["token"]),
+        params={"ref": gh_config["branch"]}, timeout=30
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    content = base64.b64decode(data["content"])
+    df = pd.read_excel(BytesIO(content), dtype=str)
+    df.columns = [c.strip() for c in df.columns]
+    return df, data["sha"]
+
+
+def github_save_mapping(gh_config: dict, df_novo: pd.DataFrame, sha: str, commit_message: str, path: str = GITHUB_MAPPING_PATH):
+    """Sobe uma nova versão do arquivo de mapeamento, criando um commit no repositório."""
+    output = BytesIO()
+    df_novo.to_excel(output, index=False)
+    content_b64 = base64.b64encode(output.getvalue()).decode("ascii")
+
+    url = f"https://api.github.com/repos/{gh_config['repo']}/contents/{path}"
+    payload = {
+        "message": commit_message,
+        "content": content_b64,
+        "sha": sha,
+        "branch": gh_config["branch"],
+    }
+    resp = requests.put(url, headers=_github_headers(gh_config["token"]), json=payload, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
 
 # ---------------------------
 # Helpers Gerais
@@ -1906,27 +1975,88 @@ elif fonte == "INGROOVES":
                 total_nao_mapeado = df_nm_grp["Net Dollars after Fees"].sum()
                 st.warning(f"⚠️ **{len(df_nm_grp)} artistas únicos** não foram encontrados na base de mapeamento | **Total: USD {total_nao_mapeado:,.2f}**")
 
-                # Template no mesmo formato da planilha de mapeamento (Artist, Label, Album Title,
-                # Song, ISRC, Tag_Artista), pronto para preencher e colar em mapping-artistas-ingrooves.xlsx
+                # Linhas no grão da planilha de mapeamento (uma por Artist/Label/Album/Song/ISRC)
                 colunas_template = ["Artist", "Label", "Album Title", "Song", "ISRC"]
                 colunas_template_disp = [c for c in colunas_template if c in df_nao_mapeadas.columns]
                 df_template = df_nao_mapeadas[colunas_template_disp].drop_duplicates().sort_values("Artist")
-                df_template["Tag_Artista"] = ""
+
+                # Edição por artista (não por faixa) para não repetir o preenchimento a cada música
+                df_editor_base = df_nm_grp[["Artist"]].sort_values("Artist").reset_index(drop=True)
+                df_editor_base["Tag_Artista"] = ""
 
                 st.markdown(
-                    "**Template para adicionar à base de mapeamento** — preencha a coluna `Tag_Artista` "
-                    "e cole as linhas em `mapping-artistas-ingrooves.xlsx`:"
+                    "**Preencha `Tag_Artista`** para cada artista abaixo. Ao salvar, o mesmo catálogo é "
+                    "aplicado a todas as faixas desse artista neste relatório."
                 )
-                st.dataframe(df_template.head(100), use_container_width=True, height=300)
 
-                csv_template = df_template.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
-                st.download_button(
-                    "⬇️ Baixar template de mapeamento (artistas não mapeados)",
-                    data=csv_template,
-                    file_name=f"template_mapeamento_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                    mime="text/csv",
-                    type="secondary"
+                editor_key = f"editor_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}"
+                df_editado = st.data_editor(
+                    df_editor_base,
+                    use_container_width=True,
+                    height=300,
+                    key=editor_key,
+                    disabled=["Artist"],
+                    hide_index=True,
                 )
+
+                gh_config = get_github_config()
+                preenchidos = df_editado[df_editado["Tag_Artista"].astype(str).str.strip() != ""]
+
+                col_save1, col_save2 = st.columns(2)
+
+                with col_save1:
+                    df_download = df_template.merge(preenchidos, on="Artist", how="left")
+                    df_download["Tag_Artista"] = df_download["Tag_Artista"].fillna("")
+                    csv_template = df_download.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
+                    st.download_button(
+                        "⬇️ Baixar template de mapeamento (CSV)",
+                        data=csv_template,
+                        file_name=f"template_mapeamento_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
+                        mime="text/csv",
+                        type="secondary"
+                    )
+
+                with col_save2:
+                    if gh_config is None:
+                        st.caption("💾 Salvar direto na base de mapeamento não está configurado neste ambiente.")
+                    else:
+                        if st.button(
+                            f"💾 Salvar {len(preenchidos)} artista(s) no mapeamento",
+                            type="primary",
+                            disabled=preenchidos.empty,
+                            key=f"btn_save_{editor_key}",
+                        ):
+                            try:
+                                with st.spinner("Buscando versão atual do mapeamento no GitHub..."):
+                                    df_mapping_atual, sha_atual = github_fetch_mapping(gh_config)
+
+                                df_novas_linhas = df_template.merge(preenchidos, on="Artist", how="inner")
+                                df_novas_linhas = df_novas_linhas[["Artist", "Label", "Album Title", "Song", "ISRC", "Tag_Artista"]]
+
+                                isrcs_existentes = (
+                                    set(df_mapping_atual["ISRC"].dropna().astype(str))
+                                    if "ISRC" in df_mapping_atual.columns else set()
+                                )
+                                df_novas_linhas = df_novas_linhas[~df_novas_linhas["ISRC"].astype(str).isin(isrcs_existentes)]
+
+                                if df_novas_linhas.empty:
+                                    st.info("Essas faixas já estão na base de mapeamento (nada novo pra salvar).")
+                                else:
+                                    df_mapping_final = pd.concat([df_mapping_atual, df_novas_linhas], ignore_index=True)
+                                    with st.spinner("Salvando no GitHub..."):
+                                        github_save_mapping(
+                                            gh_config,
+                                            df_mapping_final,
+                                            sha_atual,
+                                            commit_message=f"data: adiciona {df_novas_linhas['Artist'].nunique()} artista(s) ao mapeamento Ingrooves via app",
+                                        )
+                                    st.success(
+                                        f"✅ {df_novas_linhas['Artist'].nunique()} artista(s) "
+                                        f"({len(df_novas_linhas)} faixa(s)) salvos na base de mapeamento! "
+                                        f"O app vai reiniciar em instantes com o mapeamento atualizado."
+                                    )
+                            except Exception as e:
+                                st.error(f"❌ Erro ao salvar no GitHub: {e}")
             elif len(df_sem_artist) == 0:
                 st.success("✅ Todos os artistas foram mapeados com sucesso!")
 

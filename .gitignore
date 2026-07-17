@@ -1,6 +1,9 @@
 # Claude Code local files
 .claude/
 
+# Segredos locais do Streamlit (nunca versionar - repo é público)
+.streamlit/secrets.toml
+
 # Python cache
 __pycache__/
 *.py[cod]
