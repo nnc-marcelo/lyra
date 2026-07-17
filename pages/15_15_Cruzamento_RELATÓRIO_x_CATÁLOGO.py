@@ -1975,27 +1975,25 @@ elif fonte == "INGROOVES":
                 total_nao_mapeado = df_nm_grp["Net Dollars after Fees"].sum()
                 st.warning(f"⚠️ **{len(df_nm_grp)} artistas únicos** não foram encontrados na base de mapeamento | **Total: USD {total_nao_mapeado:,.2f}**")
 
-                # Linhas no grão da planilha de mapeamento (uma por Artist/Label/Album/Song/ISRC)
+                # Template no mesmo formato da planilha de mapeamento (Artist, Label, Album Title,
+                # Song, ISRC, Tag_Artista), editável e pronto para preencher/colar em mapping-artistas-ingrooves.xlsx
                 colunas_template = ["Artist", "Label", "Album Title", "Song", "ISRC"]
                 colunas_template_disp = [c for c in colunas_template if c in df_nao_mapeadas.columns]
-                df_template = df_nao_mapeadas[colunas_template_disp].drop_duplicates().sort_values("Artist")
-
-                # Edição por artista (não por faixa) para não repetir o preenchimento a cada música
-                df_editor_base = df_nm_grp[["Artist"]].sort_values("Artist").reset_index(drop=True)
-                df_editor_base["Tag_Artista"] = ""
+                df_template = df_nao_mapeadas[colunas_template_disp].drop_duplicates().sort_values("Artist").reset_index(drop=True)
+                df_template["Tag_Artista"] = ""
 
                 st.markdown(
-                    "**Preencha `Tag_Artista`** para cada artista abaixo. Ao salvar, o mesmo catálogo é "
-                    "aplicado a todas as faixas desse artista neste relatório."
+                    "**Preencha `Tag_Artista`** — mesma estrutura da planilha de mapeamento, "
+                    "pronta para salvar direto ou baixar e colar em `mapping-artistas-ingrooves.xlsx`:"
                 )
 
                 editor_key = f"editor_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}"
                 df_editado = st.data_editor(
-                    df_editor_base,
+                    df_template,
                     use_container_width=True,
                     height=300,
                     key=editor_key,
-                    disabled=["Artist"],
+                    disabled=colunas_template_disp,
                     hide_index=True,
                 )
 
@@ -2005,9 +2003,7 @@ elif fonte == "INGROOVES":
                 col_save1, col_save2 = st.columns(2)
 
                 with col_save1:
-                    df_download = df_template.merge(preenchidos, on="Artist", how="left")
-                    df_download["Tag_Artista"] = df_download["Tag_Artista"].fillna("")
-                    csv_template = df_download.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
+                    csv_template = df_editado.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
                     st.download_button(
                         "⬇️ Baixar template de mapeamento (CSV)",
                         data=csv_template,
@@ -2021,7 +2017,7 @@ elif fonte == "INGROOVES":
                         st.caption("💾 Salvar direto na base de mapeamento não está configurado neste ambiente.")
                     else:
                         if st.button(
-                            f"💾 Salvar {len(preenchidos)} artista(s) no mapeamento",
+                            f"💾 Salvar {len(preenchidos)} faixa(s) no mapeamento",
                             type="primary",
                             disabled=preenchidos.empty,
                             key=f"btn_save_{editor_key}",
@@ -2030,8 +2026,7 @@ elif fonte == "INGROOVES":
                                 with st.spinner("Buscando versão atual do mapeamento no GitHub..."):
                                     df_mapping_atual, sha_atual = github_fetch_mapping(gh_config)
 
-                                df_novas_linhas = df_template.merge(preenchidos, on="Artist", how="inner")
-                                df_novas_linhas = df_novas_linhas[["Artist", "Label", "Album Title", "Song", "ISRC", "Tag_Artista"]]
+                                df_novas_linhas = preenchidos[["Artist", "Label", "Album Title", "Song", "ISRC", "Tag_Artista"]]
 
                                 isrcs_existentes = (
                                     set(df_mapping_atual["ISRC"].dropna().astype(str))
