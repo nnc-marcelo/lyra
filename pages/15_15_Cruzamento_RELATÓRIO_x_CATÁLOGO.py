@@ -14,9 +14,11 @@ import zipfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict, Counter
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.ui_components import render_html_table, simple_row, render_status_table
+
 # Integração opcional com Reprtoir
 try:
-    sys.path.insert(0, str(Path(__file__).parent.parent))
     from utils.reprtoir_lookup import ReprtorirClient, lookup_obra, match_catalogo_interno
     REPRTOIR_DISPONIVEL = True
 except Exception:
@@ -2032,7 +2034,14 @@ elif fonte == "INGROOVES":
             df_grouped = df_grouped.sort_values("Net Dollars after Fees", ascending=False)
             df_grouped = df_grouped.rename(columns={"Net Dollars after Fees": "Net Dollars"})
 
-            st.dataframe(df_grouped, use_container_width=True, height=520)
+            render_html_table(
+                ["Catálogo", "Net Dollars"],
+                [
+                    simple_row([r["CATÁLOGO"] or "(sem catálogo)", f"USD {r['Net Dollars']:,.2f}"])
+                    for _, r in df_grouped.iterrows()
+                ],
+                max_height="480px",
+            )
 
             total_net = df_grouped["Net Dollars"].sum()
             st.markdown(f"**Total Net Dollars: USD {total_net:,.2f}**")
@@ -2129,6 +2138,23 @@ elif fonte == "INGROOVES":
                     )
 
                     preenchidos = df_editado[df_editado["Tag_Artista"].astype(str).str.strip() != ""]
+
+                    artistas_status = df_editado.drop_duplicates(subset=["Artist"])
+                    st.caption(f"**Status de preenchimento** — {len(preenchidos)} de {len(df_editado)} faixa(s) já com `Tag_Artista`:")
+                    render_status_table(
+                        ["Artista", "Tag_Artista"],
+                        [
+                            {
+                                "preenchido": bool(str(row["Tag_Artista"]).strip()),
+                                "Artist": row["Artist"],
+                                "Tag_Artista": row["Tag_Artista"] or "—",
+                            }
+                            for _, row in artistas_status.iterrows()
+                        ],
+                        status_key="preenchido",
+                        label_key="Artist",
+                        max_height="200px",
+                    )
 
                     col_save1, col_save2 = st.columns(2)
 
