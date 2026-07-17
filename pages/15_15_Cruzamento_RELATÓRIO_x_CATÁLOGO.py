@@ -1903,13 +1903,8 @@ elif fonte == "INGROOVES":
 
             if len(df_nao_mapeadas) > 0:
                 df_nm_grp = df_nao_mapeadas.groupby("Artist", as_index=False)["Net Dollars after Fees"].sum()
-                df_nm_grp = df_nm_grp.sort_values("Net Dollars after Fees", ascending=False)
-                df_nm_grp = df_nm_grp.rename(columns={"Net Dollars after Fees": "Net Dollars"})
-
-                total_nao_mapeado = df_nm_grp["Net Dollars"].sum()
+                total_nao_mapeado = df_nm_grp["Net Dollars after Fees"].sum()
                 st.warning(f"⚠️ **{len(df_nm_grp)} artistas únicos** não foram encontrados na base de mapeamento | **Total: USD {total_nao_mapeado:,.2f}**")
-
-                st.dataframe(df_nm_grp.head(100), use_container_width=True, height=300)
 
                 # Template no mesmo formato da planilha de mapeamento (Artist, Label, Album Title,
                 # Song, ISRC, Tag_Artista), pronto para preencher e colar em mapping-artistas-ingrooves.xlsx
