@@ -37,6 +37,9 @@ CAMINHO_SONY = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Catalog\
 CAMINHO_BASE_VITALE = str(_PROJECT_ROOT / "data" / "mapping" / "Lista_Obras_Catalogo_Irmaos_Vitale.xlsx")
 CAMINHO_VITALE = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Catalog\IRMAOS VITALE"
 
+CAMINHO_BASE_INGROOVES = str(_PROJECT_ROOT / "data" / "mapping" / "mapping-artistas-ingrooves.xlsx")
+CAMINHO_INGROOVES = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Catalog\INGROOVES"
+
 # ---------------------------
 # Helpers Gerais
 # ---------------------------
@@ -387,6 +390,118 @@ def get_available_periods_sony() -> list:
 
 
 # ---------------------------
+# Helpers INGROOVES
+# ---------------------------
+def normalize_artist_text(s) -> str:
+    """Normaliza nome de artista: sem acento, minúsculo, sem pontuação, espaços colapsados."""
+    if not isinstance(s, str):
+        return ''
+    s = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('ASCII')
+    s = s.lower()
+    s = re.sub(r'[^\w\s]', '', s)
+    return ' '.join(s.split())
+
+
+def read_base_ingrooves(source) -> pd.DataFrame:
+    """
+    Lê a base de mapeamento de artistas Ingrooves (Artist -> Tag_Artista) e
+    padroniza a coluna de catálogo para 'CATÁLOGO'.
+    """
+    df = pd.read_excel(source, dtype=str)
+    df.columns = [c.strip() for c in df.columns]
+    if "Artist" not in df.columns or "Tag_Artista" not in df.columns:
+        raise ValueError(f"Base de mapeamento Ingrooves não contém as colunas necessárias (Artist, Tag_Artista). Colunas: {list(df.columns)}")
+    return df.rename(columns={"Tag_Artista": "CATÁLOGO"})
+
+
+def match_artist_ingrooves(artist_name, mapping_df) -> str:
+    """
+    Correspondência de artista Ingrooves: exata primeiro, depois por substring
+    normalizada (mesma lógica usada no Ingrooves Breaker).
+    """
+    if not isinstance(artist_name, str) or not artist_name.strip() or mapping_df is None:
+        return ""
+
+    exact_match = mapping_df[mapping_df["Artist"] == artist_name]
+    if not exact_match.empty:
+        return exact_match.iloc[0]["CATÁLOGO"]
+
+    normalized_artist = normalize_artist_text(artist_name)
+    if not normalized_artist:
+        return ""
+
+    for _, row in mapping_df.iterrows():
+        map_artist = row["Artist"]
+        map_cat = row["CATÁLOGO"]
+        if not isinstance(map_artist, str) or not isinstance(map_cat, str):
+            continue
+        normalized_map_artist = normalize_artist_text(map_artist)
+        if normalized_map_artist and (normalized_artist in normalized_map_artist or normalized_map_artist in normalized_artist):
+            return map_cat
+
+    return ""
+
+
+def read_ingrooves_dsr(source) -> pd.DataFrame:
+    """Lê a aba 'Digital Sales Details' do relatório Ingrooves e remove linhas de Total."""
+    df = pd.read_excel(source, sheet_name="Digital Sales Details")
+    if "Sales Classification" in df.columns:
+        df = df[~df["Sales Classification"].astype(str).str.contains("Total", case=False, na=False)]
+    return df
+
+
+def get_available_periods_ingrooves() -> list:
+    """
+    Escaneia a estrutura de pastas INGROOVES e retorna períodos disponíveis, usando
+    apenas o arquivo DSR do label Nas_Nuvens_Catalog (ignora FAVELLE_MUSIC).
+    Formato: [(ano, mês_num, mês_nome, caminho_completo), ...]
+    """
+    periods = []
+    if not os.path.exists(CAMINHO_INGROOVES):
+        return periods
+
+    meses = {
+        1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun",
+        7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
+    }
+
+    for ano_folder in sorted(os.listdir(CAMINHO_INGROOVES), reverse=True):
+        ano_path = os.path.join(CAMINHO_INGROOVES, ano_folder)
+        if not os.path.isdir(ano_path):
+            continue
+        try:
+            ano = int(ano_folder)
+        except ValueError:
+            continue
+
+        for mes_folder in sorted(os.listdir(ano_path)):
+            mes_path = os.path.join(ano_path, mes_folder)
+            if not os.path.isdir(mes_path):
+                continue
+
+            candidatos = [
+                f for f in os.listdir(mes_path)
+                if f.upper().startswith("NAS_NUVENS_CATALOG") and f.upper().endswith("_DSR.XLSX")
+            ]
+            if not candidatos:
+                continue
+
+            try:
+                mes_parte = mes_folder.strip().split('.')[0].strip()
+                mes_num = int(mes_parte)
+                if mes_num < 1 or mes_num > 12:
+                    continue
+                mes_nome = meses.get(mes_num, "")
+            except (ValueError, IndexError):
+                continue
+
+            arquivo = os.path.join(mes_path, candidatos[0])
+            periods.append((ano, mes_num, mes_nome, arquivo))
+
+    return periods
+
+
+# ---------------------------
 # Helpers IRMÃOS VITALE
 # ---------------------------
 _SS_NS = "{urn:schemas-microsoft-com:office:spreadsheet}"
@@ -573,7 +688,7 @@ st.sidebar.header("⚙️ Configurações")
 # Seleção de fonte
 fonte = st.sidebar.selectbox(
     "Selecione a fonte de dados:",
-    ["ABRAMUS", "SONY", "IRMÃOS VITALE"],
+    ["ABRAMUS", "SONY", "IRMÃOS VITALE", "INGROOVES"],
     index=0
 )
 
@@ -1603,6 +1718,196 @@ elif fonte == "IRMÃOS VITALE":
                 )
             else:
                 st.success("✅ Todas as obras foram mapeadas com sucesso!")
+
+            st.success("✅ Processamento concluído!")
+
+        except Exception as e:
+            st.error(f"❌ Erro ao processar: {e}")
+            import traceback
+            st.code(traceback.format_exc())
+
+# ---------------------------
+# INGROOVES
+# ---------------------------
+elif fonte == "INGROOVES":
+    st.header("🎧 INGROOVES - Processamento de Relatórios")
+    st.caption("Desconta 30% das receitas dos EUA e cruza por artista com a base de mapeamento. Usa apenas o DSR do label Nas_Nuvens_Catalog.")
+
+    # --- Base de mapeamento ---
+    if os.path.exists(CAMINHO_BASE_INGROOVES):
+        base_source_ingrooves = CAMINHO_BASE_INGROOVES
+        st.success(f"✅ Base de mapeamento carregada: `{CAMINHO_BASE_INGROOVES}`")
+    else:
+        st.warning("⚠️ Base de mapeamento não encontrada no caminho padrão. Faça o upload:")
+        _uploaded_base_ig = st.file_uploader("Upload da base de mapeamento Ingrooves (.xlsx)", type=["xlsx"], key="base_ingrooves")
+        if _uploaded_base_ig is None:
+            st.info("Aguardando upload da base de mapeamento.")
+            st.stop()
+        base_source_ingrooves = _uploaded_base_ig
+        st.success("✅ Base de mapeamento carregada via upload.")
+
+    # --- Relatório ---
+    periods = get_available_periods_ingrooves()
+
+    if periods:
+        st.subheader("Selecione o período do relatório")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            anos_disponiveis = sorted(list(set([p[0] for p in periods])), reverse=True)
+            ano_selecionado = st.selectbox("Ano", anos_disponiveis)
+
+        with col2:
+            meses_do_ano = [p for p in periods if p[0] == ano_selecionado]
+            meses_opcoes = [f"{p[1]:02d}. {p[2]} {str(p[0])[2:]}" for p in meses_do_ano]
+            mes_selecionado_idx = st.selectbox("Mês", range(len(meses_opcoes)), format_func=lambda x: meses_opcoes[x])
+            arquivo_selecionado = meses_do_ano[mes_selecionado_idx][3]
+
+        mes_num_selecionado = meses_do_ano[mes_selecionado_idx][1]
+        st.info(f"📁 Arquivo selecionado:\n`{arquivo_selecionado}`")
+        report_source_ingrooves = arquivo_selecionado
+    else:
+        st.warning("⚠️ Relatórios Ingrooves não encontrados na rede. Faça o upload do arquivo:")
+        _uploaded_report_ig = st.file_uploader("Upload do relatório Ingrooves (Nas_Nuvens_Catalog_*_DSR.xlsx)", type=["xlsx"], key="report_ingrooves")
+        if _uploaded_report_ig is None:
+            st.info("Aguardando upload do relatório.")
+            st.stop()
+        st.success(f"✅ Arquivo `{_uploaded_report_ig.name}` carregado.")
+        report_source_ingrooves = _uploaded_report_ig
+        ano_selecionado = 0
+        mes_num_selecionado = 0
+
+    # Botão para processar
+    if st.button("🚀 Processar Cruzamento", type="primary"):
+        try:
+            with st.spinner("Carregando base de mapeamento Ingrooves..."):
+                df_base_ig = read_base_ingrooves(base_source_ingrooves)
+
+            with st.spinner("Carregando relatório Ingrooves..."):
+                df_report = read_ingrooves_dsr(report_source_ingrooves)
+
+            if "Net Dollars after Fees" not in df_report.columns:
+                st.error(f"❌ Relatório não contém a coluna 'Net Dollars after Fees'. Colunas: {list(df_report.columns)}")
+                st.stop()
+
+            # Desconto de 30% nas receitas dos EUA
+            original_total = df_report["Net Dollars after Fees"].sum()
+            df_report["Net Dollars after Fees"] = df_report.apply(
+                lambda row: row["Net Dollars after Fees"] * 0.7 if row.get("Territory") == "United States"
+                else row["Net Dollars after Fees"],
+                axis=1
+            )
+            discounted_total = df_report["Net Dollars after Fees"].sum()
+            total_withheld = original_total - discounted_total
+
+            st.write(f"O valor Original é **USD {original_total:,.2f}**")
+            st.write(f"O total de withholding aplicado (30% EUA) é **USD {total_withheld:,.2f}**")
+            st.write(f":red[O valor Net menos withholding é **USD {discounted_total:,.2f}**]")
+
+            # Isola linhas Non-transactional antes do mapeamento, igual ao Ingrooves Breaker
+            NON_TRANSACTIONAL_LABEL = "Ajustes Non-Transactional"
+            if "Sales Description" in df_report.columns:
+                mask_nt = df_report["Sales Description"].astype(str).str.contains("non-transactional", case=False, na=False)
+            else:
+                mask_nt = pd.Series(False, index=df_report.index)
+
+            df_out = df_report.copy()
+            df_out["CATÁLOGO"] = ""
+            df_out.loc[mask_nt, "CATÁLOGO"] = NON_TRANSACTIONAL_LABEL
+
+            with st.spinner("Cruzando artistas com a base de mapeamento..."):
+                artist_cache = {}
+
+                def resolve_catalogo(artist):
+                    if artist not in artist_cache:
+                        artist_cache[artist] = match_artist_ingrooves(artist, df_base_ig)
+                    return artist_cache[artist]
+
+                idx_to_map = df_out.index[~mask_nt]
+                df_out.loc[idx_to_map, "CATÁLOGO"] = df_out.loc[idx_to_map, "Artist"].apply(resolve_catalogo)
+
+            st.subheader("Resultado Agrupado por Catálogo")
+
+            df_grouped = df_out.groupby("CATÁLOGO", as_index=False)["Net Dollars after Fees"].sum()
+            df_grouped = df_grouped.sort_values("Net Dollars after Fees", ascending=False)
+            df_grouped = df_grouped.rename(columns={"Net Dollars after Fees": "Net Dollars"})
+
+            st.dataframe(df_grouped, use_container_width=True, height=520)
+
+            total_net = df_grouped["Net Dollars"].sum()
+            st.markdown(f"**Total Net Dollars: USD {total_net:,.2f}**")
+
+            csv_bytes = df_grouped.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+            st.download_button(
+                "⬇️ Baixar resultado agrupado (CSV)",
+                data=csv_bytes,
+                file_name=f"relatorio_agrupado_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
+                mime="text/csv",
+            )
+
+            # --- Download resultado DETALHADO ---
+            st.markdown("---")
+            st.subheader("📋 Download com Detalhes das Faixas")
+
+            colunas_detalhadas = [
+                "CATÁLOGO", "Artist", "Song", "Label", "Album Title", "ISRC",
+                "Territory", "Sales Description", "Net Dollars after Fees"
+            ]
+            colunas_detalhadas_disp = [c for c in colunas_detalhadas if c in df_out.columns]
+            df_detalhado_export = df_out[colunas_detalhadas_disp].copy()
+            df_detalhado_export = df_detalhado_export.sort_values(
+                ["CATÁLOGO", "Net Dollars after Fees"], ascending=[True, False]
+            )
+
+            total_linhas = len(df_detalhado_export)
+            linhas_mapeadas = len(df_detalhado_export[df_detalhado_export["CATÁLOGO"] != ""])
+            linhas_nao_mapeadas = total_linhas - linhas_mapeadas
+
+            col_info1, col_info2, col_info3 = st.columns(3)
+            with col_info1:
+                st.metric("📊 Total de Linhas", total_linhas)
+            with col_info2:
+                st.metric("✅ Mapeadas", linhas_mapeadas)
+            with col_info3:
+                st.metric("❌ Não Mapeadas", linhas_nao_mapeadas)
+
+            st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
+
+            csv_detalhado = df_detalhado_export.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+            st.download_button(
+                "⬇️ Baixar relatório DETALHADO com todas as faixas (CSV)",
+                data=csv_detalhado,
+                file_name=f"relatorio_detalhado_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
+                mime="text/csv",
+                type="primary"
+            )
+
+            # --- SEÇÃO DE ARTISTAS NÃO MAPEADOS ---
+            st.markdown("---")
+            st.subheader("🔍 Artistas Não Mapeados")
+
+            df_nao_mapeadas = df_out[(df_out["CATÁLOGO"] == "") & (~mask_nt)].copy()
+
+            if len(df_nao_mapeadas) > 0:
+                df_nm_grp = df_nao_mapeadas.groupby("Artist", as_index=False)["Net Dollars after Fees"].sum()
+                df_nm_grp = df_nm_grp.sort_values("Net Dollars after Fees", ascending=False)
+                df_nm_grp = df_nm_grp.rename(columns={"Net Dollars after Fees": "Net Dollars"})
+
+                total_nao_mapeado = df_nm_grp["Net Dollars"].sum()
+                st.warning(f"⚠️ **{len(df_nm_grp)} artistas únicos** não foram mapeados | **Total: USD {total_nao_mapeado:,.2f}**")
+
+                st.dataframe(df_nm_grp.head(100), use_container_width=True, height=300)
+
+                csv_nao_mapeadas = df_nm_grp.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                st.download_button(
+                    "⬇️ Baixar artistas não mapeados (CSV)",
+                    data=csv_nao_mapeadas,
+                    file_name=f"artistas_nao_mapeados_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
+                    mime="text/csv",
+                    type="secondary"
+                )
+            else:
+                st.success("✅ Todos os artistas foram mapeados com sucesso!")
 
             st.success("✅ Processamento concluído!")
 
