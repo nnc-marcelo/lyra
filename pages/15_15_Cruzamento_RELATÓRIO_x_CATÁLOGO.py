@@ -109,6 +109,36 @@ def github_save_mapping(gh_config: dict, df_novo: pd.DataFrame, sha: str, commit
     resp.raise_for_status()
     return resp.json()
 
+
+def save_linhas_no_mapeamento(gh_config: dict, df_linhas: pd.DataFrame, commit_message: str):
+    """
+    Busca a versão atual do mapeamento no GitHub, descarta linhas cujo ISRC já
+    exista, concatena as novas e sobe a versão atualizada. Usado tanto pela
+    edição inline quanto pelo upload em massa do template preenchido.
+    """
+    with st.spinner("Buscando versão atual do mapeamento no GitHub..."):
+        df_mapping_atual, sha_atual = github_fetch_mapping(gh_config)
+
+    isrcs_existentes = (
+        set(df_mapping_atual["ISRC"].dropna().astype(str))
+        if "ISRC" in df_mapping_atual.columns else set()
+    )
+    df_novas_linhas = df_linhas[~df_linhas["ISRC"].astype(str).isin(isrcs_existentes)]
+
+    if df_novas_linhas.empty:
+        st.info("Essas faixas já estão na base de mapeamento (nada novo pra salvar).")
+        return
+
+    df_mapping_final = pd.concat([df_mapping_atual, df_novas_linhas], ignore_index=True)
+    with st.spinner("Salvando no GitHub..."):
+        github_save_mapping(gh_config, df_mapping_final, sha_atual, commit_message=commit_message)
+
+    st.success(
+        f"✅ {df_novas_linhas['Artist'].nunique()} artista(s) "
+        f"({len(df_novas_linhas)} faixa(s)) salvos na base de mapeamento! "
+        f"O app vai reiniciar em instantes com o mapeamento atualizado."
+    )
+
 # ---------------------------
 # Helpers Gerais
 # ---------------------------
@@ -1846,6 +1876,14 @@ elif fonte == "INGROOVES":
         ano_selecionado = 0
         mes_num_selecionado = 0
 
+    # Chave do período atual, usada para: (1) cachear o resultado no session_state
+    # sobrevivendo a reruns causados pela edição do data_editor, e (2) nomear
+    # arquivos/widgets de forma estável.
+    if periods:
+        period_suffix = f"{ano_selecionado}_{mes_num_selecionado:02d}"
+    else:
+        period_suffix = re.sub(r"[^A-Za-z0-9_-]", "_", getattr(report_source_ingrooves, "name", "upload"))
+
     # Botão para processar
     if st.button("🚀 Processar Cruzamento", type="primary"):
         try:
@@ -1869,10 +1907,6 @@ elif fonte == "INGROOVES":
             discounted_total = df_report["Net Dollars after Fees"].sum()
             total_withheld = original_total - discounted_total
 
-            st.write(f"O valor Original é **USD {original_total:,.2f}**")
-            st.write(f"O total de withholding aplicado (30% EUA) é **USD {total_withheld:,.2f}**")
-            st.write(f":red[O valor Net menos withholding é **USD {discounted_total:,.2f}**]")
-
             # Isola linhas Non-transactional antes do mapeamento, igual ao Ingrooves Breaker
             NON_TRANSACTIONAL_LABEL = "Ajustes Non-Transactional"
             if "Sales Description" in df_report.columns:
@@ -1895,169 +1929,233 @@ elif fonte == "INGROOVES":
                 idx_to_map = df_out.index[~mask_nt]
                 df_out.loc[idx_to_map, "CATÁLOGO"] = df_out.loc[idx_to_map, "Artist"].apply(resolve_catalogo)
 
-            st.subheader("Resultado Agrupado por Catálogo")
-
-            df_grouped = df_out.groupby("CATÁLOGO", as_index=False)["Net Dollars after Fees"].sum()
-            df_grouped = df_grouped.sort_values("Net Dollars after Fees", ascending=False)
-            df_grouped = df_grouped.rename(columns={"Net Dollars after Fees": "Net Dollars"})
-
-            st.dataframe(df_grouped, use_container_width=True, height=520)
-
-            total_net = df_grouped["Net Dollars"].sum()
-            st.markdown(f"**Total Net Dollars: USD {total_net:,.2f}**")
-
-            csv_bytes = df_grouped.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
-            st.download_button(
-                "⬇️ Baixar resultado agrupado (CSV)",
-                data=csv_bytes,
-                file_name=f"relatorio_agrupado_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                mime="text/csv",
-            )
-
-            # --- Download resultado DETALHADO ---
-            st.markdown("---")
-            st.subheader("📋 Download com Detalhes das Faixas")
-
-            colunas_detalhadas = [
-                "CATÁLOGO", "Artist", "Song", "Label", "Album Title", "ISRC",
-                "Territory", "Sales Description", "Net Dollars after Fees"
-            ]
-            colunas_detalhadas_disp = [c for c in colunas_detalhadas if c in df_out.columns]
-            df_detalhado_export = df_out[colunas_detalhadas_disp].copy()
-            df_detalhado_export = df_detalhado_export.sort_values(
-                ["CATÁLOGO", "Net Dollars after Fees"], ascending=[True, False]
-            )
-
-            total_linhas = len(df_detalhado_export)
-            linhas_mapeadas = len(df_detalhado_export[df_detalhado_export["CATÁLOGO"] != ""])
-            linhas_nao_mapeadas = total_linhas - linhas_mapeadas
-
-            col_info1, col_info2, col_info3 = st.columns(3)
-            with col_info1:
-                st.metric("📊 Total de Linhas", total_linhas)
-            with col_info2:
-                st.metric("✅ Mapeadas", linhas_mapeadas)
-            with col_info3:
-                st.metric("❌ Não Mapeadas", linhas_nao_mapeadas)
-
-            st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
-
-            csv_detalhado = df_detalhado_export.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
-            st.download_button(
-                "⬇️ Baixar relatório DETALHADO com todas as faixas (CSV)",
-                data=csv_detalhado,
-                file_name=f"relatorio_detalhado_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                mime="text/csv",
-                type="primary"
-            )
-
-            # --- SEÇÃO DE ARTISTAS NÃO MAPEADOS ---
-            st.markdown("---")
-            st.subheader("🔍 Artistas Não Mapeados")
-
-            df_nao_mapeadas = df_out[(df_out["CATÁLOGO"] == "") & (~mask_nt)].copy()
-
-            # Linhas sem nome de artista não são "não mapeadas": não há o que mapear.
-            # Separadas aqui porque groupby("Artist") descarta silenciosamente valores nulos.
-            mask_sem_artist = df_nao_mapeadas["Artist"].isna() | (df_nao_mapeadas["Artist"].astype(str).str.strip() == "")
-            df_sem_artist = df_nao_mapeadas[mask_sem_artist]
-            df_nao_mapeadas = df_nao_mapeadas[~mask_sem_artist]
-
-            if len(df_sem_artist) > 0:
-                total_sem_artist = df_sem_artist["Net Dollars after Fees"].sum()
-                st.info(
-                    f"ℹ️ **{len(df_sem_artist)} linha(s)** do relatório vieram sem nome de artista preenchido "
-                    f"(não é possível mapear sem essa informação) | **Total: USD {total_sem_artist:,.2f}**"
-                )
-
-            if len(df_nao_mapeadas) > 0:
-                df_nm_grp = df_nao_mapeadas.groupby("Artist", as_index=False)["Net Dollars after Fees"].sum()
-                total_nao_mapeado = df_nm_grp["Net Dollars after Fees"].sum()
-                st.warning(f"⚠️ **{len(df_nm_grp)} artistas únicos** não foram encontrados na base de mapeamento | **Total: USD {total_nao_mapeado:,.2f}**")
-
-                # Template no mesmo formato da planilha de mapeamento (Artist, Label, Album Title,
-                # Song, ISRC, Tag_Artista), editável e pronto para preencher/colar em mapping-artistas-ingrooves.xlsx
-                colunas_template = ["Artist", "Label", "Album Title", "Song", "ISRC"]
-                colunas_template_disp = [c for c in colunas_template if c in df_nao_mapeadas.columns]
-                df_template = df_nao_mapeadas[colunas_template_disp].drop_duplicates().sort_values("Artist").reset_index(drop=True)
-                df_template["Tag_Artista"] = ""
-
-                st.markdown(
-                    "**Preencha `Tag_Artista`** — mesma estrutura da planilha de mapeamento, "
-                    "pronta para salvar direto ou baixar e colar em `mapping-artistas-ingrooves.xlsx`:"
-                )
-
-                editor_key = f"editor_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}"
-                df_editado = st.data_editor(
-                    df_template,
-                    use_container_width=True,
-                    height=300,
-                    key=editor_key,
-                    disabled=colunas_template_disp,
-                    hide_index=True,
-                )
-
-                gh_config = get_github_config()
-                preenchidos = df_editado[df_editado["Tag_Artista"].astype(str).str.strip() != ""]
-
-                col_save1, col_save2 = st.columns(2)
-
-                with col_save1:
-                    csv_template = df_editado.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
-                    st.download_button(
-                        "⬇️ Baixar template de mapeamento (CSV)",
-                        data=csv_template,
-                        file_name=f"template_mapeamento_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                        mime="text/csv",
-                        type="secondary"
-                    )
-
-                with col_save2:
-                    if gh_config is None:
-                        st.caption("💾 Salvar direto na base de mapeamento não está configurado neste ambiente.")
-                    else:
-                        if st.button(
-                            f"💾 Salvar {len(preenchidos)} faixa(s) no mapeamento",
-                            type="primary",
-                            disabled=preenchidos.empty,
-                            key=f"btn_save_{editor_key}",
-                        ):
-                            try:
-                                with st.spinner("Buscando versão atual do mapeamento no GitHub..."):
-                                    df_mapping_atual, sha_atual = github_fetch_mapping(gh_config)
-
-                                df_novas_linhas = preenchidos[["Artist", "Label", "Album Title", "Song", "ISRC", "Tag_Artista"]]
-
-                                isrcs_existentes = (
-                                    set(df_mapping_atual["ISRC"].dropna().astype(str))
-                                    if "ISRC" in df_mapping_atual.columns else set()
-                                )
-                                df_novas_linhas = df_novas_linhas[~df_novas_linhas["ISRC"].astype(str).isin(isrcs_existentes)]
-
-                                if df_novas_linhas.empty:
-                                    st.info("Essas faixas já estão na base de mapeamento (nada novo pra salvar).")
-                                else:
-                                    df_mapping_final = pd.concat([df_mapping_atual, df_novas_linhas], ignore_index=True)
-                                    with st.spinner("Salvando no GitHub..."):
-                                        github_save_mapping(
-                                            gh_config,
-                                            df_mapping_final,
-                                            sha_atual,
-                                            commit_message=f"data: adiciona {df_novas_linhas['Artist'].nunique()} artista(s) ao mapeamento Ingrooves via app",
-                                        )
-                                    st.success(
-                                        f"✅ {df_novas_linhas['Artist'].nunique()} artista(s) "
-                                        f"({len(df_novas_linhas)} faixa(s)) salvos na base de mapeamento! "
-                                        f"O app vai reiniciar em instantes com o mapeamento atualizado."
-                                    )
-                            except Exception as e:
-                                st.error(f"❌ Erro ao salvar no GitHub: {e}")
-            elif len(df_sem_artist) == 0:
-                st.success("✅ Todos os artistas foram mapeados com sucesso!")
-
-            st.success("✅ Processamento concluído!")
-
+            # Guarda o resultado no session_state: a edição do data_editor abaixo
+            # dispara reruns da página, e sem isso o app voltaria pra tela inicial
+            # (o "if st.button" só é True no exato clique, não nos reruns seguintes).
+            st.session_state["ingrooves_result"] = {
+                "period_suffix": period_suffix,
+                "df_out": df_out,
+                "mask_nt": mask_nt,
+                "original_total": original_total,
+                "discounted_total": discounted_total,
+                "total_withheld": total_withheld,
+            }
         except Exception as e:
             st.error(f"❌ Erro ao processar: {e}")
             import traceback
             st.code(traceback.format_exc())
+
+    # --- Renderização dos resultados (fora do botão, para sobreviver a reruns) ---
+    resultado = st.session_state.get("ingrooves_result")
+    if resultado and resultado["period_suffix"] == period_suffix:
+        df_out = resultado["df_out"]
+        mask_nt = resultado["mask_nt"]
+        original_total = resultado["original_total"]
+        discounted_total = resultado["discounted_total"]
+        total_withheld = resultado["total_withheld"]
+
+        st.write(f"O valor Original é **USD {original_total:,.2f}**")
+        st.write(f"O total de withholding aplicado (30% EUA) é **USD {total_withheld:,.2f}**")
+        st.write(f":red[O valor Net menos withholding é **USD {discounted_total:,.2f}**]")
+
+        st.subheader("Resultado Agrupado por Catálogo")
+
+        df_grouped = df_out.groupby("CATÁLOGO", as_index=False)["Net Dollars after Fees"].sum()
+        df_grouped = df_grouped.sort_values("Net Dollars after Fees", ascending=False)
+        df_grouped = df_grouped.rename(columns={"Net Dollars after Fees": "Net Dollars"})
+
+        st.dataframe(df_grouped, use_container_width=True, height=520)
+
+        total_net = df_grouped["Net Dollars"].sum()
+        st.markdown(f"**Total Net Dollars: USD {total_net:,.2f}**")
+
+        csv_bytes = df_grouped.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+        st.download_button(
+            "⬇️ Baixar resultado agrupado (CSV)",
+            data=csv_bytes,
+            file_name=f"relatorio_agrupado_ingrooves_{period_suffix}.csv",
+            mime="text/csv",
+        )
+
+        # --- Download resultado DETALHADO ---
+        st.markdown("---")
+        st.subheader("📋 Download com Detalhes das Faixas")
+
+        colunas_detalhadas = [
+            "CATÁLOGO", "Artist", "Song", "Label", "Album Title", "ISRC",
+            "Territory", "Sales Description", "Net Dollars after Fees"
+        ]
+        colunas_detalhadas_disp = [c for c in colunas_detalhadas if c in df_out.columns]
+        df_detalhado_export = df_out[colunas_detalhadas_disp].copy()
+        df_detalhado_export = df_detalhado_export.sort_values(
+            ["CATÁLOGO", "Net Dollars after Fees"], ascending=[True, False]
+        )
+
+        total_linhas = len(df_detalhado_export)
+        linhas_mapeadas = len(df_detalhado_export[df_detalhado_export["CATÁLOGO"] != ""])
+        linhas_nao_mapeadas = total_linhas - linhas_mapeadas
+
+        col_info1, col_info2, col_info3 = st.columns(3)
+        with col_info1:
+            st.metric("📊 Total de Linhas", total_linhas)
+        with col_info2:
+            st.metric("✅ Mapeadas", linhas_mapeadas)
+        with col_info3:
+            st.metric("❌ Não Mapeadas", linhas_nao_mapeadas)
+
+        st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
+
+        csv_detalhado = df_detalhado_export.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+        st.download_button(
+            "⬇️ Baixar relatório DETALHADO com todas as faixas (CSV)",
+            data=csv_detalhado,
+            file_name=f"relatorio_detalhado_ingrooves_{period_suffix}.csv",
+            mime="text/csv",
+            type="primary"
+        )
+
+        # --- SEÇÃO DE ARTISTAS NÃO MAPEADOS ---
+        st.markdown("---")
+        st.subheader("🔍 Artistas Não Mapeados")
+
+        df_nao_mapeadas = df_out[(df_out["CATÁLOGO"] == "") & (~mask_nt)].copy()
+
+        # Linhas sem nome de artista não são "não mapeadas": não há o que mapear.
+        # Separadas aqui porque groupby("Artist") descarta silenciosamente valores nulos.
+        mask_sem_artist = df_nao_mapeadas["Artist"].isna() | (df_nao_mapeadas["Artist"].astype(str).str.strip() == "")
+        df_sem_artist = df_nao_mapeadas[mask_sem_artist]
+        df_nao_mapeadas = df_nao_mapeadas[~mask_sem_artist]
+
+        if len(df_sem_artist) > 0:
+            total_sem_artist = df_sem_artist["Net Dollars after Fees"].sum()
+            st.info(
+                f"ℹ️ **{len(df_sem_artist)} linha(s)** do relatório vieram sem nome de artista preenchido "
+                f"(não é possível mapear sem essa informação) | **Total: USD {total_sem_artist:,.2f}**"
+            )
+
+        gh_config = get_github_config()
+        colunas_mapeamento = ["Artist", "Label", "Album Title", "Song", "ISRC", "Tag_Artista"]
+
+        if len(df_nao_mapeadas) > 0:
+            df_nm_grp = df_nao_mapeadas.groupby("Artist", as_index=False)["Net Dollars after Fees"].sum()
+            total_nao_mapeado = df_nm_grp["Net Dollars after Fees"].sum()
+            st.warning(f"⚠️ **{len(df_nm_grp)} artistas únicos** não foram encontrados na base de mapeamento | **Total: USD {total_nao_mapeado:,.2f}**")
+
+            # Template no mesmo formato da planilha de mapeamento (Artist, Label, Album Title,
+            # Song, ISRC, Tag_Artista), editável e pronto para preencher/colar em mapping-artistas-ingrooves.xlsx
+            colunas_template = ["Artist", "Label", "Album Title", "Song", "ISRC"]
+            colunas_template_disp = [c for c in colunas_template if c in df_nao_mapeadas.columns]
+            df_template = df_nao_mapeadas[colunas_template_disp].drop_duplicates().sort_values("Artist").reset_index(drop=True)
+            df_template["Tag_Artista"] = ""
+
+            st.markdown(
+                "**Preencha `Tag_Artista`** — mesma estrutura da planilha de mapeamento, "
+                "pronta para salvar direto ou baixar e colar em `mapping-artistas-ingrooves.xlsx`:"
+            )
+
+            editor_key = f"editor_ingrooves_{period_suffix}"
+            df_editado = st.data_editor(
+                df_template,
+                use_container_width=True,
+                height=300,
+                key=editor_key,
+                disabled=colunas_template_disp,
+                hide_index=True,
+            )
+
+            preenchidos = df_editado[df_editado["Tag_Artista"].astype(str).str.strip() != ""]
+
+            col_save1, col_save2 = st.columns(2)
+
+            with col_save1:
+                csv_template = df_editado.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
+                st.download_button(
+                    "⬇️ Baixar template de mapeamento (CSV)",
+                    data=csv_template,
+                    file_name=f"template_mapeamento_ingrooves_{period_suffix}.csv",
+                    mime="text/csv",
+                    type="secondary"
+                )
+
+            with col_save2:
+                if gh_config is None:
+                    st.caption("💾 Salvar direto na base de mapeamento não está configurado neste ambiente.")
+                else:
+                    if st.button(
+                        f"💾 Salvar {len(preenchidos)} faixa(s) no mapeamento",
+                        type="primary",
+                        disabled=preenchidos.empty,
+                        key=f"btn_save_{editor_key}",
+                    ):
+                        try:
+                            df_novas_linhas = preenchidos[colunas_mapeamento]
+                            save_linhas_no_mapeamento(
+                                gh_config,
+                                df_novas_linhas,
+                                commit_message=f"data: adiciona {df_novas_linhas['Artist'].nunique()} artista(s) ao mapeamento Ingrooves via app",
+                            )
+                        except Exception as e:
+                            st.error(f"❌ Erro ao salvar no GitHub: {e}")
+        else:
+            if len(df_sem_artist) == 0:
+                st.success("✅ Todos os artistas foram mapeados com sucesso!")
+
+        # --- IMPORTAR TEMPLATE PREENCHIDO EM MASSA ---
+        # Independente de haver ou não pendências neste relatório: a Jessica pode ter
+        # preenchido o template no Excel (mais confortável para muitas linhas) e só
+        # quer subir o arquivo pronto, sem editar célula a célula na tela.
+        st.markdown("---")
+        st.subheader("📤 Importar template preenchido (upload em massa)")
+        st.caption(
+            "Envie o CSV/XLSX baixado acima (ou de outro processamento), já com `Tag_Artista` preenchido, "
+            "para adicionar várias faixas de uma vez."
+        )
+
+        if gh_config is None:
+            st.caption("💾 Importar direto para o mapeamento não está configurado neste ambiente.")
+        else:
+            arquivo_importado = st.file_uploader(
+                "Selecione o template preenchido (.csv ou .xlsx)",
+                type=["csv", "xlsx"],
+                key=f"upload_template_{period_suffix}",
+            )
+
+            if arquivo_importado is not None:
+                try:
+                    if arquivo_importado.name.lower().endswith(".csv"):
+                        df_importado = pd.read_csv(arquivo_importado, sep=";", dtype=str)
+                    else:
+                        df_importado = pd.read_excel(arquivo_importado, dtype=str)
+                    df_importado.columns = [c.strip() for c in df_importado.columns]
+
+                    colunas_faltando = [c for c in colunas_mapeamento if c not in df_importado.columns]
+                    if colunas_faltando:
+                        st.error(f"❌ Colunas faltando no arquivo importado: {colunas_faltando}")
+                    else:
+                        df_importado_preenchido = df_importado[
+                            df_importado["Tag_Artista"].astype(str).str.strip() != ""
+                        ]
+                        st.info(f"📄 {len(df_importado_preenchido)} de {len(df_importado)} linha(s) têm `Tag_Artista` preenchido.")
+
+                        if st.button(
+                            f"💾 Salvar {len(df_importado_preenchido)} faixa(s) importada(s) no mapeamento",
+                            type="primary",
+                            disabled=df_importado_preenchido.empty,
+                            key=f"btn_save_import_{period_suffix}",
+                        ):
+                            try:
+                                df_novas_linhas = df_importado_preenchido[colunas_mapeamento].copy()
+                                save_linhas_no_mapeamento(
+                                    gh_config,
+                                    df_novas_linhas,
+                                    commit_message=(
+                                        f"data: importa {df_novas_linhas['Artist'].nunique()} artista(s) "
+                                        f"ao mapeamento Ingrooves via app (upload em massa)"
+                                    ),
+                                )
+                            except Exception as e:
+                                st.error(f"❌ Erro ao salvar no GitHub: {e}")
+                except Exception as e:
+                    st.error(f"❌ Erro ao ler o arquivo importado: {e}")
+
+        st.success("✅ Processamento concluído!")
