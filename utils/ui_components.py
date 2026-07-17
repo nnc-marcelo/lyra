@@ -29,21 +29,23 @@ COR_INATIVO = "var(--text-muted, #888780)"
 
 
 def render_html_table(headers: list[str], body_rows_html: list[str], max_height: str = "420px"):
-    """Tabela HTML padrão do app: cabeçalho cinza translúcido + blur, com
-    rolagem interna quando passa de `max_height`. `body_rows_html` já vem
-    pronto (uma string `<tr>...</tr>` por linha) — use `simple_row` ou
-    `status_dot_html` para montar essas linhas.
+    """Tabela HTML padrão do app: cabeçalho no off-white quente da marca
+    (mesmo tom de `secondaryBackgroundColor` em .streamlit/config.toml —
+    sidebar, cards, expanders) + blur, com rolagem interna quando passa de
+    `max_height`. `body_rows_html` já vem pronto (uma string `<tr>...</tr>`
+    por linha) — use `simple_row` ou `status_dot_html` para montar essas
+    linhas.
 
-    O fundo do cabeçalho precisa de opacidade alta (~0.92) apesar do nome
-    "translúcido": com pouca opacidade, texto de linhas roladas por baixo
-    vaza através do blur e "suja" o texto do cabeçalho — fica ilegível em
-    tabelas com muitas linhas visíveis por vez (ex.: listas longas de
-    status). O blur sozinho não garante ilegibilidade do que está atrás."""
+    O fundo do cabeçalho precisa de opacidade alta (~0.92): com pouca
+    opacidade, texto de linhas roladas por baixo vaza através do blur e
+    "suja" o texto do cabeçalho — fica ilegível em tabelas com muitas linhas
+    visíveis por vez (ex.: listas longas de status). O blur sozinho não
+    garante ilegibilidade do que está atrás."""
     thead_cells = "".join(f'<th style="text-align:left;padding:6px 10px;">{html.escape(h)}</th>' for h in headers)
     table_html = (
         f'<div style="max-height:{max_height}; overflow-y:auto; border:1px solid rgba(128,128,128,0.3); border-radius:6px;">'
         '<table style="width:100%; border-collapse:collapse; font-size:13px;">'
-        '<thead style="position:sticky; top:0; background:rgba(128,128,128,0.92); backdrop-filter:blur(6px);">'
+        '<thead style="position:sticky; top:0; background:rgba(255,247,233,0.92); backdrop-filter:blur(6px);">'
         f"<tr>{thead_cells}</tr></thead><tbody>" + "".join(body_rows_html) + "</tbody></table></div>"
     )
     st.markdown(table_html, unsafe_allow_html=True)
