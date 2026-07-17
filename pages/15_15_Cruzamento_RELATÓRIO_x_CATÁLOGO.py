@@ -2041,6 +2041,7 @@ elif fonte == "INGROOVES":
                     for _, r in df_grouped.iterrows()
                 ],
                 max_height="480px",
+                translucent=False,
             )
 
             total_net = df_grouped["Net Dollars"].sum()
@@ -2154,6 +2155,7 @@ elif fonte == "INGROOVES":
                         status_key="preenchido",
                         label_key="Artist",
                         max_height="200px",
+                        translucent=False,
                     )
 
                     col_save1, col_save2 = st.columns(2)
