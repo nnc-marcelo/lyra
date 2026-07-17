@@ -1845,6 +1845,61 @@ elif fonte == "INGROOVES":
         base_source_ingrooves = _uploaded_base_ig
         st.success("✅ Base de mapeamento carregada via upload.")
 
+    # --- Editar base de mapeamento completa ---
+    with st.expander("✏️ Editar base de mapeamento completa"):
+        gh_config_mapping = get_github_config()
+        sha_mapping = None
+        df_mapping_full = None
+
+        if gh_config_mapping is not None:
+            try:
+                df_mapping_full, sha_mapping = github_fetch_mapping(gh_config_mapping)
+            except Exception as e:
+                st.error(f"❌ Erro ao buscar mapeamento no GitHub: {e}")
+        elif isinstance(base_source_ingrooves, str) and os.path.exists(base_source_ingrooves):
+            try:
+                df_mapping_full = pd.read_excel(base_source_ingrooves, dtype=str)
+                df_mapping_full.columns = [c.strip() for c in df_mapping_full.columns]
+            except Exception as e:
+                st.error(f"❌ Erro ao carregar base de mapeamento: {e}")
+        else:
+            st.caption("Edição indisponível: nem GitHub configurado, nem arquivo local encontrado (base veio de upload).")
+
+        if df_mapping_full is not None:
+            st.caption(
+                f"{len(df_mapping_full)} registro(s). Use a lupa no canto superior da tabela para buscar "
+                "por artista, música, ISRC etc. Também dá para adicionar ou apagar linhas."
+            )
+            df_mapping_editado = st.data_editor(
+                df_mapping_full,
+                use_container_width=True,
+                height=400,
+                num_rows="dynamic",
+                key="editor_mapping_completo",
+                hide_index=True,
+            )
+
+            if gh_config_mapping is not None:
+                if st.button("💾 Salvar alterações na base de mapeamento", type="primary", key="btn_save_mapping_completo"):
+                    try:
+                        with st.spinner("Salvando no GitHub..."):
+                            github_save_mapping(
+                                gh_config_mapping,
+                                df_mapping_editado,
+                                sha_mapping,
+                                commit_message="data: edita base de mapeamento Ingrooves via app",
+                            )
+                        st.success("✅ Base de mapeamento atualizada! O app vai reiniciar em instantes.")
+                    except Exception as e:
+                        st.error(f"❌ Erro ao salvar no GitHub: {e}")
+            else:
+                if st.button("💾 Salvar alterações na base de mapeamento (arquivo local)", type="primary", key="btn_save_mapping_completo_local"):
+                    try:
+                        df_mapping_editado.to_excel(base_source_ingrooves, index=False)
+                        st.success("✅ Base de mapeamento salva localmente!")
+                    except Exception as e:
+                        st.error(f"❌ Erro ao salvar localmente: {e}")
+
     # --- Relatório ---
     periods = get_available_periods_ingrooves()
 
