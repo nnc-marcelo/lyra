@@ -1888,25 +1888,51 @@ elif fonte == "INGROOVES":
 
             df_nao_mapeadas = df_out[(df_out["CATÁLOGO"] == "") & (~mask_nt)].copy()
 
+            # Linhas sem nome de artista não são "não mapeadas": não há o que mapear.
+            # Separadas aqui porque groupby("Artist") descarta silenciosamente valores nulos.
+            mask_sem_artist = df_nao_mapeadas["Artist"].isna() | (df_nao_mapeadas["Artist"].astype(str).str.strip() == "")
+            df_sem_artist = df_nao_mapeadas[mask_sem_artist]
+            df_nao_mapeadas = df_nao_mapeadas[~mask_sem_artist]
+
+            if len(df_sem_artist) > 0:
+                total_sem_artist = df_sem_artist["Net Dollars after Fees"].sum()
+                st.info(
+                    f"ℹ️ **{len(df_sem_artist)} linha(s)** do relatório vieram sem nome de artista preenchido "
+                    f"(não é possível mapear sem essa informação) | **Total: USD {total_sem_artist:,.2f}**"
+                )
+
             if len(df_nao_mapeadas) > 0:
                 df_nm_grp = df_nao_mapeadas.groupby("Artist", as_index=False)["Net Dollars after Fees"].sum()
                 df_nm_grp = df_nm_grp.sort_values("Net Dollars after Fees", ascending=False)
                 df_nm_grp = df_nm_grp.rename(columns={"Net Dollars after Fees": "Net Dollars"})
 
                 total_nao_mapeado = df_nm_grp["Net Dollars"].sum()
-                st.warning(f"⚠️ **{len(df_nm_grp)} artistas únicos** não foram mapeados | **Total: USD {total_nao_mapeado:,.2f}**")
+                st.warning(f"⚠️ **{len(df_nm_grp)} artistas únicos** não foram encontrados na base de mapeamento | **Total: USD {total_nao_mapeado:,.2f}**")
 
                 st.dataframe(df_nm_grp.head(100), use_container_width=True, height=300)
 
-                csv_nao_mapeadas = df_nm_grp.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                # Template no mesmo formato da planilha de mapeamento (Artist, Label, Album Title,
+                # Song, ISRC, Tag_Artista), pronto para preencher e colar em mapping-artistas-ingrooves.xlsx
+                colunas_template = ["Artist", "Label", "Album Title", "Song", "ISRC"]
+                colunas_template_disp = [c for c in colunas_template if c in df_nao_mapeadas.columns]
+                df_template = df_nao_mapeadas[colunas_template_disp].drop_duplicates().sort_values("Artist")
+                df_template["Tag_Artista"] = ""
+
+                st.markdown(
+                    "**Template para adicionar à base de mapeamento** — preencha a coluna `Tag_Artista` "
+                    "e cole as linhas em `mapping-artistas-ingrooves.xlsx`:"
+                )
+                st.dataframe(df_template.head(100), use_container_width=True, height=300)
+
+                csv_template = df_template.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
                 st.download_button(
-                    "⬇️ Baixar artistas não mapeados (CSV)",
-                    data=csv_nao_mapeadas,
-                    file_name=f"artistas_nao_mapeados_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
+                    "⬇️ Baixar template de mapeamento (artistas não mapeados)",
+                    data=csv_template,
+                    file_name=f"template_mapeamento_ingrooves_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
                     mime="text/csv",
                     type="secondary"
                 )
-            else:
+            elif len(df_sem_artist) == 0:
                 st.success("✅ Todos os artistas foram mapeados com sucesso!")
 
             st.success("✅ Processamento concluído!")
