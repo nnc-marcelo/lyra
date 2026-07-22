@@ -2015,6 +2015,18 @@ elif fonte == "INGROOVES":
         st.write(f"O total de withholding aplicado (30% EUA) é **USD {total_withheld:,.2f}**")
         st.write(f":red[O valor Net menos withholding é **USD {discounted_total:,.2f}**]")
 
+        fx_rate_ingrooves = st.number_input(
+            "Taxa cambial (USD → BRL)",
+            value=0.0,
+            min_value=0.0,
+            format="%.4f",
+            key=f"fx_rate_ingrooves_{period_suffix}",
+        )
+        if fx_rate_ingrooves > 0:
+            st.write(f":green[O valor Net menos withholding convertido é **BRL {discounted_total * fx_rate_ingrooves:,.2f}**]")
+        else:
+            st.caption("Informe a taxa cambial acima para ver os valores das tabelas também em BRL.")
+
         gh_config = get_github_config()
         colunas_mapeamento = ["Artist", "Label", "Album Title", "Song", "ISRC", "Tag_Artista"]
 
@@ -2034,18 +2046,36 @@ elif fonte == "INGROOVES":
             df_grouped = df_grouped.sort_values("Net Dollars after Fees", ascending=False)
             df_grouped = df_grouped.rename(columns={"Net Dollars after Fees": "Net Dollars"})
 
-            render_html_table(
-                ["Catálogo", "Net Dollars"],
-                [
+            if fx_rate_ingrooves > 0:
+                df_grouped["Net Dollars BRL"] = df_grouped["Net Dollars"] * fx_rate_ingrooves
+                headers_agrupado = ["Catálogo", "Net Dollars (USD)", "Net Dollars (BRL)"]
+                rows_agrupado = [
+                    simple_row([
+                        r["CATÁLOGO"] or "(sem catálogo)",
+                        f"USD {r['Net Dollars']:,.2f}",
+                        f"BRL {r['Net Dollars BRL']:,.2f}",
+                    ])
+                    for _, r in df_grouped.iterrows()
+                ]
+            else:
+                headers_agrupado = ["Catálogo", "Net Dollars (USD)"]
+                rows_agrupado = [
                     simple_row([r["CATÁLOGO"] or "(sem catálogo)", f"USD {r['Net Dollars']:,.2f}"])
                     for _, r in df_grouped.iterrows()
-                ],
+                ]
+
+            render_html_table(
+                headers_agrupado,
+                rows_agrupado,
                 max_height="480px",
                 translucent=False,
             )
 
             total_net = df_grouped["Net Dollars"].sum()
-            st.markdown(f"**Total Net Dollars: USD {total_net:,.2f}**")
+            if fx_rate_ingrooves > 0:
+                st.markdown(f"**Total Net Dollars: USD {total_net:,.2f} | BRL {total_net * fx_rate_ingrooves:,.2f}**")
+            else:
+                st.markdown(f"**Total Net Dollars: USD {total_net:,.2f}**")
 
             csv_bytes = df_grouped.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
             st.download_button(
@@ -2062,8 +2092,11 @@ elif fonte == "INGROOVES":
             ]
             colunas_detalhadas_disp = [c for c in colunas_detalhadas if c in df_out.columns]
             df_detalhado_export = df_out[colunas_detalhadas_disp].copy()
+            df_detalhado_export = df_detalhado_export.rename(columns={"Net Dollars after Fees": "Net Dollars after Fees (USD)"})
+            if fx_rate_ingrooves > 0:
+                df_detalhado_export["Net Dollars after Fees (BRL)"] = df_detalhado_export["Net Dollars after Fees (USD)"] * fx_rate_ingrooves
             df_detalhado_export = df_detalhado_export.sort_values(
-                ["CATÁLOGO", "Net Dollars after Fees"], ascending=[True, False]
+                ["CATÁLOGO", "Net Dollars after Fees (USD)"], ascending=[True, False]
             )
 
             total_linhas = len(df_detalhado_export)
