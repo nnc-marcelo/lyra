@@ -144,6 +144,17 @@ def save_linhas_no_mapeamento(gh_config: dict, df_linhas: pd.DataFrame, commit_m
 # ---------------------------
 # Helpers Gerais
 # ---------------------------
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def df_to_xlsx_bytes(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
+    """Serializa um DataFrame como XLSX (bytes), pronto para st.download_button."""
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
+    return output.getvalue()
+
+
 def read_base_xlsx(file_path: str) -> pd.DataFrame:
     """
     Lê base de catálogo em XLSX.
@@ -901,12 +912,12 @@ if fonte == "ABRAMUS":
                 st.markdown(f"**Total RATEIO: R$ {total_rateio:,.2f}**")
                 
                 # Download resultado agrupado
-                csv_bytes = df_grouped.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                xlsx_bytes = df_to_xlsx_bytes(df_grouped)
                 st.download_button(
-                    "⬇️ Baixar resultado agrupado (CSV)",
-                    data=csv_bytes,
-                    file_name=f"relatorio_agrupado_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                    mime="text/csv",
+                    "⬇️ Baixar resultado agrupado (XLSX)",
+                    data=xlsx_bytes,
+                    file_name=f"relatorio_agrupado_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                    mime=XLSX_MIME,
                 )
                 
                 # --- NOVO: Download resultado DETALHADO ---
@@ -949,12 +960,12 @@ if fonte == "ABRAMUS":
                 st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
 
                 # Download detalhado
-                csv_detalhado = df_detalhado_export.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                xlsx_detalhado = df_to_xlsx_bytes(df_detalhado_export)
                 st.download_button(
-                    "⬇️ Baixar relatório DETALHADO com todas as obras (CSV)",
-                    data=csv_detalhado,
-                    file_name=f"relatorio_detalhado_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                    mime="text/csv",
+                    "⬇️ Baixar relatório DETALHADO com todas as obras (XLSX)",
+                    data=xlsx_detalhado,
+                    file_name=f"relatorio_detalhado_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                    mime=XLSX_MIME,
                     type="primary"
                 )
                 
@@ -1000,12 +1011,12 @@ if fonte == "ABRAMUS":
                     
                     st.dataframe(df_preview.head(50), use_container_width=True, height=300)
                     
-                    csv_nao_mapeadas = df_preview.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                    xlsx_nao_mapeadas = df_to_xlsx_bytes(df_preview)
                     st.download_button(
-                        "⬇️ Baixar obras não mapeadas (CSV)",
-                        data=csv_nao_mapeadas,
-                        file_name=f"obras_nao_mapeadas_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                        mime="text/csv",
+                        "⬇️ Baixar obras não mapeadas (XLSX)",
+                        data=xlsx_nao_mapeadas,
+                        file_name=f"obras_nao_mapeadas_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                        mime=XLSX_MIME,
                         type="secondary"
                     )
                     
@@ -1144,15 +1155,15 @@ if fonte == "ABRAMUS":
                                 ascending=[False, False]
                             )
                             
-                            csv_completo = df_download_completo.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
-                            
+                            xlsx_completo = df_to_xlsx_bytes(df_download_completo)
+
                             st.info(f"📊 Este arquivo contém **{len(df_download_completo)} obras** ({len(df_com_sugestao)} com sugestão + {len(df_sem_sugestao)} sem sugestão)")
-                            
+
                             st.download_button(
                                 "⬇️ Baixar TODAS as obras não mapeadas (com e sem sugestões)",
-                                data=csv_completo,
-                                file_name=f"obras_completo_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                                mime="text/csv",
+                                data=xlsx_completo,
+                                file_name=f"obras_completo_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                                mime=XLSX_MIME,
                                 type="primary"
                             )
                         
@@ -1202,8 +1213,8 @@ if fonte == "ABRAMUS":
                             _cols_rep = ["TÍTULO DA MUSICA", "ISWC", "AUTORES", "CATÁLOGO_REPRTOIR", "CATÁLOGO_INTERNO_SUGERIDO", "CONFIANÇA_REPRTOIR_%", "FONTE_REPRTOIR", "RATEIO_NUM"]
                             _cols_rep_disp = [c for c in _cols_rep if c in _df_com_rep.columns]
                             st.dataframe(_df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False).head(100), use_container_width=True, height=400)
-                            _csv_rep = _df_com_rep[_cols_rep_disp].to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
-                            st.download_button("⬇️ Baixar resultados Reprtoir (CSV)", data=_csv_rep, file_name=f"reprtoir_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.csv", mime="text/csv", key="dl_reprtoir_abramus")
+                            _xlsx_rep = df_to_xlsx_bytes(_df_com_rep[_cols_rep_disp])
+                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx", mime=XLSX_MIME, key="dl_reprtoir_abramus")
 
                 else:
                     st.success("✅ Todas as obras foram mapeadas com sucesso!")
@@ -1322,12 +1333,12 @@ elif fonte == "SONY":
                 st.markdown(f"**Total Royalties: ${total_roy:,.2f}**")
                 
                 # Download resultado agrupado
-                csv_bytes = df_grouped.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                xlsx_bytes = df_to_xlsx_bytes(df_grouped)
                 st.download_button(
-                    "⬇️ Baixar resultado agrupado (CSV)",
-                    data=csv_bytes,
-                    file_name=f"relatorio_agrupado_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                    mime="text/csv",
+                    "⬇️ Baixar resultado agrupado (XLSX)",
+                    data=xlsx_bytes,
+                    file_name=f"relatorio_agrupado_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                    mime=XLSX_MIME,
                 )
                 
                 # --- NOVO: Download resultado DETALHADO ---
@@ -1369,12 +1380,12 @@ elif fonte == "SONY":
                 st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
 
                 # Download detalhado
-                csv_detalhado = df_detalhado_export.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                xlsx_detalhado = df_to_xlsx_bytes(df_detalhado_export)
                 st.download_button(
-                    "⬇️ Baixar relatório DETALHADO com todas as músicas (CSV)",
-                    data=csv_detalhado,
-                    file_name=f"relatorio_detalhado_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                    mime="text/csv",
+                    "⬇️ Baixar relatório DETALHADO com todas as músicas (XLSX)",
+                    data=xlsx_detalhado,
+                    file_name=f"relatorio_detalhado_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                    mime=XLSX_MIME,
                     type="primary"
                 )
                 
@@ -1410,12 +1421,12 @@ elif fonte == "SONY":
                     
                     st.dataframe(df_preview.head(50), use_container_width=True, height=300)
                     
-                    csv_nao_mapeadas = df_preview.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                    xlsx_nao_mapeadas = df_to_xlsx_bytes(df_preview)
                     st.download_button(
-                        "⬇️ Baixar músicas não mapeadas (CSV)",
-                        data=csv_nao_mapeadas,
-                        file_name=f"obras_nao_mapeadas_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                        mime="text/csv",
+                        "⬇️ Baixar músicas não mapeadas (XLSX)",
+                        data=xlsx_nao_mapeadas,
+                        file_name=f"obras_nao_mapeadas_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                        mime=XLSX_MIME,
                         type="secondary"
                     )
                     
@@ -1570,15 +1581,15 @@ elif fonte == "SONY":
                                 ascending=[False, False]
                             )
                             
-                            csv_completo = df_download_completo.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
-                            
+                            xlsx_completo = df_to_xlsx_bytes(df_download_completo)
+
                             st.info(f"📊 Este arquivo contém **{len(df_download_completo)} músicas** ({len(df_com_sugestao)} com sugestão + {len(df_sem_sugestao)} sem sugestão)")
-                            
+
                             st.download_button(
                                 "⬇️ Baixar TODAS as músicas não mapeadas (com e sem sugestões)",
-                                data=csv_completo,
-                                file_name=f"obras_completo_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv",
-                                mime="text/csv",
+                                data=xlsx_completo,
+                                file_name=f"obras_completo_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                                mime=XLSX_MIME,
                                 type="primary"
                             )
                         
@@ -1633,8 +1644,8 @@ elif fonte == "SONY":
                             _cols_rep = ["Song No.", "Song", "Writer", "CATÁLOGO_REPRTOIR", "CATÁLOGO_INTERNO_SUGERIDO", "CONFIANÇA_REPRTOIR_%", "FONTE_REPRTOIR", "RoyAmt_NUM"]
                             _cols_rep_disp = [c for c in _cols_rep if c in _df_com_rep.columns]
                             st.dataframe(_df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False).head(100), use_container_width=True, height=400)
-                            _csv_rep = _df_com_rep[_cols_rep_disp].to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
-                            st.download_button("⬇️ Baixar resultados Reprtoir (CSV)", data=_csv_rep, file_name=f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}.csv", mime="text/csv", key="dl_reprtoir_sony")
+                            _xlsx_rep = df_to_xlsx_bytes(_df_com_rep[_cols_rep_disp])
+                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx", mime=XLSX_MIME, key="dl_reprtoir_sony")
 
                 else:
                     st.success("✅ Todas as músicas foram mapeadas com sucesso!")
@@ -1745,12 +1756,12 @@ elif fonte == "IRMÃOS VITALE":
             total_valor = df_grouped["Valor Repassado"].sum()
             st.markdown(f"**Total Repassado: R$ {total_valor:,.2f}**")
 
-            csv_bytes = df_grouped.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+            xlsx_bytes = df_to_xlsx_bytes(df_grouped)
             st.download_button(
-                "⬇️ Baixar resultado agrupado (CSV)",
-                data=csv_bytes,
-                file_name=f"relatorio_agrupado_vitale_{ano_selecionado}_{tri_num_selecionado}T.csv",
-                mime="text/csv",
+                "⬇️ Baixar resultado agrupado (XLSX)",
+                data=xlsx_bytes,
+                file_name=f"relatorio_agrupado_vitale_{ano_selecionado}_{tri_num_selecionado}T.xlsx",
+                mime=XLSX_MIME,
             )
 
             # --- Distribuição por demonstrativo ---
@@ -1785,12 +1796,12 @@ elif fonte == "IRMÃOS VITALE":
                 st.metric("❌ Não Mapeadas", obras_nao_mapeadas)
 
             st.dataframe(df_detalhado.head(50), use_container_width=True, height=300)
-            csv_det = df_detalhado.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+            xlsx_det = df_to_xlsx_bytes(df_detalhado)
             st.download_button(
-                "⬇️ Baixar relatório DETALHADO (CSV)",
-                data=csv_det,
-                file_name=f"relatorio_detalhado_vitale_{ano_selecionado}_{tri_num_selecionado}T.csv",
-                mime="text/csv", type="primary",
+                "⬇️ Baixar relatório DETALHADO (XLSX)",
+                data=xlsx_det,
+                file_name=f"relatorio_detalhado_vitale_{ano_selecionado}_{tri_num_selecionado}T.xlsx",
+                mime=XLSX_MIME, type="primary",
             )
 
             # --- Obras não mapeadas ---
@@ -1810,12 +1821,12 @@ elif fonte == "IRMÃOS VITALE":
                 total_nm = df_nm_grp["Valor Repassado"].sum()
                 st.warning(f"⚠️ **{len(df_nm_grp)} títulos** não mapeados | **Total: R$ {total_nm:,.2f}**")
                 st.dataframe(df_nm_grp.head(100), use_container_width=True, height=300)
-                csv_nm = df_nm_grp.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+                xlsx_nm = df_to_xlsx_bytes(df_nm_grp)
                 st.download_button(
-                    "⬇️ Baixar obras não mapeadas (CSV)",
-                    data=csv_nm,
-                    file_name=f"obras_nao_mapeadas_vitale_{ano_selecionado}_{tri_num_selecionado}T.csv",
-                    mime="text/csv", type="secondary",
+                    "⬇️ Baixar obras não mapeadas (XLSX)",
+                    data=xlsx_nm,
+                    file_name=f"obras_nao_mapeadas_vitale_{ano_selecionado}_{tri_num_selecionado}T.xlsx",
+                    mime=XLSX_MIME, type="secondary",
                 )
             else:
                 st.success("✅ Todas as obras foram mapeadas com sucesso!")
@@ -2077,12 +2088,12 @@ elif fonte == "INGROOVES":
             else:
                 st.markdown(f"**Total Net Dollars: USD {total_net:,.2f}**")
 
-            csv_bytes = df_grouped.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+            xlsx_bytes = df_to_xlsx_bytes(df_grouped)
             st.download_button(
-                "⬇️ Baixar resultado agrupado (CSV)",
-                data=csv_bytes,
-                file_name=f"relatorio_agrupado_ingrooves_{period_suffix}.csv",
-                mime="text/csv",
+                "⬇️ Baixar resultado agrupado (XLSX)",
+                data=xlsx_bytes,
+                file_name=f"relatorio_agrupado_ingrooves_{period_suffix}.xlsx",
+                mime=XLSX_MIME,
             )
 
         with tab_detalhado:
@@ -2113,12 +2124,12 @@ elif fonte == "INGROOVES":
 
             st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
 
-            csv_detalhado = df_detalhado_export.to_csv(index=False, sep=";", encoding="utf-8-sig", decimal=",").encode("utf-8-sig")
+            xlsx_detalhado = df_to_xlsx_bytes(df_detalhado_export)
             st.download_button(
-                "⬇️ Baixar relatório DETALHADO com todas as faixas (CSV)",
-                data=csv_detalhado,
-                file_name=f"relatorio_detalhado_ingrooves_{period_suffix}.csv",
-                mime="text/csv",
+                "⬇️ Baixar relatório DETALHADO com todas as faixas (XLSX)",
+                data=xlsx_detalhado,
+                file_name=f"relatorio_detalhado_ingrooves_{period_suffix}.xlsx",
+                mime=XLSX_MIME,
                 type="primary"
             )
 
@@ -2194,12 +2205,12 @@ elif fonte == "INGROOVES":
                     col_save1, col_save2 = st.columns(2)
 
                     with col_save1:
-                        csv_template = df_editado.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
+                        xlsx_template = df_to_xlsx_bytes(df_editado)
                         st.download_button(
-                            "⬇️ Baixar template de mapeamento (CSV)",
-                            data=csv_template,
-                            file_name=f"template_mapeamento_ingrooves_{period_suffix}.csv",
-                            mime="text/csv",
+                            "⬇️ Baixar template de mapeamento (XLSX)",
+                            data=xlsx_template,
+                            file_name=f"template_mapeamento_ingrooves_{period_suffix}.xlsx",
+                            mime=XLSX_MIME,
                             type="secondary"
                         )
 
@@ -2241,7 +2252,12 @@ elif fonte == "INGROOVES":
                     if arquivo_importado is not None:
                         try:
                             if arquivo_importado.name.lower().endswith(".csv"):
-                                df_importado = pd.read_csv(arquivo_importado, sep=";", dtype=str)
+                                # sep=None + engine="python" detecta o delimitador (";" ou ",", conforme o
+                                # Excel/config regional de quem salvou o arquivo) em vez de assumir ";" fixo —
+                                # com separador errado, o pandas lia a linha inteira como uma única coluna
+                                # e a checagem de colunas abaixo falhava. encoding utf-8-sig remove o BOM
+                                # que o Excel grava em CSVs "UTF-8", que também gruda no nome da 1ª coluna.
+                                df_importado = pd.read_csv(arquivo_importado, sep=None, engine="python", dtype=str, encoding="utf-8-sig")
                             else:
                                 df_importado = pd.read_excel(arquivo_importado, dtype=str)
                             df_importado.columns = [c.strip() for c in df_importado.columns]
@@ -2249,11 +2265,34 @@ elif fonte == "INGROOVES":
                             colunas_faltando = [c for c in colunas_mapeamento if c not in df_importado.columns]
                             if colunas_faltando:
                                 st.error(f"❌ Colunas faltando no arquivo importado: {colunas_faltando}")
+                                st.caption(f"Colunas encontradas no arquivo: {list(df_importado.columns)}")
                             else:
                                 df_importado_preenchido = df_importado[
                                     df_importado["Tag_Artista"].astype(str).str.strip() != ""
                                 ]
                                 st.info(f"📄 {len(df_importado_preenchido)} de {len(df_importado)} linha(s) têm `Tag_Artista` preenchido.")
+
+                                artistas_status_import = df_importado.drop_duplicates(subset=["Artist"])
+                                st.caption(
+                                    f"**Status de preenchimento (arquivo importado)** — "
+                                    f"{artistas_status_import['Tag_Artista'].astype(str).str.strip().ne('').sum()} de "
+                                    f"{len(artistas_status_import)} artista(s) já com `Tag_Artista`:"
+                                )
+                                render_status_table(
+                                    ["Artista", "Tag_Artista"],
+                                    [
+                                        {
+                                            "preenchido": bool(str(row["Tag_Artista"]).strip()),
+                                            "Artist": row["Artist"],
+                                            "Tag_Artista": row["Tag_Artista"] or "—",
+                                        }
+                                        for _, row in artistas_status_import.iterrows()
+                                    ],
+                                    status_key="preenchido",
+                                    label_key="Artist",
+                                    max_height="200px",
+                                    translucent=False,
+                                )
 
                                 if st.button(
                                     f"💾 Salvar {len(df_importado_preenchido)} faixa(s) importada(s) no mapeamento",
