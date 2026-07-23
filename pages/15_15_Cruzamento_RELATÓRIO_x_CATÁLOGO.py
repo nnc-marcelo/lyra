@@ -49,6 +49,7 @@ CAMINHO_INGROOVES = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Cat
 # GitHub (salvar mapeamento colaborativo direto no repositório)
 # ---------------------------
 GITHUB_MAPPING_PATH = "data/mapping/mapping-artistas-ingrooves.xlsx"
+GITHUB_MAPPING_PATH_ABRAMUS = "data/mapping/Robo_Abramus_Base.xlsx"
 
 
 def get_github_config():
@@ -812,6 +813,7 @@ st.sidebar.markdown("---")
 
 if fonte == "ABRAMUS":
     st.header("📊 ABRAMUS - Processamento de Relatórios")
+    st.caption("Cruza por CÓD. OBRA (categoria E) ou CÓD FONOGRAMA (demais categorias) com a base de catálogo.")
 
     # --- Base de catálogo ---
     if os.path.exists(CAMINHO_BASE_ABRAMUS):
@@ -825,6 +827,62 @@ if fonte == "ABRAMUS":
             st.stop()
         base_source_abramus = _uploaded_base_ab
         st.success("✅ Base de catálogo carregada via upload.")
+
+    # --- Editar base de catálogo completa ---
+    with st.expander("✏️ Editar base de catálogo completa"):
+        gh_config_mapping_ab = get_github_config()
+        sha_mapping_ab = None
+        df_mapping_full_ab = None
+
+        if gh_config_mapping_ab is not None:
+            try:
+                df_mapping_full_ab, sha_mapping_ab = github_fetch_mapping(gh_config_mapping_ab, path=GITHUB_MAPPING_PATH_ABRAMUS)
+            except Exception as e:
+                st.error(f"❌ Erro ao buscar base no GitHub: {e}")
+        elif isinstance(base_source_abramus, str) and os.path.exists(base_source_abramus):
+            try:
+                df_mapping_full_ab = pd.read_excel(base_source_abramus, dtype=str)
+                df_mapping_full_ab.columns = [c.strip() for c in df_mapping_full_ab.columns]
+            except Exception as e:
+                st.error(f"❌ Erro ao carregar base de catálogo: {e}")
+        else:
+            st.caption("Edição indisponível: nem GitHub configurado, nem arquivo local encontrado (base veio de upload).")
+
+        if df_mapping_full_ab is not None:
+            st.caption(
+                f"{len(df_mapping_full_ab)} registro(s). Use a lupa no canto superior da tabela para buscar "
+                "por título, autor, código de obra/fonograma etc. Também dá para adicionar ou apagar linhas."
+            )
+            df_mapping_editado_ab = st.data_editor(
+                df_mapping_full_ab,
+                use_container_width=True,
+                height=400,
+                num_rows="dynamic",
+                key="editor_mapping_completo_abramus",
+                hide_index=True,
+            )
+
+            if gh_config_mapping_ab is not None:
+                if st.button("💾 Salvar alterações na base de catálogo", type="primary", key="btn_save_mapping_completo_abramus"):
+                    try:
+                        with st.spinner("Salvando no GitHub..."):
+                            github_save_mapping(
+                                gh_config_mapping_ab,
+                                df_mapping_editado_ab,
+                                sha_mapping_ab,
+                                commit_message="data: edita base de catálogo ABRAMUS via app",
+                                path=GITHUB_MAPPING_PATH_ABRAMUS,
+                            )
+                        st.success("✅ Base de catálogo atualizada! O app vai reiniciar em instantes.")
+                    except Exception as e:
+                        st.error(f"❌ Erro ao salvar no GitHub: {e}")
+            else:
+                if st.button("💾 Salvar alterações na base de catálogo (arquivo local)", type="primary", key="btn_save_mapping_completo_local_abramus"):
+                    try:
+                        df_mapping_editado_ab.to_excel(base_source_abramus, index=False)
+                        st.success("✅ Base de catálogo salva localmente!")
+                    except Exception as e:
+                        st.error(f"❌ Erro ao salvar localmente: {e}")
 
     # --- Relatório ---
     periods = get_available_periods_abramus()
@@ -856,6 +914,14 @@ if fonte == "ABRAMUS":
         report_source_abramus = _uploaded_report_ab
         ano_selecionado = 0
         mes_num_selecionado = 0
+
+    # Chave do período atual, usada para: (1) cachear o resultado no session_state
+    # sobrevivendo a reruns causados pela edição do data_editor, e (2) nomear
+    # arquivos/widgets de forma estável.
+    if periods:
+        period_suffix = f"{ano_selecionado}_{mes_num_selecionado:02d}"
+    else:
+        period_suffix = re.sub(r"[^A-Za-z0-9_-]", "_", getattr(report_source_abramus, "name", "upload"))
 
     # Botão para processar
     if st.button("🚀 Processar Cruzamento", type="primary"):
@@ -895,55 +961,81 @@ if fonte == "ABRAMUS":
             df_out = df_report.copy()
             df_out["CATÁLOGO"] = df_out.apply(resolve_catalog, axis=1)
 
-            st.subheader("Resultado Agrupado por Catálogo")
-            
-            if "RATEIO" in df_out.columns:
-                df_display = df_out[["CATÁLOGO", "RATEIO"]].copy()
-                df_display["RATEIO"] = df_display["RATEIO"].astype(str).str.replace(",", ".", regex=False)
-                df_display["RATEIO"] = pd.to_numeric(df_display["RATEIO"], errors="coerce")
-                
-                # Agrupa por catálogo e soma
-                df_grouped = df_display.groupby("CATÁLOGO", as_index=False)["RATEIO"].sum()
+            # Guarda o resultado no session_state: a edição do data_editor abaixo
+            # dispara reruns da página, e sem isso o app voltaria pra tela inicial
+            # (o "if st.button" só é True no exato clique, não nos reruns seguintes).
+            st.session_state["abramus_result"] = {
+                "period_suffix": period_suffix,
+                "df_out": df_out,
+                "df_base": df_base,
+            }
+        except Exception as e:
+            st.error(f"❌ Erro ao processar: {e}")
+            import traceback
+            st.code(traceback.format_exc())
+
+    # --- Renderização dos resultados (fora do botão, para sobreviver a reruns) ---
+    resultado = st.session_state.get("abramus_result")
+    if resultado and resultado["period_suffix"] == period_suffix:
+        df_out = resultado["df_out"]
+        df_base = resultado["df_base"]
+
+        st.subheader("Resultado Agrupado por Catálogo")
+
+        if "RATEIO" not in df_out.columns:
+            st.warning("Coluna 'RATEIO' não encontrada no relatório.")
+            st.dataframe(df_out, use_container_width=True, height=520)
+        else:
+            df_out["RATEIO"] = df_out["RATEIO"].astype(str).str.replace(",", ".", regex=False)
+            df_out["RATEIO"] = pd.to_numeric(df_out["RATEIO"], errors="coerce")
+
+            df_nao_mapeadas_raw = df_out[df_out["CATÁLOGO"].isin(["", "nan"]) | df_out["CATÁLOGO"].isna()].copy()
+
+            tab_agrupado, tab_detalhado, tab_nao_mapeados = st.tabs([
+                "📊 Agrupado por Catálogo", "📋 Detalhado", "🔍 Não Mapeados"
+            ])
+
+            with tab_agrupado:
+                df_grouped = df_out.groupby("CATÁLOGO", as_index=False)["RATEIO"].sum()
                 df_grouped = df_grouped.sort_values("RATEIO", ascending=False)
-                
-                st.dataframe(df_grouped, use_container_width=True, height=520)
-                
+
+                render_html_table(
+                    ["Catálogo", "RATEIO"],
+                    [
+                        simple_row([r["CATÁLOGO"] or "(sem catálogo)", f"R$ {r['RATEIO']:,.2f}"])
+                        for _, r in df_grouped.iterrows()
+                    ],
+                    max_height="480px",
+                    translucent=False,
+                )
+
                 total_rateio = df_grouped["RATEIO"].sum()
                 st.markdown(f"**Total RATEIO: R$ {total_rateio:,.2f}**")
-                
-                # Download resultado agrupado
+
                 xlsx_bytes = df_to_xlsx_bytes(df_grouped)
                 st.download_button(
                     "⬇️ Baixar resultado agrupado (XLSX)",
                     data=xlsx_bytes,
-                    file_name=f"relatorio_agrupado_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                    file_name=f"relatorio_agrupado_abramus_{period_suffix}.xlsx",
                     mime=XLSX_MIME,
                 )
-                
-                # --- NOVO: Download resultado DETALHADO ---
-                st.markdown("---")
+
+            with tab_detalhado:
                 st.subheader("📋 Download com Detalhes das Obras")
 
-                # Prepara dados detalhados
                 df_detalhado = df_out.copy()
 
-                # Define colunas para o relatório detalhado
                 colunas_detalhadas = [
-                    "CATÁLOGO", "TÍTULO DA MUSICA", "CÓD. OBRA", "CÓD FONOGRAMA", 
+                    "CATÁLOGO", "TÍTULO DA MUSICA", "CÓD. OBRA", "CÓD FONOGRAMA",
                     "ISWC", "AUTORES", "CATEGORIA", "RATEIO"
                 ]
                 colunas_detalhadas_disp = [col for col in colunas_detalhadas if col in df_detalhado.columns]
 
                 df_detalhado_export = df_detalhado[colunas_detalhadas_disp].copy()
 
-                # Ordena por catálogo e rateio
                 if "RATEIO" in df_detalhado_export.columns:
-                    df_detalhado_export["RATEIO_SORT"] = df_detalhado_export["RATEIO"].astype(str).str.replace(",", ".", regex=False)
-                    df_detalhado_export["RATEIO_SORT"] = pd.to_numeric(df_detalhado_export["RATEIO_SORT"], errors="coerce")
-                    df_detalhado_export = df_detalhado_export.sort_values(["CATÁLOGO", "RATEIO_SORT"], ascending=[True, False])
-                    df_detalhado_export = df_detalhado_export.drop(columns=["RATEIO_SORT"])
+                    df_detalhado_export = df_detalhado_export.sort_values(["CATÁLOGO", "RATEIO"], ascending=[True, False])
 
-                # Estatísticas do detalhado
                 total_obras = len(df_detalhado_export)
                 obras_mapeadas = len(df_detalhado_export[df_detalhado_export["CATÁLOGO"].notna() & (df_detalhado_export["CATÁLOGO"] != "")])
                 obras_nao_mapeadas = total_obras - obras_mapeadas
@@ -956,70 +1048,64 @@ if fonte == "ABRAMUS":
                 with col_info3:
                     st.metric("❌ Não Mapeadas", obras_nao_mapeadas)
 
-                # Preview do detalhado
                 st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
 
-                # Download detalhado
                 xlsx_detalhado = df_to_xlsx_bytes(df_detalhado_export)
                 st.download_button(
                     "⬇️ Baixar relatório DETALHADO com todas as obras (XLSX)",
                     data=xlsx_detalhado,
-                    file_name=f"relatorio_detalhado_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                    file_name=f"relatorio_detalhado_abramus_{period_suffix}.xlsx",
                     mime=XLSX_MIME,
                     type="primary"
                 )
-                
-                # --- SEÇÃO DE OBRAS NÃO MAPEADAS ---
-                st.markdown("---")
-                st.subheader("🔍 Obras Não Mapeadas")
-                
-                df_nao_mapeadas = df_out[df_out["CATÁLOGO"].isin(["", "nan"]) | df_out["CATÁLOGO"].isna()].copy()
-                
+
+            with tab_nao_mapeados:
+                df_nao_mapeadas = df_nao_mapeadas_raw
+
                 if len(df_nao_mapeadas) > 0:
-                    df_nao_mapeadas["RATEIO_NUM"] = df_nao_mapeadas["RATEIO"].astype(str).str.replace(",", ".", regex=False)
-                    df_nao_mapeadas["RATEIO_NUM"] = pd.to_numeric(df_nao_mapeadas["RATEIO_NUM"], errors="coerce")
-                    
+                    df_nao_mapeadas["RATEIO_NUM"] = df_nao_mapeadas["RATEIO"]
+
                     def get_chave_agrupamento(row):
                         cat = str(row.get("CATEGORIA", "")).strip().upper()
                         if cat == "E":
                             return str(row.get("CÓD. OBRA", "")).strip()
                         else:
                             return str(row.get("CÓD FONOGRAMA", "")).strip()
-                    
+
                     df_nao_mapeadas["CHAVE_GRUPO"] = df_nao_mapeadas.apply(get_chave_agrupamento, axis=1)
-                    
+
                     colunas_primeiro = ["TÍTULO DA MUSICA", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "AUTORES", "CATEGORIA"]
                     colunas_primeiro_disp = [col for col in colunas_primeiro if col in df_nao_mapeadas.columns]
-                    
+
                     agg_dict = {col: 'first' for col in colunas_primeiro_disp}
                     agg_dict["RATEIO_NUM"] = "sum"
-                    
+
                     df_agrupado = df_nao_mapeadas.groupby("CHAVE_GRUPO", as_index=False).agg(agg_dict)
                     df_agrupado = df_agrupado[df_agrupado["CHAVE_GRUPO"] != ""]
-                    
+
                     total_nao_mapeado = df_agrupado["RATEIO_NUM"].sum()
-                    
+
                     st.warning(f"⚠️ **{len(df_agrupado)} obras únicas** não foram mapeadas | **Total: R$ {total_nao_mapeado:,.2f}**")
-                    
+
                     df_agrupado = df_agrupado.sort_values("RATEIO_NUM", ascending=False)
-                    
+
                     colunas_exibir = ["TÍTULO DA MUSICA", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "AUTORES", "CATEGORIA", "RATEIO_NUM"]
                     colunas_exibir_disp = [col for col in colunas_exibir if col in df_agrupado.columns]
-                    
+
                     df_preview = df_agrupado[colunas_exibir_disp].copy()
                     df_preview = df_preview.rename(columns={"RATEIO_NUM": "RATEIO"})
-                    
+
                     st.dataframe(df_preview.head(50), use_container_width=True, height=300)
-                    
+
                     xlsx_nao_mapeadas = df_to_xlsx_bytes(df_preview)
                     st.download_button(
                         "⬇️ Baixar obras não mapeadas (XLSX)",
                         data=xlsx_nao_mapeadas,
-                        file_name=f"obras_nao_mapeadas_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                        file_name=f"obras_nao_mapeadas_abramus_{period_suffix}.xlsx",
                         mime=XLSX_MIME,
                         type="secondary"
                     )
-                    
+
                     if "CATEGORIA" in df_agrupado.columns:
                         st.markdown("**Distribuição por Categoria:**")
                         cat_stats = df_agrupado.groupby("CATEGORIA").agg({
@@ -1027,43 +1113,43 @@ if fonte == "ABRAMUS":
                         }).round(2)
                         cat_stats.columns = ["Quantidade", "Total Rateio"]
                         st.dataframe(cat_stats, use_container_width=True)
-                    
+
                     # --- SEÇÃO DE SUGESTÕES INTELIGENTES ---
                     st.markdown("---")
                     st.subheader("🤖 Sugestões Inteligentes de Catálogo")
-                    
+
                     if "AUTORES" in df_nao_mapeadas.columns:
                         st.info("Analisando padrões de autores na base de catálogo...")
-                        
+
                         autor_catalogo_map = {}
-                        
+
                         if "AUTORES" in df_base.columns:
                             for idx, row in df_base.iterrows():
                                 catalogo = str(row.get("CATÁLOGO", "")).strip()
                                 autores_str = str(row.get("AUTORES", "")).strip()
-                                
+
                                 if catalogo and autores_str and catalogo != "nan" and autores_str != "nan":
                                     autores_list = [a.strip().upper() for a in autores_str.split("/")]
-                                    
+
                                     for autor in autores_list:
                                         if autor and len(autor) > 2:
                                             if autor not in autor_catalogo_map:
                                                 autor_catalogo_map[autor] = {}
-                                            
+
                                             if catalogo not in autor_catalogo_map[autor]:
                                                 autor_catalogo_map[autor][catalogo] = 0
                                             autor_catalogo_map[autor][catalogo] += 1
-                            
+
                             st.success(f"✅ Dicionário criado: {len(autor_catalogo_map)} autores mapeados")
-                            
+
                             def sugerir_catalogo(autores_str):
                                 if not autores_str or autores_str == "nan":
                                     return "", 0, ""
-                                
+
                                 autores_list = [a.strip().upper() for a in str(autores_str).split("/")]
                                 sugestoes = {}
                                 autores_encontrados = []
-                                
+
                                 for autor in autores_list:
                                     if autor in autor_catalogo_map:
                                         autores_encontrados.append(autor)
@@ -1071,60 +1157,60 @@ if fonte == "ABRAMUS":
                                             if catalogo not in sugestoes:
                                                 sugestoes[catalogo] = 0
                                             sugestoes[catalogo] += freq
-                                
+
                                 if not sugestoes:
                                     return "", 0, ""
-                                
+
                                 melhor_catalogo = max(sugestoes, key=sugestoes.get)
                                 score = sugestoes[melhor_catalogo]
                                 confianca = len(autores_encontrados) / len(autores_list) * 100
-                                
+
                                 return melhor_catalogo, confianca, " / ".join(autores_encontrados)
-                            
+
                             df_agrupado["CATÁLOGO_SUGERIDO"] = ""
                             df_agrupado["CONFIANÇA_%"] = 0.0
                             df_agrupado["AUTORES_MATCH"] = ""
-                            
+
                             for idx in df_agrupado.index:
                                 autores = df_agrupado.loc[idx, "AUTORES"] if "AUTORES" in df_agrupado.columns else ""
                                 catalogo_sug, conf, autores_match = sugerir_catalogo(autores)
                                 df_agrupado.loc[idx, "CATÁLOGO_SUGERIDO"] = catalogo_sug
                                 df_agrupado.loc[idx, "CONFIANÇA_%"] = conf
                                 df_agrupado.loc[idx, "AUTORES_MATCH"] = autores_match
-                            
+
                             df_com_sugestao = df_agrupado[df_agrupado["CATÁLOGO_SUGERIDO"] != ""].copy()
                             df_sem_sugestao = df_agrupado[df_agrupado["CATÁLOGO_SUGERIDO"] == ""].copy()
-                            
+
                             col_stat1, col_stat2 = st.columns(2)
                             with col_stat1:
                                 st.metric("✨ Com Sugestão", len(df_com_sugestao))
                             with col_stat2:
                                 st.metric("❓ Sem Sugestão", len(df_sem_sugestao))
-                            
+
                             if len(df_com_sugestao) > 0:
                                 df_com_sugestao = df_com_sugestao.sort_values("CONFIANÇA_%", ascending=False)
-                                
+
                                 st.success(f"✨ **{len(df_com_sugestao)} obras** com sugestões encontradas!")
-                                
+
                                 colunas_sugestao = [
-                                    "TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "CATÁLOGO_SUGERIDO", "AUTORES_MATCH", 
-                                    "CONFIANÇA_%", 
+                                    "TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "CATÁLOGO_SUGERIDO", "AUTORES_MATCH",
+                                    "CONFIANÇA_%",
                                     "CATEGORIA", "RATEIO_NUM"
                                 ]
                                 colunas_disp_sug = [col for col in colunas_sugestao if col in df_com_sugestao.columns]
-                                
+
                                 df_preview_sug = df_com_sugestao[colunas_disp_sug].copy()
-                                
+
                                 df_preview_sug["CONFIANÇA_%"] = df_preview_sug["CONFIANÇA_%"].round(0).astype(int)
                                 if "RATEIO_NUM" in df_preview_sug.columns:
                                     df_preview_sug = df_preview_sug.rename(columns={"RATEIO_NUM": "RATEIO"})
-                                
+
                                 st.dataframe(df_preview_sug.head(100), use_container_width=True, height=400)
-                                
+
                                 st.markdown("**Distribuição de Sugestões:**")
-                                
+
                                 rateio_col = "RATEIO" if "RATEIO" in df_com_sugestao.columns else "RATEIO_NUM"
-                                
+
                                 sug_stats = df_com_sugestao.groupby("CATÁLOGO_SUGERIDO").agg({
                                     rateio_col: ["count", "sum"],
                                     "CONFIANÇA_%": "mean"
@@ -1132,29 +1218,29 @@ if fonte == "ABRAMUS":
                                 sug_stats.columns = ["Quantidade", "Total Rateio", "Confiança Média %"]
                                 sug_stats = sug_stats.sort_values("Quantidade", ascending=False)
                                 st.dataframe(sug_stats, use_container_width=True)
-                            
+
                             st.markdown("---")
                             st.markdown("### 📥 Download Completo")
-                            
+
                             colunas_download = [
-                                "TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "CATÁLOGO_SUGERIDO", "AUTORES_MATCH", 
-                                "CONFIANÇA_%", 
+                                "TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "CATÁLOGO_SUGERIDO", "AUTORES_MATCH",
+                                "CONFIANÇA_%",
                                 "CATEGORIA", "RATEIO_NUM"
                             ]
                             colunas_download_disp = [col for col in colunas_download if col in df_agrupado.columns]
-                            
+
                             df_download_completo = df_agrupado[colunas_download_disp].copy()
-                            
+
                             df_download_completo["CONFIANÇA_%"] = df_download_completo["CONFIANÇA_%"].round(0).astype(int)
-                            
+
                             if "RATEIO_NUM" in df_download_completo.columns:
                                 df_download_completo = df_download_completo.rename(columns={"RATEIO_NUM": "RATEIO"})
-                            
+
                             df_download_completo = df_download_completo.sort_values(
-                                ["CONFIANÇA_%", "RATEIO" if "RATEIO" in df_download_completo.columns else "RATEIO_NUM"], 
+                                ["CONFIANÇA_%", "RATEIO" if "RATEIO" in df_download_completo.columns else "RATEIO_NUM"],
                                 ascending=[False, False]
                             )
-                            
+
                             xlsx_completo = df_to_xlsx_bytes(df_download_completo)
 
                             st.info(f"📊 Este arquivo contém **{len(df_download_completo)} obras** ({len(df_com_sugestao)} com sugestão + {len(df_sem_sugestao)} sem sugestão)")
@@ -1162,11 +1248,11 @@ if fonte == "ABRAMUS":
                             st.download_button(
                                 "⬇️ Baixar TODAS as obras não mapeadas (com e sem sugestões)",
                                 data=xlsx_completo,
-                                file_name=f"obras_completo_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
+                                file_name=f"obras_completo_abramus_{period_suffix}.xlsx",
                                 mime=XLSX_MIME,
                                 type="primary"
                             )
-                        
+
                         else:
                             st.warning("⚠️ Coluna 'AUTORES' não encontrada na base de catálogo.")
 
@@ -1177,7 +1263,7 @@ if fonte == "ABRAMUS":
                         st.info("ℹ️ Integração com Reprtoir não disponível. Verifique o arquivo `.env` com `REPRTOIR_API_KEY`.")
                     else:
                         st.caption("Consulta a API do Reprtoir para identificar obras não mapeadas via ISWC ou título+autores.")
-                        _rep_key_ab = f"reprtoir_abramus_{ano_selecionado}_{mes_num_selecionado:02d}"
+                        _rep_key_ab = f"reprtoir_abramus_{period_suffix}"
                         if st.button("🔎 Buscar no Reprtoir", key="btn_reprtoir_abramus"):
                             try:
                                 _client_rep = ReprtorirClient()
@@ -1214,21 +1300,12 @@ if fonte == "ABRAMUS":
                             _cols_rep_disp = [c for c in _cols_rep if c in _df_com_rep.columns]
                             st.dataframe(_df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False).head(100), use_container_width=True, height=400)
                             _xlsx_rep = df_to_xlsx_bytes(_df_com_rep[_cols_rep_disp])
-                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_abramus_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx", mime=XLSX_MIME, key="dl_reprtoir_abramus")
+                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_abramus_{period_suffix}.xlsx", mime=XLSX_MIME, key="dl_reprtoir_abramus")
 
                 else:
                     st.success("✅ Todas as obras foram mapeadas com sucesso!")
-                
-            else:
-                st.warning("Coluna 'RATEIO' não encontrada no relatório.")
-                st.dataframe(df_out, use_container_width=True, height=520)
 
-            st.success("✅ Processamento concluído!")
-
-        except Exception as e:
-            st.error(f"❌ Erro ao processar: {e}")
-            import traceback
-            st.code(traceback.format_exc())
+        st.success("✅ Processamento concluído!")
 
 # ---------------------------
 # SONY
