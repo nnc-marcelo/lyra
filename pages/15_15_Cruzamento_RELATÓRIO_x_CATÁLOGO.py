@@ -113,32 +113,55 @@ def github_save_mapping(gh_config: dict, df_novo: pd.DataFrame, sha: str, commit
     return resp.json()
 
 
-def save_linhas_no_mapeamento(gh_config: dict, df_linhas: pd.DataFrame, commit_message: str):
+def save_linhas_no_mapeamento(
+    gh_config: dict,
+    df_linhas: pd.DataFrame,
+    commit_message: str,
+    path: str = GITHUB_MAPPING_PATH,
+    dedup_cols=("ISRC",),
+    count_col: str = "Artist",
+    count_label: str = "artista(s)",
+    item_label: str = "faixa(s)",
+):
     """
-    Busca a versão atual do mapeamento no GitHub, descarta linhas cujo ISRC já
-    exista, concatena as novas e sobe a versão atualizada. Usado tanto pela
-    edição inline quanto pelo upload em massa do template preenchido.
+    Busca a versão atual da base no GitHub, descarta linhas cuja chave de dedup
+    (dedup_cols) já exista, concatena as novas e sobe a versão atualizada. Usado
+    tanto pela edição inline quanto pelo upload em massa do template preenchido
+    (Ingrooves e ABRAMUS).
     """
     with st.spinner("Buscando versão atual do mapeamento no GitHub..."):
-        df_mapping_atual, sha_atual = github_fetch_mapping(gh_config)
+        df_mapping_atual, sha_atual = github_fetch_mapping(gh_config, path=path)
 
-    isrcs_existentes = (
-        set(df_mapping_atual["ISRC"].dropna().astype(str))
-        if "ISRC" in df_mapping_atual.columns else set()
-    )
-    df_novas_linhas = df_linhas[~df_linhas["ISRC"].astype(str).isin(isrcs_existentes)]
+    # A base ABRAMUS ainda grava o cabeçalho sem acento ("CATALOGO"); reconcilia
+    # com "CATÁLOGO" (usado pelo restante do app) antes de concatenar, senão o
+    # pd.concat cria as duas colunas em paralelo, cheias de NaN.
+    if "CATÁLOGO" in df_linhas.columns and "CATÁLOGO" not in df_mapping_atual.columns:
+        try:
+            df_mapping_atual = normalize_catalog_column(df_mapping_atual)
+        except ValueError:
+            pass
+
+    dedup_cols_disp = [c for c in dedup_cols if c in df_mapping_atual.columns and c in df_linhas.columns]
+    if dedup_cols_disp:
+        df_existente_valido = df_mapping_atual.dropna(subset=dedup_cols_disp)
+        chaves_existentes = set(df_existente_valido[dedup_cols_disp].astype(str).agg("|".join, axis=1))
+        chaves_novas = df_linhas[dedup_cols_disp].astype(str).agg("|".join, axis=1)
+        df_novas_linhas = df_linhas[~chaves_novas.isin(chaves_existentes)]
+    else:
+        df_novas_linhas = df_linhas
 
     if df_novas_linhas.empty:
-        st.info("Essas faixas já estão na base de mapeamento (nada novo pra salvar).")
+        st.info(f"Essas {item_label} já estão na base de mapeamento (nada novo pra salvar).")
         return
 
     df_mapping_final = pd.concat([df_mapping_atual, df_novas_linhas], ignore_index=True)
     with st.spinner("Salvando no GitHub..."):
-        github_save_mapping(gh_config, df_mapping_final, sha_atual, commit_message=commit_message)
+        github_save_mapping(gh_config, df_mapping_final, sha_atual, commit_message=commit_message, path=path)
 
+    count_val = df_novas_linhas[count_col].nunique() if count_col in df_novas_linhas.columns else len(df_novas_linhas)
     st.success(
-        f"✅ {df_novas_linhas['Artist'].nunique()} artista(s) "
-        f"({len(df_novas_linhas)} faixa(s)) salvos na base de mapeamento! "
+        f"✅ {count_val} {count_label} "
+        f"({len(df_novas_linhas)} {item_label}) salvos na base de mapeamento! "
         f"O app vai reiniciar em instantes com o mapeamento atualizado."
     )
 
@@ -1114,147 +1137,170 @@ if fonte == "ABRAMUS":
                         cat_stats.columns = ["Quantidade", "Total Rateio"]
                         st.dataframe(cat_stats, use_container_width=True)
 
-                    # --- SEÇÃO DE SUGESTÕES INTELIGENTES ---
+                    # --- RESOLUÇÃO: preencher CATÁLOGO para as obras não mapeadas ---
                     st.markdown("---")
-                    st.subheader("🤖 Sugestões Inteligentes de Catálogo")
+                    st.subheader("✏️ Resolver Obras Não Mapeadas")
 
-                    if "AUTORES" in df_nao_mapeadas.columns:
-                        st.info("Analisando padrões de autores na base de catálogo...")
+                    colunas_mapeamento_abramus = ["TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "CATÁLOGO"]
 
-                        autor_catalogo_map = {}
+                    modo_resolucao_ab = st.radio(
+                        "Como preencher o `CATÁLOGO`?",
+                        ["✏️ Editar na tela", "📤 Importar arquivo preenchido"],
+                        horizontal=True,
+                        key=f"modo_resolucao_abramus_{period_suffix}",
+                    )
 
-                        if "AUTORES" in df_base.columns:
-                            for idx, row in df_base.iterrows():
-                                catalogo = str(row.get("CATÁLOGO", "")).strip()
-                                autores_str = str(row.get("AUTORES", "")).strip()
+                    if modo_resolucao_ab == "✏️ Editar na tela":
+                        colunas_template_ab = ["TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC"]
+                        colunas_template_ab_disp = [c for c in colunas_template_ab if c in df_agrupado.columns]
+                        df_template_ab = df_agrupado[colunas_template_ab_disp].drop_duplicates().sort_values("TÍTULO DA MUSICA").reset_index(drop=True)
+                        df_template_ab["CATÁLOGO"] = ""
 
-                                if catalogo and autores_str and catalogo != "nan" and autores_str != "nan":
-                                    autores_list = [a.strip().upper() for a in autores_str.split("/")]
+                        st.markdown(
+                            "**Preencha `CATÁLOGO`** — mesma estrutura da base de catálogo, "
+                            "pronta para salvar direto ou baixar e colar em `Robo_Abramus_Base.xlsx`:"
+                        )
 
-                                    for autor in autores_list:
-                                        if autor and len(autor) > 2:
-                                            if autor not in autor_catalogo_map:
-                                                autor_catalogo_map[autor] = {}
+                        editor_key_ab = f"editor_abramus_naomapeados_{period_suffix}"
+                        df_editado_ab = st.data_editor(
+                            df_template_ab,
+                            use_container_width=True,
+                            height=300,
+                            key=editor_key_ab,
+                            disabled=colunas_template_ab_disp,
+                            hide_index=True,
+                        )
 
-                                            if catalogo not in autor_catalogo_map[autor]:
-                                                autor_catalogo_map[autor][catalogo] = 0
-                                            autor_catalogo_map[autor][catalogo] += 1
+                        preenchidos_ab = df_editado_ab[df_editado_ab["CATÁLOGO"].astype(str).str.strip() != ""]
 
-                            st.success(f"✅ Dicionário criado: {len(autor_catalogo_map)} autores mapeados")
+                        st.caption(f"**Status de preenchimento** — {len(preenchidos_ab)} de {len(df_editado_ab)} obra(s) já com `CATÁLOGO`:")
+                        render_status_table(
+                            ["Título", "Catálogo"],
+                            [
+                                {
+                                    "preenchido": bool(str(row["CATÁLOGO"]).strip()),
+                                    "Título": row["TÍTULO DA MUSICA"],
+                                    "Catálogo": row["CATÁLOGO"] or "—",
+                                }
+                                for _, row in df_editado_ab.iterrows()
+                            ],
+                            status_key="preenchido",
+                            label_key="Título",
+                            max_height="200px",
+                            translucent=False,
+                        )
 
-                            def sugerir_catalogo(autores_str):
-                                if not autores_str or autores_str == "nan":
-                                    return "", 0, ""
+                        col_save1_ab, col_save2_ab = st.columns(2)
 
-                                autores_list = [a.strip().upper() for a in str(autores_str).split("/")]
-                                sugestoes = {}
-                                autores_encontrados = []
-
-                                for autor in autores_list:
-                                    if autor in autor_catalogo_map:
-                                        autores_encontrados.append(autor)
-                                        for catalogo, freq in autor_catalogo_map[autor].items():
-                                            if catalogo not in sugestoes:
-                                                sugestoes[catalogo] = 0
-                                            sugestoes[catalogo] += freq
-
-                                if not sugestoes:
-                                    return "", 0, ""
-
-                                melhor_catalogo = max(sugestoes, key=sugestoes.get)
-                                score = sugestoes[melhor_catalogo]
-                                confianca = len(autores_encontrados) / len(autores_list) * 100
-
-                                return melhor_catalogo, confianca, " / ".join(autores_encontrados)
-
-                            df_agrupado["CATÁLOGO_SUGERIDO"] = ""
-                            df_agrupado["CONFIANÇA_%"] = 0.0
-                            df_agrupado["AUTORES_MATCH"] = ""
-
-                            for idx in df_agrupado.index:
-                                autores = df_agrupado.loc[idx, "AUTORES"] if "AUTORES" in df_agrupado.columns else ""
-                                catalogo_sug, conf, autores_match = sugerir_catalogo(autores)
-                                df_agrupado.loc[idx, "CATÁLOGO_SUGERIDO"] = catalogo_sug
-                                df_agrupado.loc[idx, "CONFIANÇA_%"] = conf
-                                df_agrupado.loc[idx, "AUTORES_MATCH"] = autores_match
-
-                            df_com_sugestao = df_agrupado[df_agrupado["CATÁLOGO_SUGERIDO"] != ""].copy()
-                            df_sem_sugestao = df_agrupado[df_agrupado["CATÁLOGO_SUGERIDO"] == ""].copy()
-
-                            col_stat1, col_stat2 = st.columns(2)
-                            with col_stat1:
-                                st.metric("✨ Com Sugestão", len(df_com_sugestao))
-                            with col_stat2:
-                                st.metric("❓ Sem Sugestão", len(df_sem_sugestao))
-
-                            if len(df_com_sugestao) > 0:
-                                df_com_sugestao = df_com_sugestao.sort_values("CONFIANÇA_%", ascending=False)
-
-                                st.success(f"✨ **{len(df_com_sugestao)} obras** com sugestões encontradas!")
-
-                                colunas_sugestao = [
-                                    "TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "CATÁLOGO_SUGERIDO", "AUTORES_MATCH",
-                                    "CONFIANÇA_%",
-                                    "CATEGORIA", "RATEIO_NUM"
-                                ]
-                                colunas_disp_sug = [col for col in colunas_sugestao if col in df_com_sugestao.columns]
-
-                                df_preview_sug = df_com_sugestao[colunas_disp_sug].copy()
-
-                                df_preview_sug["CONFIANÇA_%"] = df_preview_sug["CONFIANÇA_%"].round(0).astype(int)
-                                if "RATEIO_NUM" in df_preview_sug.columns:
-                                    df_preview_sug = df_preview_sug.rename(columns={"RATEIO_NUM": "RATEIO"})
-
-                                st.dataframe(df_preview_sug.head(100), use_container_width=True, height=400)
-
-                                st.markdown("**Distribuição de Sugestões:**")
-
-                                rateio_col = "RATEIO" if "RATEIO" in df_com_sugestao.columns else "RATEIO_NUM"
-
-                                sug_stats = df_com_sugestao.groupby("CATÁLOGO_SUGERIDO").agg({
-                                    rateio_col: ["count", "sum"],
-                                    "CONFIANÇA_%": "mean"
-                                }).round(2)
-                                sug_stats.columns = ["Quantidade", "Total Rateio", "Confiança Média %"]
-                                sug_stats = sug_stats.sort_values("Quantidade", ascending=False)
-                                st.dataframe(sug_stats, use_container_width=True)
-
-                            st.markdown("---")
-                            st.markdown("### 📥 Download Completo")
-
-                            colunas_download = [
-                                "TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "CATÁLOGO_SUGERIDO", "AUTORES_MATCH",
-                                "CONFIANÇA_%",
-                                "CATEGORIA", "RATEIO_NUM"
-                            ]
-                            colunas_download_disp = [col for col in colunas_download if col in df_agrupado.columns]
-
-                            df_download_completo = df_agrupado[colunas_download_disp].copy()
-
-                            df_download_completo["CONFIANÇA_%"] = df_download_completo["CONFIANÇA_%"].round(0).astype(int)
-
-                            if "RATEIO_NUM" in df_download_completo.columns:
-                                df_download_completo = df_download_completo.rename(columns={"RATEIO_NUM": "RATEIO"})
-
-                            df_download_completo = df_download_completo.sort_values(
-                                ["CONFIANÇA_%", "RATEIO" if "RATEIO" in df_download_completo.columns else "RATEIO_NUM"],
-                                ascending=[False, False]
-                            )
-
-                            xlsx_completo = df_to_xlsx_bytes(df_download_completo)
-
-                            st.info(f"📊 Este arquivo contém **{len(df_download_completo)} obras** ({len(df_com_sugestao)} com sugestão + {len(df_sem_sugestao)} sem sugestão)")
-
+                        with col_save1_ab:
+                            xlsx_template_ab = df_to_xlsx_bytes(df_editado_ab)
                             st.download_button(
-                                "⬇️ Baixar TODAS as obras não mapeadas (com e sem sugestões)",
-                                data=xlsx_completo,
-                                file_name=f"obras_completo_abramus_{period_suffix}.xlsx",
+                                "⬇️ Baixar template de catálogo (XLSX)",
+                                data=xlsx_template_ab,
+                                file_name=f"template_catalogo_abramus_{period_suffix}.xlsx",
                                 mime=XLSX_MIME,
-                                type="primary"
+                                type="secondary"
                             )
 
+                        with col_save2_ab:
+                            if gh_config_mapping_ab is None:
+                                st.caption("💾 Salvar direto na base de catálogo não está configurado neste ambiente.")
+                            else:
+                                if st.button(
+                                    f"💾 Salvar {len(preenchidos_ab)} obra(s) na base",
+                                    type="primary",
+                                    disabled=preenchidos_ab.empty,
+                                    key=f"btn_save_{editor_key_ab}",
+                                ):
+                                    try:
+                                        df_novas_linhas_ab = preenchidos_ab[colunas_mapeamento_abramus]
+                                        save_linhas_no_mapeamento(
+                                            gh_config_mapping_ab,
+                                            df_novas_linhas_ab,
+                                            commit_message=f"data: adiciona {df_novas_linhas_ab['TÍTULO DA MUSICA'].nunique()} obra(s) ao catálogo ABRAMUS via app",
+                                            path=GITHUB_MAPPING_PATH_ABRAMUS,
+                                            dedup_cols=["CÓD. OBRA", "CÓD FONOGRAMA"],
+                                            count_col="TÍTULO DA MUSICA",
+                                            count_label="obra(s)",
+                                            item_label="linha(s)",
+                                        )
+                                    except Exception as e:
+                                        st.error(f"❌ Erro ao salvar no GitHub: {e}")
+
+                    else:
+                        st.caption(
+                            "Envie o CSV/XLSX (baixado na aba de edição, ou de outro processamento), já com "
+                            "`CATÁLOGO` preenchido, para adicionar várias obras de uma vez."
+                        )
+
+                        if gh_config_mapping_ab is None:
+                            st.caption("💾 Importar direto para a base de catálogo não está configurado neste ambiente.")
                         else:
-                            st.warning("⚠️ Coluna 'AUTORES' não encontrada na base de catálogo.")
+                            arquivo_importado_ab = st.file_uploader(
+                                "Selecione o template preenchido (.csv ou .xlsx)",
+                                type=["csv", "xlsx"],
+                                key=f"upload_template_abramus_{period_suffix}",
+                            )
+
+                            if arquivo_importado_ab is not None:
+                                try:
+                                    if arquivo_importado_ab.name.lower().endswith(".csv"):
+                                        df_importado_ab = pd.read_csv(arquivo_importado_ab, sep=None, engine="python", dtype=str, encoding="utf-8-sig")
+                                    else:
+                                        df_importado_ab = pd.read_excel(arquivo_importado_ab, dtype=str)
+                                    df_importado_ab.columns = [c.strip() for c in df_importado_ab.columns]
+
+                                    colunas_faltando_ab = [c for c in colunas_mapeamento_abramus if c not in df_importado_ab.columns]
+                                    if colunas_faltando_ab:
+                                        st.error(f"❌ Colunas faltando no arquivo importado: {colunas_faltando_ab}")
+                                        st.caption(f"Colunas encontradas no arquivo: {list(df_importado_ab.columns)}")
+                                    else:
+                                        df_importado_preenchido_ab = df_importado_ab[
+                                            df_importado_ab["CATÁLOGO"].astype(str).str.strip() != ""
+                                        ]
+                                        st.info(f"📄 {len(df_importado_preenchido_ab)} de {len(df_importado_ab)} linha(s) têm `CATÁLOGO` preenchido.")
+
+                                        render_status_table(
+                                            ["Título", "Catálogo"],
+                                            [
+                                                {
+                                                    "preenchido": bool(str(row["CATÁLOGO"]).strip()),
+                                                    "Título": row["TÍTULO DA MUSICA"],
+                                                    "Catálogo": row["CATÁLOGO"] or "—",
+                                                }
+                                                for _, row in df_importado_ab.iterrows()
+                                            ],
+                                            status_key="preenchido",
+                                            label_key="Título",
+                                            max_height="200px",
+                                            translucent=False,
+                                        )
+
+                                        if st.button(
+                                            f"💾 Salvar {len(df_importado_preenchido_ab)} obra(s) importada(s) na base",
+                                            type="primary",
+                                            disabled=df_importado_preenchido_ab.empty,
+                                            key=f"btn_save_import_abramus_{period_suffix}",
+                                        ):
+                                            try:
+                                                df_novas_linhas_ab = df_importado_preenchido_ab[colunas_mapeamento_abramus].copy()
+                                                save_linhas_no_mapeamento(
+                                                    gh_config_mapping_ab,
+                                                    df_novas_linhas_ab,
+                                                    commit_message=(
+                                                        f"data: importa {df_novas_linhas_ab['TÍTULO DA MUSICA'].nunique()} obra(s) "
+                                                        f"ao catálogo ABRAMUS via app (upload em massa)"
+                                                    ),
+                                                    path=GITHUB_MAPPING_PATH_ABRAMUS,
+                                                    dedup_cols=["CÓD. OBRA", "CÓD FONOGRAMA"],
+                                                    count_col="TÍTULO DA MUSICA",
+                                                    count_label="obra(s)",
+                                                    item_label="linha(s)",
+                                                )
+                                            except Exception as e:
+                                                st.error(f"❌ Erro ao salvar no GitHub: {e}")
+                                except Exception as e:
+                                    st.error(f"❌ Erro ao ler o arquivo importado: {e}")
 
                     # --- SEÇÃO REPRTOIR (ABRAMUS) ---
                     st.markdown("---")
