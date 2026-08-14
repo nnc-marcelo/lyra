@@ -179,6 +179,15 @@ def df_to_xlsx_bytes(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
     return output.getvalue()
 
 
+def preview_dataframe(df: pd.DataFrame, height: int = 600) -> None:
+    """
+    Exibe o DataFrame completo. Antes as tabelas eram truncadas em 50/100 linhas;
+    o st.dataframe é virtualizado (renderiza só as linhas visíveis), então mostrar
+    tudo rola bem mesmo com dezenas de milhares de linhas.
+    """
+    st.dataframe(df, use_container_width=True, height=height)
+
+
 def read_base_xlsx(file_path: str) -> pd.DataFrame:
     """
     Lê base de catálogo em XLSX.
@@ -844,7 +853,7 @@ if fonte == "ABRAMUS":
         st.success(f"✅ Base de catálogo carregada: `{CAMINHO_BASE_ABRAMUS}`")
     else:
         st.warning("⚠️ Base de catálogo não encontrada no caminho padrão. Faça o upload:")
-        _uploaded_base_ab = st.file_uploader("Upload da base de catálogo ABRAMUS (.xlsx)", type=["xlsx"], key="base_abramus")
+        _uploaded_base_ab = st.file_uploader("Upload da base de catálogo ABRAMUS (.xlsx)", type=["xlsx"])
         if _uploaded_base_ab is None:
             st.info("Aguardando upload da base de catálogo.")
             st.stop()
@@ -886,7 +895,7 @@ if fonte == "ABRAMUS":
             )
 
             if gh_config_mapping_ab is not None:
-                if st.button("💾 Salvar alterações na base de catálogo", type="primary", key="btn_save_mapping_completo_abramus"):
+                if st.button("💾 Salvar alterações na base de catálogo", type="primary"):
                     try:
                         with st.spinner("Salvando no GitHub..."):
                             github_save_mapping(
@@ -900,7 +909,7 @@ if fonte == "ABRAMUS":
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar no GitHub: {e}")
             else:
-                if st.button("💾 Salvar alterações na base de catálogo (arquivo local)", type="primary", key="btn_save_mapping_completo_local_abramus"):
+                if st.button("💾 Salvar alterações na base de catálogo (arquivo local)", type="primary"):
                     try:
                         df_mapping_editado_ab.to_excel(base_source_abramus, index=False)
                         st.success("✅ Base de catálogo salva localmente!")
@@ -929,7 +938,7 @@ if fonte == "ABRAMUS":
         report_source_abramus = arquivo_selecionado
     else:
         st.warning("⚠️ Relatórios ABRAMUS não encontrados na rede. Faça o upload do arquivo:")
-        _uploaded_report_ab = st.file_uploader("Upload do relatório ABRAMUS (_XLS.CSV)", type=["csv"], key="report_abramus")
+        _uploaded_report_ab = st.file_uploader("Upload do relatório ABRAMUS (_XLS.CSV)", type=["csv"])
         if _uploaded_report_ab is None:
             st.info("Aguardando upload do relatório.")
             st.stop()
@@ -1071,7 +1080,7 @@ if fonte == "ABRAMUS":
                 with col_info3:
                     st.metric("❌ Não Mapeadas", obras_nao_mapeadas)
 
-                st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
+                preview_dataframe(df_detalhado_export)
 
                 xlsx_detalhado = df_to_xlsx_bytes(df_detalhado_export)
                 st.download_button(
@@ -1118,7 +1127,7 @@ if fonte == "ABRAMUS":
                     df_preview = df_agrupado[colunas_exibir_disp].copy()
                     df_preview = df_preview.rename(columns={"RATEIO_NUM": "RATEIO"})
 
-                    st.dataframe(df_preview.head(50), use_container_width=True, height=300)
+                    preview_dataframe(df_preview)
 
                     xlsx_nao_mapeadas = df_to_xlsx_bytes(df_preview)
                     st.download_button(
@@ -1310,7 +1319,7 @@ if fonte == "ABRAMUS":
                     else:
                         st.caption("Consulta a API do Reprtoir para identificar obras não mapeadas via ISWC ou título+autores.")
                         _rep_key_ab = f"reprtoir_abramus_{period_suffix}"
-                        if st.button("🔎 Buscar no Reprtoir", key="btn_reprtoir_abramus"):
+                        if st.button("🔎 Buscar no Reprtoir"):
                             try:
                                 _client_rep = ReprtorirClient()
                                 _cats_internos = sorted(df_base["CATÁLOGO"].dropna().astype(str).unique().tolist()) if "CATÁLOGO" in df_base.columns else []
@@ -1344,9 +1353,10 @@ if fonte == "ABRAMUS":
                             st.success(f"✅ **{len(_df_com_rep)} obras** identificadas pelo Reprtoir!")
                             _cols_rep = ["TÍTULO DA MUSICA", "ISWC", "AUTORES", "CATÁLOGO_REPRTOIR", "CATÁLOGO_INTERNO_SUGERIDO", "CONFIANÇA_REPRTOIR_%", "FONTE_REPRTOIR", "RATEIO_NUM"]
                             _cols_rep_disp = [c for c in _cols_rep if c in _df_com_rep.columns]
-                            st.dataframe(_df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False).head(100), use_container_width=True, height=400)
+                            preview_dataframe(
+                                _df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False))
                             _xlsx_rep = df_to_xlsx_bytes(_df_com_rep[_cols_rep_disp])
-                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_abramus_{period_suffix}.xlsx", mime=XLSX_MIME, key="dl_reprtoir_abramus")
+                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_abramus_{period_suffix}.xlsx", mime=XLSX_MIME)
 
                 else:
                     st.success("✅ Todas as obras foram mapeadas com sucesso!")
@@ -1365,7 +1375,7 @@ elif fonte == "SONY":
         st.success(f"✅ Base de mapeamento carregada: `{CAMINHO_BASE_SONY}`")
     else:
         st.warning("⚠️ Base de mapeamento não encontrada no caminho padrão. Faça o upload:")
-        _uploaded_base_so = st.file_uploader("Upload da base de mapeamento Sony (.xlsx)", type=["xlsx"], key="base_sony")
+        _uploaded_base_so = st.file_uploader("Upload da base de mapeamento Sony (.xlsx)", type=["xlsx"])
         if _uploaded_base_so is None:
             st.info("Aguardando upload da base de mapeamento.")
             st.stop()
@@ -1394,7 +1404,7 @@ elif fonte == "SONY":
         report_source_sony = arquivo_selecionado
     else:
         st.warning("⚠️ Relatórios SONY não encontrados na rede. Faça o upload do arquivo:")
-        _uploaded_report_so = st.file_uploader("Upload do relatório SONY (.xlsx)", type=["xlsx"], key="report_sony")
+        _uploaded_report_so = st.file_uploader("Upload do relatório SONY (.xlsx)", type=["xlsx"])
         if _uploaded_report_so is None:
             st.info("Aguardando upload do relatório.")
             st.stop()
@@ -1500,7 +1510,7 @@ elif fonte == "SONY":
                     st.metric("❌ Não Mapeados", musicas_nao_mapeadas)
 
                 # Preview do detalhado
-                st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
+                preview_dataframe(df_detalhado_export)
 
                 # Download detalhado
                 xlsx_detalhado = df_to_xlsx_bytes(df_detalhado_export)
@@ -1541,8 +1551,8 @@ elif fonte == "SONY":
                     
                     df_preview = df_agrupado[colunas_exibir_disp].copy()
                     df_preview = df_preview.rename(columns={"RoyAmt_NUM": "Royalties"})
-                    
-                    st.dataframe(df_preview.head(50), use_container_width=True, height=300)
+
+                    preview_dataframe(df_preview)
                     
                     xlsx_nao_mapeadas = df_to_xlsx_bytes(df_preview)
                     st.download_button(
@@ -1668,7 +1678,7 @@ elif fonte == "SONY":
                                 if "RoyAmt_NUM" in df_preview_sug.columns:
                                     df_preview_sug = df_preview_sug.rename(columns={"RoyAmt_NUM": "Royalties"})
                                 
-                                st.dataframe(df_preview_sug.head(100), use_container_width=True, height=400)
+                                preview_dataframe(df_preview_sug)
                                 
                                 st.markdown("**Distribuição de Sugestões:**")
                                 
@@ -1727,7 +1737,7 @@ elif fonte == "SONY":
                     else:
                         st.caption("Consulta a API do Reprtoir para identificar músicas não mapeadas via título+autores.")
                         _rep_key_so = f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}"
-                        if st.button("🔎 Buscar no Reprtoir", key="btn_reprtoir_sony"):
+                        if st.button("🔎 Buscar no Reprtoir"):
                             try:
                                 _client_rep = ReprtorirClient()
                                 _cats_internos = sorted(df_base_sony["CATÁLOGO"].dropna().astype(str).unique().tolist()) if "CATÁLOGO" in df_base_sony.columns else []
@@ -1766,9 +1776,10 @@ elif fonte == "SONY":
                             st.success(f"✅ **{len(_df_com_rep)} músicas** identificadas pelo Reprtoir!")
                             _cols_rep = ["Song No.", "Song", "Writer", "CATÁLOGO_REPRTOIR", "CATÁLOGO_INTERNO_SUGERIDO", "CONFIANÇA_REPRTOIR_%", "FONTE_REPRTOIR", "RoyAmt_NUM"]
                             _cols_rep_disp = [c for c in _cols_rep if c in _df_com_rep.columns]
-                            st.dataframe(_df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False).head(100), use_container_width=True, height=400)
+                            preview_dataframe(
+                                _df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False))
                             _xlsx_rep = df_to_xlsx_bytes(_df_com_rep[_cols_rep_disp])
-                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx", mime=XLSX_MIME, key="dl_reprtoir_sony")
+                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx", mime=XLSX_MIME)
 
                 else:
                     st.success("✅ Todas as músicas foram mapeadas com sucesso!")
@@ -1796,7 +1807,7 @@ elif fonte == "IRMÃOS VITALE":
         st.success(f"✅ Base de catálogo carregada: `{CAMINHO_BASE_VITALE}`")
     else:
         st.warning("⚠️ Base de catálogo não encontrada no caminho padrão. Faça o upload:")
-        _uploaded_base_vi = st.file_uploader("Upload da base de catálogo Irmãos Vitale (.xlsx)", type=["xlsx"], key="base_vitale")
+        _uploaded_base_vi = st.file_uploader("Upload da base de catálogo Irmãos Vitale (.xlsx)", type=["xlsx"])
         if _uploaded_base_vi is None:
             st.info("Aguardando upload da base de catálogo.")
             st.stop()
@@ -1827,8 +1838,7 @@ elif fonte == "IRMÃOS VITALE":
         st.warning("⚠️ Relatórios Irmãos Vitale não encontrados na rede. Faça o upload dos demonstrativos (.XLS):")
         _uploaded_reports_vi = st.file_uploader(
             "Upload dos demonstrativos Vitale (DEX / DPV / Terceiros)",
-            type=["xls"], accept_multiple_files=True, key="reports_vitale"
-        )
+            type=["xls"], accept_multiple_files=True)
         if not _uploaded_reports_vi:
             st.info("Aguardando upload dos demonstrativos.")
             st.stop()
@@ -1918,7 +1928,7 @@ elif fonte == "IRMÃOS VITALE":
             with c3:
                 st.metric("❌ Não Mapeadas", obras_nao_mapeadas)
 
-            st.dataframe(df_detalhado.head(50), use_container_width=True, height=300)
+            preview_dataframe(df_detalhado)
             xlsx_det = df_to_xlsx_bytes(df_detalhado)
             st.download_button(
                 "⬇️ Baixar relatório DETALHADO (XLSX)",
@@ -1943,7 +1953,7 @@ elif fonte == "IRMÃOS VITALE":
                 )
                 total_nm = df_nm_grp["Valor Repassado"].sum()
                 st.warning(f"⚠️ **{len(df_nm_grp)} títulos** não mapeados | **Total: R$ {total_nm:,.2f}**")
-                st.dataframe(df_nm_grp.head(100), use_container_width=True, height=300)
+                preview_dataframe(df_nm_grp)
                 xlsx_nm = df_to_xlsx_bytes(df_nm_grp)
                 st.download_button(
                     "⬇️ Baixar obras não mapeadas (XLSX)",
@@ -1974,7 +1984,7 @@ elif fonte == "INGROOVES":
         st.success(f"✅ Base de mapeamento carregada: `{CAMINHO_BASE_INGROOVES}`")
     else:
         st.warning("⚠️ Base de mapeamento não encontrada no caminho padrão. Faça o upload:")
-        _uploaded_base_ig = st.file_uploader("Upload da base de mapeamento Ingrooves (.xlsx)", type=["xlsx"], key="base_ingrooves")
+        _uploaded_base_ig = st.file_uploader("Upload da base de mapeamento Ingrooves (.xlsx)", type=["xlsx"])
         if _uploaded_base_ig is None:
             st.info("Aguardando upload da base de mapeamento.")
             st.stop()
@@ -2016,7 +2026,7 @@ elif fonte == "INGROOVES":
             )
 
             if gh_config_mapping is not None:
-                if st.button("💾 Salvar alterações na base de mapeamento", type="primary", key="btn_save_mapping_completo"):
+                if st.button("💾 Salvar alterações na base de mapeamento", type="primary"):
                     try:
                         with st.spinner("Salvando no GitHub..."):
                             github_save_mapping(
@@ -2029,7 +2039,7 @@ elif fonte == "INGROOVES":
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar no GitHub: {e}")
             else:
-                if st.button("💾 Salvar alterações na base de mapeamento (arquivo local)", type="primary", key="btn_save_mapping_completo_local"):
+                if st.button("💾 Salvar alterações na base de mapeamento (arquivo local)", type="primary"):
                     try:
                         df_mapping_editado.to_excel(base_source_ingrooves, index=False)
                         st.success("✅ Base de mapeamento salva localmente!")
@@ -2058,7 +2068,7 @@ elif fonte == "INGROOVES":
         report_source_ingrooves = arquivo_selecionado
     else:
         st.warning("⚠️ Relatórios Ingrooves não encontrados na rede. Faça o upload do arquivo:")
-        _uploaded_report_ig = st.file_uploader("Upload do relatório Ingrooves (Nas_Nuvens_Catalog_*_DSR.xlsx)", type=["xlsx"], key="report_ingrooves")
+        _uploaded_report_ig = st.file_uploader("Upload do relatório Ingrooves (Nas_Nuvens_Catalog_*_DSR.xlsx)", type=["xlsx"])
         if _uploaded_report_ig is None:
             st.info("Aguardando upload do relatório.")
             st.stop()
@@ -2245,7 +2255,7 @@ elif fonte == "INGROOVES":
             with col_info3:
                 st.metric("❌ Não Mapeadas", linhas_nao_mapeadas)
 
-            st.dataframe(df_detalhado_export.head(50), use_container_width=True, height=300)
+            preview_dataframe(df_detalhado_export)
 
             xlsx_detalhado = df_to_xlsx_bytes(df_detalhado_export)
             st.download_button(
