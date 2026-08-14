@@ -6,6 +6,7 @@ import re
 import base64
 import unicodedata
 from io import BytesIO
+from datetime import datetime, timedelta
 from pathlib import Path
 import pandas as pd
 import requests
@@ -95,6 +96,59 @@ def github_fetch_mapping(gh_config: dict, path: str = GITHUB_MAPPING_PATH):
     return df, data["sha"]
 
 
+def github_commits_do_arquivo(gh_config: dict, path: str = GITHUB_MAPPING_PATH, quantidade: int = 2):
+    """
+    Últimos commits que tocaram o arquivo de mapeamento, do mais recente para o
+    mais antigo. É a única memória que sobrevive ao restart do app: como salvar
+    dispara um redeploy no Streamlit Cloud, o session_state se perde, mas o
+    histórico do GitHub continua lá.
+    """
+    url = f"https://api.github.com/repos/{gh_config['repo']}/commits"
+    resp = requests.get(
+        url, headers=_github_headers(gh_config["token"]),
+        params={"path": path, "sha": gh_config["branch"], "per_page": quantidade}, timeout=30
+    )
+    resp.raise_for_status()
+    return [
+        {
+            "sha": c["sha"],
+            "mensagem": c["commit"]["message"].splitlines()[0],
+            "data": c["commit"]["committer"]["date"],
+            "autor": c["commit"]["author"]["name"],
+            "url": c["html_url"],
+        }
+        for c in resp.json()
+    ]
+
+
+def github_restaurar_versao(gh_config: dict, path: str, sha_commit: str, commit_message: str):
+    """
+    Republica o arquivo como estava em `sha_commit`, criando um novo commit.
+    Preferido a apagar histórico: o desfazer vira mais uma entrada no log, então
+    dá para desfazer o desfazer.
+    """
+    url = f"https://api.github.com/repos/{gh_config['repo']}/contents/{path}"
+    headers = _github_headers(gh_config["token"])
+
+    antigo = requests.get(url, headers=headers, params={"ref": sha_commit}, timeout=30)
+    antigo.raise_for_status()
+    conteudo_antigo = antigo.json()["content"]
+
+    atual = requests.get(url, headers=headers, params={"ref": gh_config["branch"]}, timeout=30)
+    atual.raise_for_status()
+    sha_atual = atual.json()["sha"]
+
+    payload = {
+        "message": commit_message,
+        "content": conteudo_antigo,
+        "sha": sha_atual,
+        "branch": gh_config["branch"],
+    }
+    resp = requests.put(url, headers=headers, json=payload, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def github_save_mapping(gh_config: dict, df_novo: pd.DataFrame, sha: str, commit_message: str, path: str = GITHUB_MAPPING_PATH):
     """Sobe uma nova versão do arquivo de mapeamento, criando um commit no repositório."""
     output = BytesIO()
@@ -111,6 +165,85 @@ def github_save_mapping(gh_config: dict, df_novo: pd.DataFrame, sha: str, commit
     resp = requests.put(url, headers=_github_headers(gh_config["token"]), json=payload, timeout=30)
     resp.raise_for_status()
     return resp.json()
+
+
+def _formata_data_commit(iso: str) -> str:
+    """'2026-08-14T18:32:05Z' -> '14/08 15:32' (horário de Brasília)."""
+    try:
+        dt = datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ") - timedelta(hours=3)
+        return dt.strftime("%d/%m às %H:%M")
+    except (ValueError, TypeError):
+        return iso or "?"
+
+
+def render_ultima_gravacao(gh_config: dict, path: str, state_key: str, item_label: str = "faixa(s)"):
+    """
+    Mostra a última gravação feita na base e permite desfazê-la.
+
+    Existe porque a confirmação de salvamento não sobrevivia: o commit dispara um
+    redeploy no Streamlit Cloud, o app reinicia e a mensagem de sucesso some junto
+    com a sessão — dava a impressão de que nada tinha sido salvo. Aqui a
+    informação vem do histórico do GitHub, então continua visível depois do
+    restart.
+    """
+    if gh_config is None:
+        return
+
+    try:
+        commits = github_commits_do_arquivo(gh_config, path=path, quantidade=2)
+    except Exception as e:
+        st.caption(f"⚠️ Não foi possível consultar o histórico da base: {e}")
+        return
+
+    if not commits:
+        return
+
+    ultimo = commits[0]
+    st.info(
+        f"🕒 **Última gravação na base:** {_formata_data_commit(ultimo['data'])} "
+        f"por {ultimo['autor']} — [ver no GitHub]({ultimo['url']})  \n"
+        f"`{ultimo['mensagem']}`"
+    )
+
+    # Só oferece desfazer para gravações feitas pelo app, e se houver versão
+    # anterior do arquivo para restaurar.
+    if "via app" not in ultimo["mensagem"] or len(commits) < 2:
+        return
+
+    anterior = commits[1]
+    confirmar_key = f"confirmar_undo_{state_key}"
+
+    if not st.session_state.get(confirmar_key):
+        if st.button("↩️ Desfazer esta gravação", key=f"btn_undo_{state_key}"):
+            st.session_state[confirmar_key] = True
+            st.rerun()
+        return
+
+    st.warning(
+        f"Isto devolve a base ao estado de {_formata_data_commit(anterior['data'])} "
+        f"(`{anterior['mensagem']}`), descartando o que foi gravado depois. "
+        "O histórico é preservado: o desfazer entra como um novo commit."
+    )
+    col_sim, col_nao = st.columns(2)
+    with col_sim:
+        if st.button("✅ Confirmar desfazer", type="primary", key=f"btn_undo_ok_{state_key}"):
+            try:
+                with st.spinner("Restaurando versão anterior..."):
+                    github_restaurar_versao(
+                        gh_config, path, anterior["sha"],
+                        commit_message=f"data: desfaz '{ultimo['mensagem']}' via app",
+                    )
+                st.session_state[confirmar_key] = False
+                st.success(
+                    "✅ Base restaurada à versão anterior. "
+                    "O app vai reiniciar em instantes com o mapeamento de volta ao que era."
+                )
+            except Exception as e:
+                st.error(f"❌ Erro ao restaurar: {e}")
+    with col_nao:
+        if st.button("Cancelar", key=f"btn_undo_cancel_{state_key}"):
+            st.session_state[confirmar_key] = False
+            st.rerun()
 
 
 def save_linhas_no_mapeamento(
@@ -1012,6 +1145,7 @@ if fonte == "ABRAMUS":
         df_out = resultado["df_out"]
         df_base = resultado["df_base"]
 
+        st.success("✅ Processamento concluído!")
         st.subheader("Resultado Agrupado por Catálogo")
 
         if "RATEIO" not in df_out.columns:
@@ -1152,6 +1286,10 @@ if fonte == "ABRAMUS":
 
                     colunas_mapeamento_abramus = ["TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "CATÁLOGO"]
 
+                    render_ultima_gravacao(
+                        gh_config_mapping_ab, GITHUB_MAPPING_PATH_ABRAMUS,
+                        state_key=f"abramus_{period_suffix}", item_label="linha(s)",
+                    )
                     modo_resolucao_ab = st.radio(
                         "Como preencher o `CATÁLOGO`?",
                         ["✏️ Editar na tela", "📤 Importar arquivo preenchido"],
@@ -1361,8 +1499,6 @@ if fonte == "ABRAMUS":
                 else:
                     st.success("✅ Todas as obras foram mapeadas com sucesso!")
 
-        st.success("✅ Processamento concluído!")
-
 # ---------------------------
 # SONY
 # ---------------------------
@@ -1449,6 +1585,7 @@ elif fonte == "SONY":
             df_out = df_report.copy()
             df_out["CATÁLOGO"] = df_out["Song No."].map(song_lookup).fillna("")
 
+            st.success("✅ Processamento concluído!")
             st.subheader("Resultado Agrupado por Catálogo")
             
             if "RoyAmt" in df_out.columns:
@@ -1788,8 +1925,6 @@ elif fonte == "SONY":
                 st.warning("Coluna 'RoyAmt' não encontrada no relatório.")
                 st.dataframe(df_out, use_container_width=True, height=520)
 
-            st.success("✅ Processamento concluído!")
-
         except Exception as e:
             st.error(f"❌ Erro ao processar: {e}")
             import traceback
@@ -1878,6 +2013,7 @@ elif fonte == "IRMÃOS VITALE":
             df_all["CATÁLOGO"] = df_all["__key"].map(titulo_lookup).fillna("")
 
             # --- Resultado agrupado por catálogo ---
+            st.success("✅ Processamento concluído!")
             st.subheader("Resultado Agrupado por Catálogo")
             df_grouped = (
                 df_all.groupby("CATÁLOGO", as_index=False)["VALOR"].sum()
@@ -1963,8 +2099,6 @@ elif fonte == "IRMÃOS VITALE":
                 )
             else:
                 st.success("✅ Todas as obras foram mapeadas com sucesso!")
-
-            st.success("✅ Processamento concluído!")
 
         except Exception as e:
             st.error(f"❌ Erro ao processar: {e}")
@@ -2155,6 +2289,7 @@ elif fonte == "INGROOVES":
         discounted_total = resultado["discounted_total"]
         total_withheld = resultado["total_withheld"]
 
+        st.success("✅ Processamento concluído!")
         st.write(f"O valor Original é **USD {original_total:,.2f}**")
         st.write(f"O total de withholding aplicado (30% EUA) é **USD {total_withheld:,.2f}**")
         st.write(f":red[O valor Net menos withholding é **USD {discounted_total:,.2f}**]")
@@ -2282,6 +2417,10 @@ elif fonte == "INGROOVES":
                 st.success("✅ Todos os artistas foram mapeados com sucesso!")
 
             st.markdown("---")
+            render_ultima_gravacao(
+                gh_config, GITHUB_MAPPING_PATH,
+                state_key=f"ingrooves_{period_suffix}", item_label="faixa(s)",
+            )
             modo_resolucao = st.radio(
                 "Como preencher o `Tag_Artista`?",
                 ["✏️ Editar na tela", "📤 Importar arquivo preenchido"],
@@ -2447,5 +2586,3 @@ elif fonte == "INGROOVES":
                                         st.error(f"❌ Erro ao salvar no GitHub: {e}")
                         except Exception as e:
                             st.error(f"❌ Erro ao ler o arquivo importado: {e}")
-
-        st.success("✅ Processamento concluído!")
