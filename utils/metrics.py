@@ -74,8 +74,18 @@ def _contar_faixas_ingrooves(_caminho: str, mtime: float) -> tuple[int, int]:
 
 
 @st.cache_data(show_spinner=False)
-def _contar_obras(_caminho: str, mtime: float) -> int:
-    return int(len(pd.read_excel(_caminho)))
+def _contar_obras_vitale(_caminho: str, mtime: float) -> tuple[int, int, list[str]]:
+    """(obras, catálogos, três maiores catálogos) na base da fonte Irmãos Vitale.
+
+    Irmãos Vitale é fonte pagadora, não catálogo — é uma das opções de "fonte
+    de dados" em views/cruzamento_catalogo.py, ao lado de ABRAMUS, SONY e
+    INGROOVES. Os relatórios que ela envia trazem obras de vários catálogos, e
+    é a coluna `Catálogo` deste arquivo que diz de qual catálogo é cada obra.
+    """
+    df = pd.read_excel(_caminho)
+    obras = int(df["Título"].nunique())
+    contagem = df["Catálogo"].value_counts()
+    return obras, int(len(contagem)), [str(c).title() for c in contagem.index[:3]]
 
 
 @st.cache_data(show_spinner=False)
@@ -104,16 +114,20 @@ def faixas_mapeadas() -> Metrica | None:
     )
 
 
-def obras_catalogo() -> Metrica | None:
+def obras_fonte_vitale() -> Metrica | None:
     caminho = MAPPING_DIR / "Lista_Obras_Catalogo_Irmaos_Vitale.xlsx"
     mtime = _mtime(caminho)
     if mtime is None:
         return None
     try:
-        n = _contar_obras(str(caminho), mtime)
+        obras, catalogos, maiores = _contar_obras_vitale(str(caminho), mtime)
     except Exception:
         return None
-    return Metrica(f"{n:,}".replace(",", "."), "Obras na lista do catálogo Irmãos Vitale.")
+    return Metrica(
+        f"{obras:,}".replace(",", "."),
+        f"Base usada no cruzamento dos relatórios da fonte Irmãos Vitale: "
+        f"{obras} obras em {catalogos} catálogos (maiores: {', '.join(maiores)}).",
+    )
 
 
 def credenciais() -> Metrica | None:

@@ -23,7 +23,7 @@ bootstrap()
 # quando a base correspondente não está disponível — ver utils/metrics.py.
 METRICAS = [
     ("Faixas mapeadas", metrics.faixas_mapeadas),
-    ("Obras — Irmãos Vitale", metrics.obras_catalogo),
+    ("Obras — fonte Irmãos Vitale", metrics.obras_fonte_vitale),
     ("Credenciais ativas", metrics.credenciais),
     ("Última varredura", metrics.ultima_varredura),
 ]
