@@ -18,6 +18,9 @@ from collections import defaultdict, Counter
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.ui_components import render_html_table, simple_row, render_status_table
 from utils.page import setup_page
+# Leitores das bases: compartilhados com o Home (utils/metrics.py), que conta o
+# conteudo de cada base sem importar esta pagina.
+from utils.bases import read_mapping_sony, normalize_catalog_column
 
 # Integração opcional com Reprtoir
 try:
@@ -327,80 +330,6 @@ def read_base_xlsx(file_path: str) -> pd.DataFrame:
     df = pd.read_excel(file_path, dtype=str)
     df.columns = [c.strip() for c in df.columns]
     return df
-
-def read_mapping_sony(file_path: str) -> pd.DataFrame:
-    """
-    Lê a base de mapeamento Sony via XML.
-    Cabeçalho está na linha 1.
-    """
-    with zipfile.ZipFile(file_path, 'r') as zip_ref:
-        # Ler strings compartilhadas
-        try:
-            shared_strings_xml = zip_ref.read('xl/sharedStrings.xml')
-            shared_strings_root = ET.fromstring(shared_strings_xml)
-            shared_strings = []
-            for si in shared_strings_root.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}t'):
-                shared_strings.append(si.text if si.text else '')
-        except:
-            shared_strings = []
-        
-        # Ler planilha (sheet1.xml para Mapping_Sony)
-        sheet_xml = zip_ref.read('xl/worksheets/sheet1.xml')
-        sheet_root = ET.fromstring(sheet_xml)
-        
-        data = defaultdict(dict)
-        
-        for row in sheet_root.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}row'):
-            row_num = int(row.get('r'))
-            
-            for cell in row.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c'):
-                cell_ref = cell.get('r')
-                cell_type = cell.get('t')
-                
-                value_elem = cell.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v')
-                if value_elem is not None:
-                    value = value_elem.text
-                    
-                    if cell_type == 's' and shared_strings:
-                        value = shared_strings[int(value)]
-                    
-                    col = ''.join([c for c in cell_ref if c.isalpha()])
-                    data[row_num][col] = value
-    
-    # Cabeçalho na linha 1
-    if 1 not in data:
-        raise ValueError("Cabeçalho não encontrado na linha 1 do arquivo.")
-    
-    header = data[1]
-    sorted_cols = sorted(header.keys())
-    
-    # Cria DataFrame com dados a partir da linha 2
-    rows_list = []
-    for row_num in range(2, max(data.keys()) + 1):
-        if row_num in data:
-            row_dict = {}
-            for col in sorted_cols:
-                col_name = header.get(col, col)
-                row_dict[col_name] = data[row_num].get(col, "")
-            rows_list.append(row_dict)
-    
-    df = pd.DataFrame(rows_list)
-    return df
-
-def normalize_catalog_column(df: pd.DataFrame) -> pd.DataFrame:
-    cols = {c.upper(): c for c in df.columns}
-    if "CATÁLOGO" in cols:
-        cat_col = cols["CATÁLOGO"]
-    elif "CATALOGO" in cols:
-        cat_col = cols["CATALOGO"]
-    else:
-        raise ValueError("Base não tem coluna CATÁLOGO/CATALOGO.")
-
-    if cat_col != "CATÁLOGO":
-        df = df.rename(columns={cat_col: "CATÁLOGO"})
-
-    return df
-
 
 def build_lookup(df_base: pd.DataFrame, key_col: str) -> dict:
     """

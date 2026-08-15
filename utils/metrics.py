@@ -22,6 +22,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from utils.bases import normalize_catalog_column, read_mapping_sony
+
 RAIZ = Path(__file__).resolve().parents[1]
 MAPPING_DIR = RAIZ / "data" / "mapping"
 VARREDURA_DIR = RAIZ / "data" / "varredura_lacunas"
@@ -73,19 +75,70 @@ def _contar_faixas_ingrooves(_caminho: str, mtime: float) -> tuple[int, int]:
     return faixas, tags
 
 
-@st.cache_data(show_spinner=False)
-def _contar_obras_vitale(_caminho: str, mtime: float) -> tuple[int, int, list[str]]:
-    """(obras, catálogos, três maiores catálogos) na base da fonte Irmãos Vitale.
+# As quatro fontes do seletor de views/cruzamento_catalogo.py, cada uma com a
+# base local que ela usa. `coluna_item` é o que identifica um item sem repetir:
+# o código da obra quando existe (dá conta de títulos homônimos), o ISRC no
+# caso da Ingrooves.
+#
+# A unidade NÃO é a mesma nas quatro, e é por isso que o Home não soma tudo num
+# número só: ABRAMUS, Sony e Irmãos Vitale mapeiam obra (a composição), e a
+# Ingrooves mapeia faixa (o fonograma, por ISRC). Uma obra pode ter várias
+# faixas; somar os dois daria um total que não significa nada.
+BASES_FONTES = [
+    {
+        "fonte": "ABRAMUS",
+        "arquivo": "Robo_Abramus_Base.xlsx",
+        "coluna_item": "CÓD. OBRA",
+        "unidade": "obras",
+    },
+    {
+        "fonte": "Sony",
+        "arquivo": "Mapping_Sony.xlsx",
+        "coluna_item": "Song No.",
+        "unidade": "obras",
+        "leitor": "sony",
+    },
+    {
+        "fonte": "Irmãos Vitale",
+        "arquivo": "Lista_Obras_Catalogo_Irmaos_Vitale.xlsx",
+        "coluna_item": "Título",
+        "unidade": "obras",
+    },
+    {
+        "fonte": "Ingrooves",
+        "arquivo": "mapping-artistas-ingrooves.xlsx",
+        "coluna_item": "ISRC",
+        "unidade": "faixas",
+    },
+]
 
-    Irmãos Vitale é fonte pagadora, não catálogo — é uma das opções de "fonte
-    de dados" em views/cruzamento_catalogo.py, ao lado de ABRAMUS, SONY e
-    INGROOVES. Os relatórios que ela envia trazem obras de vários catálogos, e
-    é a coluna `Catálogo` deste arquivo que diz de qual catálogo é cada obra.
-    """
-    df = pd.read_excel(_caminho)
-    obras = int(df["Título"].nunique())
-    contagem = df["Catálogo"].value_counts()
-    return obras, int(len(contagem)), [str(c).title() for c in contagem.index[:3]]
+
+@dataclass(frozen=True)
+class BaseFonte:
+    fonte: str
+    itens: int
+    unidade: str
+    catalogos: int | None  # None quando a base não tem coluna de catálogo
+    atualizada: datetime | None
+
+
+@st.cache_data(show_spinner=False)
+def _ler_base(_caminho: str, leitor: str, mtime: float) -> pd.DataFrame:
+    if leitor == "sony":
+        return read_mapping_sony(_caminho)
+    return pd.read_excel(_caminho, dtype=str)
+
+
+@st.cache_data(show_spinner=False)
+def _resumir_base(_caminho: str, leitor: str, coluna_item: str, mtime: float) -> tuple[int, int | None]:
+    df = _ler_base(_caminho, leitor, mtime)
+    df.columns = [str(c).strip() for c in df.columns]
+    itens = int(df[coluna_item].dropna().nunique()) if coluna_item in df.columns else int(len(df))
+    try:
+        catalogos = int(normalize_catalog_column(df)["CATÁLOGO"].dropna().nunique())
+    except (ValueError, KeyError):
+        catalogos = None
+    return itens, catalogos
 
 
 @st.cache_data(show_spinner=False)
@@ -114,20 +167,50 @@ def faixas_mapeadas() -> Metrica | None:
     )
 
 
-def obras_fonte_vitale() -> Metrica | None:
-    caminho = MAPPING_DIR / "Lista_Obras_Catalogo_Irmaos_Vitale.xlsx"
-    mtime = _mtime(caminho)
-    if mtime is None:
+def bases_por_fonte() -> list[BaseFonte]:
+    """Uma linha por fonte do cruzamento, na ordem de BASES_FONTES. Fonte cuja
+    base não pôde ser lida entra com `itens=0` em vez de sumir da lista — some
+    da tela é justamente o que esconderia uma base quebrada."""
+    resultado: list[BaseFonte] = []
+    for cfg in BASES_FONTES:
+        caminho = MAPPING_DIR / cfg["arquivo"]
+        mtime = _mtime(caminho)
+        if mtime is None:
+            resultado.append(BaseFonte(cfg["fonte"], 0, cfg["unidade"], None, None))
+            continue
+        try:
+            itens, catalogos = _resumir_base(
+                str(caminho), cfg.get("leitor", "excel"), cfg["coluna_item"], mtime
+            )
+        except Exception:
+            itens, catalogos = 0, None
+        resultado.append(
+            BaseFonte(cfg["fonte"], itens, cfg["unidade"], catalogos, datetime.fromtimestamp(mtime))
+        )
+    return resultado
+
+
+def bases_cruzamento() -> Metrica | None:
+    """Cobertura das bases das quatro fontes, como um número só.
+
+    O valor conta obras porque é a unidade de três das quatro fontes; as faixas
+    da Ingrooves aparecem à parte no tooltip e na tabela do Home, em vez de
+    entrarem na soma e produzirem um total sem significado.
+    """
+    bases = bases_por_fonte()
+    if not bases:
         return None
-    try:
-        obras, catalogos, maiores = _contar_obras_vitale(str(caminho), mtime)
-    except Exception:
-        return None
-    return Metrica(
-        f"{obras:,}".replace(",", "."),
-        f"Base usada no cruzamento dos relatórios da fonte Irmãos Vitale: "
-        f"{obras} obras em {catalogos} catálogos (maiores: {', '.join(maiores)}).",
+    obras = sum(b.itens for b in bases if b.unidade == "obras")
+    catalogos = sum(b.catalogos or 0 for b in bases)
+    faixas = sum(b.itens for b in bases if b.unidade == "faixas")
+    vazias = [b.fonte for b in bases if not b.itens]
+    ajuda = (
+        f"{obras} obras em {catalogos} catálogos, somando ABRAMUS, Sony e Irmãos Vitale. "
+        f"A Ingrooves mapeia faixa (ISRC), não obra: {faixas} — por isso fica fora desta soma."
     )
+    if vazias:
+        ajuda += f" Sem leitura: {', '.join(vazias)}."
+    return Metrica(f"{obras:,}".replace(",", "."), ajuda, alerta=bool(vazias))
 
 
 def credenciais() -> Metrica | None:

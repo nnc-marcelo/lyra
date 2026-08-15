@@ -23,7 +23,7 @@ bootstrap()
 # quando a base correspondente não está disponível — ver utils/metrics.py.
 METRICAS = [
     ("Faixas mapeadas", metrics.faixas_mapeadas),
-    ("Obras — fonte Irmãos Vitale", metrics.obras_fonte_vitale),
+    ("Obras nas bases", metrics.bases_cruzamento),
     ("Credenciais ativas", metrics.credenciais),
     ("Última varredura", metrics.ultima_varredura),
 ]
@@ -41,6 +41,38 @@ def _painel_metricas() -> None:
             st.metric(rotulo, metrica.valor, help=metrica.ajuda)
             if metrica.alerta:
                 st.caption(":orange[Desatualizada]")
+
+
+def _tabela_bases() -> None:
+    """Uma linha por fonte do cruzamento. Existe porque a métrica agregada
+    esconde duas coisas que importam: a unidade não é a mesma nas quatro
+    (obra × faixa) e cada base é atualizada por um caminho diferente, então
+    saber qual está velha é metade da informação."""
+    bases = metrics.bases_por_fonte()
+    if not bases:
+        return
+    st.subheader("Bases de cruzamento")
+    st.dataframe(
+        [
+            {
+                "Fonte": b.fonte,
+                "Itens": b.itens,
+                "Unidade": b.unidade,
+                "Catálogos": b.catalogos,
+                "Atualizada": b.atualizada,
+            }
+            for b in bases
+        ],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Itens": st.column_config.NumberColumn(format="%d"),
+            "Catálogos": st.column_config.NumberColumn(
+                format="%d", help="Catálogos distintos dentro da base. A Ingrooves agrupa por tag de artista, não por catálogo."
+            ),
+            "Atualizada": st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm"),
+        },
+    )
 
 
 def _painel_pendencias() -> None:
@@ -75,6 +107,8 @@ def _pagina_inicio():
     _painel_metricas()
     st.divider()
     _painel_pendencias()
+    st.divider()
+    _tabela_bases()
 
 
 inicio = st.Page(_pagina_inicio, title="Início", icon=":material/home:", default=True)
