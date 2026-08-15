@@ -1,0 +1,67 @@
+/* Tokens de design do lyra.
+ *
+ * Injetado por utils/page.py:bootstrap() em toda página. As cores repetem as
+ * de .streamlit/config.toml (que o Streamlit consome antes do CSS existir, e
+ * por isso continua sendo a fonte para os widgets nativos); aqui elas viram
+ * variáveis para o CSS que escrevemos à mão — as tabelas HTML de
+ * utils/ui_components, por exemplo, que antes traziam o off-white em hex
+ * literal em dois lugares.
+ *
+ * Ao mudar uma cor da marca, mude nos DOIS: config.toml e aqui. */
+
+:root {
+  --nn-azul: #003fbc;
+  --nn-navy: #13213f;
+  --nn-offwhite: #fff7e9;
+  --nn-branco: #ffffff;
+
+  --nn-verde: #1d9e75;
+  --nn-cinza: #888780;
+
+  --nn-borda: rgba(128, 128, 128, 0.3);
+  --nn-raio: 6px;
+}
+
+/* Cabeçalho de página: menos espaço morto no topo que o padrão do Streamlit,
+   que assume um app de uma página só. */
+.block-container {
+  padding-top: 3rem;
+}
+
+/* Título e legenda do chassi (utils/page.py:setup_page). */
+.block-container h1 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--nn-navy);
+}
+
+/* Seções do menu lateral (st.navigation) — rótulo discreto, não concorre com
+   os itens clicáveis. */
+[data-testid="stSidebarNav"] ul span {
+  letter-spacing: 0.02em;
+}
+
+/* Tabelas HTML de utils/ui_components. */
+.nn-tabela {
+  border: 1px solid var(--nn-borda);
+  border-radius: var(--nn-raio);
+  overflow-y: auto;
+}
+
+.nn-tabela table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.nn-tabela thead {
+  position: sticky;
+  top: 0;
+  background: var(--nn-offwhite);
+}
+
+.nn-tabela th,
+.nn-tabela td {
+  text-align: left;
+  padding: 6px 10px;
+}

@@ -9,6 +9,8 @@ import os
 import logging
 from pathlib import Path
 
+from utils.page import setup_page
+
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,8 +25,7 @@ def format_fx_rate(value):
 # Ingrooves Breaker
 #----------------------------------
 
-st.title("Ingrooves Breaker")
-st.caption("Desconta 30% das receitas EUA do relatório Ingrooves e separa por artista usando mapeamento externo.")
+setup_page(__file__)
 
 #----------------------------------
 # Inicializa variáveis de estado da sessão

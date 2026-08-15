@@ -3,7 +3,7 @@ Gerador do seed de regras do Direct Incomes (data/direct_incomes/regras.json).
 
 Recebe o dicionário REGRAS exatamente como está no notebook original
 (regras-distribuicao.ipynb) e converte para o schema JSON usado pela página
-do lyra (pages/19_19_Direct_Incomes.py).
+do lyra (views/direct_incomes.py).
 
 Schema de saída:
 {

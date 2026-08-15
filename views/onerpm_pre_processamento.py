@@ -4,6 +4,8 @@ import io
 import re
 from datetime import datetime
 
+from utils.page import setup_page
+
 
 def _extract_date_from_filename(filename: str) -> str:
     """Extrai data do nome do arquivo no formato YYYYMMDD para uso como sufixo.
@@ -17,7 +19,7 @@ def _extract_date_from_filename(filename: str) -> str:
         return m.group(1)
     return datetime.now().strftime('%Y%m%d')
 
-st.title("Processamento de Royalties")
+setup_page(__file__)
 
 # Seleção do tipo de processamento
 tipo_processamento = st.selectbox(

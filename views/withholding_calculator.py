@@ -3,6 +3,8 @@ import pandas as pd
 from io import BytesIO
 import zipfile
 
+from utils.page import setup_page
+
 #----------------------------------
 # Função para ajustar nomes dos arquivos, mantendo o nome original e adicionando o sufixo
 #----------------------------------
@@ -17,8 +19,7 @@ def adjust_file_name_onerpm(file_name):
 #----------------------------------
 # Withholding Calculator
 #----------------------------------
-st.title("Withholding Calculator")
-st.caption("Desconta 30% das receitas dos EUA.")
+setup_page(__file__)
 
 #----------------------------------
 # Inicializa variáveis de estado da sessão

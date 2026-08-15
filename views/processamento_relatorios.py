@@ -7,11 +7,12 @@ from io import BytesIO
 from decimal import Decimal
 import warnings
 
+from utils.page import setup_page
+
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 pd.set_option('display.max_colwidth', None)
 
-st.title("Processamento de Relatórios")
-st.caption("Transforma relatórios e prepara-os para o Reprtoir.")
+setup_page(__file__)
 
 template = st.selectbox("STATEMENT TEMPLATE:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell"])
 
@@ -432,13 +433,30 @@ def _yt_read_one(name, raw):
     fb = _yt_stmt_date(name)
     out["Day"] = out["Day"].map(lambda v: _yt_normalize_day(v, fb))
 
+    # Alguns exports trazem só os splits (Auction/Reserved/Partner Sold ...) sem a
+    # coluna agregada "Partner Revenue" -> sem isso o total do arquivo virava 0
+    # silenciosamente (mesmo com receita real nos splits). Recalculamos a partir
+    # dos splits disponíveis nesse caso.
+    aviso = ""
+    if mapping.get("Partner Revenue") is None:
+        split_targets = [t for t in YT_TARGET if t.startswith("Partner Revenue : ")]
+        found_splits = [t for t in split_targets if mapping.get(t) is not None]
+        if found_splits:
+            soma = sum(pd.to_numeric(out[t], errors="coerce").fillna(0) for t in found_splits)
+            out["Partner Revenue"] = soma.map(lambda v: format(v, "f"))
+            aviso = f" · ⚠️ sem coluna 'Partner Revenue' — total recalculado a partir de {len(found_splits)} split(s)"
+        else:
+            aviso = " · 🛑 coluna 'Partner Revenue' NÃO encontrada neste arquivo — receita computada como US$ 0,00!"
+
     if "Month" in df.columns:
         layout = "red label (assinatura)"
     elif "Day" in df.columns:
         layout = "asset raw (por canal)"
     else:
         layout = "ads/AdSense (período = data do arquivo)"
-    return out, f"✅ {len(out):,} linhas · {layout}"
+
+    file_total = float(pd.to_numeric(out["Partner Revenue"], errors="coerce").fillna(0).sum())
+    return out, f"✅ {len(out):,} linhas · {layout} · {_yt_fmt_money(file_total)}{aviso}"
 
 
 def _yt_fill_required(df):
@@ -529,7 +547,18 @@ def render_youtube():
     files = tuple((f.name, f.getvalue()) for f in uploaded_files)
     consolidated, infos = _yt_consolidate(files)
 
-    with st.expander(f"📋 Arquivos lidos ({len(infos)})", expanded=False):
+    arquivos_com_problema = [
+        (nome, info) for nome, info in infos if "🛑" in info or "❌" in info or "⚠️" in info
+    ]
+    if arquivos_com_problema:
+        st.warning(
+            f"⚠️ {len(arquivos_com_problema)} arquivo(s) precisam de atenção na leitura da receita "
+            "— confira o detalhe abaixo antes de conferir o total:"
+        )
+        for nome, info in arquivos_com_problema:
+            st.markdown(f"**{nome}** — {info}")
+
+    with st.expander(f"📋 Arquivos lidos ({len(infos)})", expanded=bool(arquivos_com_problema)):
         for nome, info in infos:
             st.markdown(f"**{nome}** — {info}")
 

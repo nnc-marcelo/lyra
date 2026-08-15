@@ -5,6 +5,8 @@ import unicodedata
 from pathlib import Path
 from datetime import datetime
 
+from utils.page import setup_page
+
 # ============================================================================
 # Direct Incomes
 # Distribui receitas diretas (extrato do BI -> Reprtoir) a partir de regras por
@@ -13,10 +15,12 @@ from datetime import datetime
 # são editáveis pela própria página.
 # ============================================================================
 
-st.title("Direct Incomes")
-st.caption(
-    "Distribui receitas diretas por catálogo/fonte/titular e gera o arquivo pronto "
-    "para o Reprtoir. As regras de cálculo são editáveis aqui mesmo, sem mexer no código."
+setup_page(
+    __file__,
+    descricao=(
+        "Distribui receitas diretas por catálogo/fonte/titular e gera o arquivo pronto "
+        "para o Reprtoir. As regras de cálculo são editáveis aqui mesmo, sem mexer no código."
+    ),
 )
 
 with st.expander("ℹ️ O que é esta página e como usar", expanded=False):

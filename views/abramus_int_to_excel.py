@@ -6,6 +6,8 @@ from datetime import datetime
 import io
 import base64
 
+from utils.page import setup_page
+
 def create_download_link(df, filename):
     """Cria um link de download para o arquivo Excel"""
     output = io.BytesIO()
@@ -113,8 +115,7 @@ def extract_data_from_pdf(pdf_file):
     return pd.DataFrame(data)
 
 def main():
-    st.title("ABRAMUS INT to Excel")
-    st.caption("Processa o demonstrativo internacional da ABRAMUS em pdf e gera um relatório Excel.")
+    setup_page(__file__)
     
     uploaded_file = st.file_uploader("Faça upload do demonstrativo PDF da ABRAMUS", type="pdf")
     

@@ -17,6 +17,7 @@ from collections import defaultdict, Counter
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.ui_components import render_html_table, simple_row, render_status_table
+from utils.page import setup_page
 
 # Integração opcional com Reprtoir
 try:
@@ -25,9 +26,7 @@ try:
 except Exception:
     REPRTOIR_DISPONIVEL = False
 
-st.set_page_config(page_title="Cruzamento Royalties x Catálogo", layout="wide")
-
-st.title("🎵 Cruzamento de Relatórios com Base de Catálogo")
+setup_page(__file__)
 
 # ---------------------------
 # Caminhos Fixos

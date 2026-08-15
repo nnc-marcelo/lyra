@@ -14,11 +14,7 @@ from pathlib import Path
 
 import streamlit as st
 
-st.set_page_config(
-    page_title="Varredura de Lacunas — Royalties",
-    page_icon="📊",
-    layout="wide",
-)
+from utils.page import setup_page
 
 # ─────────────────────────────────────────────────────────────
 # Caminho do relatório pré-gerado
@@ -35,10 +31,12 @@ TS_PATH   = REPORT_DIR / "last_updated.txt"
 # Cadência esperada: diária. Acima disto, o relatório é considerado defasado.
 STALE_AFTER_DAYS = 2
 
-st.title("📊 Varredura de Lacunas — Royalties")
-st.caption(
-    "Mapa de períodos por conta/credencial da base histórica. "
-    "O relatório é gerado automaticamente todo dia pela varredura do rpa-royalties."
+setup_page(
+    __file__,
+    descricao=(
+        "Mapa de períodos por conta/credencial da base histórica. "
+        "O relatório é gerado automaticamente todo dia pela varredura do rpa-royalties."
+    ),
 )
 
 if not HTML_PATH.exists():

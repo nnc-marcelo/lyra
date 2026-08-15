@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from io import BytesIO
 
-st.set_page_config(page_title="Douglas Cezar EP Calculator", layout="wide")
+from utils.page import setup_page
 
 # =============================================================================
 # Configurações pré-determinadas
@@ -228,9 +228,13 @@ def exibir_lado(titulo, d):
 # =============================================================================
 # UI
 # =============================================================================
-st.title("Douglas Cezar EP Calculator")
-st.caption(f"Autor: {AUTOR} | Editora: {EDITORA} — calcula as Direct Incomes **por obra** e gera as "
-           "linhas no layout de import do Reprtoir.")
+setup_page(
+    __file__,
+    descricao=(
+        f"Autor: {AUTOR} | Editora: {EDITORA} — calcula as Direct Incomes por obra e gera as "
+        "linhas no layout de import do Reprtoir."
+    ),
+)
 
 with st.expander("ℹ️ O que é esta página e como usar", expanded=False):
     st.markdown(

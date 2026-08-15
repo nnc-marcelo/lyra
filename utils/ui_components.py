@@ -1,14 +1,15 @@
 """
 Componentes de UI compartilhados entre páginas do Streamlit.
 
-Padrão visual: tabelas HTML com cabeçalho cinza translúcido + blur
-(`rgba(128,128,128,0.15)` + `backdrop-filter: blur()`), tema-agnóstico —
-funciona igual em claro e escuro, ao contrário de cor fixa ou de variável CSS
-do Streamlit (que não é garantida). Indicadores de status usam uma bolinha
+Padrão visual: tabelas HTML com cabeçalho no off-white da marca, opcionalmente
+translúcido + blur. A folha de estilo vive em `assets/theme.css` (classe
+`.nn-tabela`, injetada por `utils.page.bootstrap()`); aqui só se monta a
+marcação. As cores vêm dos tokens `--nn-*` daquele arquivo, e não em hex
+literal repetido por aqui. Indicadores de status usam uma bolinha
 colorida (verde = ativo/preenchido, cinza = inativo/pendente) em vez de
 texto/emoji em linha — mais rápido de escanear numa lista.
 
-Este módulo nasceu do Organizador de Comprovantes (pages/21) e deve ser
+Este módulo nasceu do Organizador de Comprovantes (views/organizador_comprovantes.py) e deve ser
 reusado por qualquer página que precise do mesmo visual, em vez de duplicar
 a implementação localmente.
 """
@@ -24,8 +25,8 @@ ICON_INFO = "ℹ️"
 ICON_SUCESSO = "✅"
 ICON_ERRO = "❌"
 
-COR_ATIVO = "var(--text-success, #1D9E75)"
-COR_INATIVO = "var(--text-muted, #888780)"
+COR_ATIVO = "var(--nn-verde, #1D9E75)"
+COR_INATIVO = "var(--nn-cinza, #888780)"
 
 
 def render_html_table(headers: list[str], body_rows_html: list[str], max_height: str = "420px", translucent: bool = True):
@@ -41,12 +42,16 @@ def render_html_table(headers: list[str], body_rows_html: list[str], max_height:
     cabeçalho sólido (`#fff7e9` opaco, sem blur) — use em tabelas com muitas
     linhas visíveis por vez, onde mesmo opacidade alta ainda deixa entrever
     o texto rolado por baixo."""
-    thead_cells = "".join(f'<th style="text-align:left;padding:6px 10px;">{html.escape(h)}</th>' for h in headers)
-    header_bg = "background:rgba(255,247,233,0.92); backdrop-filter:blur(6px);" if translucent else "background:#fff7e9;"
+    thead_cells = "".join(f"<th>{html.escape(h)}</th>" for h in headers)
+    header_bg = (
+        "background:color-mix(in srgb, var(--nn-offwhite) 92%, transparent); backdrop-filter:blur(6px);"
+        if translucent
+        else ""
+    )
     table_html = (
-        f'<div style="max-height:{max_height}; overflow-y:auto; border:1px solid rgba(128,128,128,0.3); border-radius:6px;">'
-        '<table style="width:100%; border-collapse:collapse; font-size:13px;">'
-        f'<thead style="position:sticky; top:0; {header_bg}">'
+        f'<div class="nn-tabela" style="max-height:{max_height};">'
+        "<table>"
+        f'<thead style="{header_bg}">'
         f"<tr>{thead_cells}</tr></thead><tbody>" + "".join(body_rows_html) + "</tbody></table></div>"
     )
     st.markdown(table_html, unsafe_allow_html=True)
@@ -55,7 +60,7 @@ def render_html_table(headers: list[str], body_rows_html: list[str], max_height:
 def simple_row(cells: list, style: str = "") -> str:
     """Uma linha `<tr>` com células de texto simples (escapadas). Para células
     com HTML embutido (ex.: bolinha de status), monte a `<tr>` manualmente."""
-    tds = "".join(f'<td style="padding:6px 10px;">{html.escape(str(c))}</td>' for c in cells)
+    tds = "".join(f"<td>{html.escape(str(c))}</td>" for c in cells)
     return f'<tr style="{style}">{tds}</tr>'
 
 
@@ -80,9 +85,9 @@ def render_status_table(headers: list[str], rows: list[dict], status_key: str, l
     rows_html = []
     for r in rows:
         active = bool(r.get(status_key))
-        primeira_celula = f'<td style="padding:6px 10px;">{status_dot_html(active)}{html.escape(str(r.get(label_key, "")))}</td>'
+        primeira_celula = f'<td>{status_dot_html(active)}{html.escape(str(r.get(label_key, "")))}</td>'
         outras_celulas = "".join(
-            f'<td style="padding:6px 10px;">{html.escape(str(r.get(h, "")))}</td>' for h in headers[1:]
+            f"<td>{html.escape(str(r.get(h, '')))}</td>" for h in headers[1:]
         )
         style = "" if active else "opacity: 0.6;"
         rows_html.append(f'<tr style="{style}">{primeira_celula}{outras_celulas}</tr>')
