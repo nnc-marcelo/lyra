@@ -28,8 +28,7 @@ METRICAS = [
     ("Última varredura", metrics.ultima_varredura),
 ]
 
-# Quantas ferramentas por linha na grade de cards.
-COLUNAS = 3
+TITULO_POR_CAMINHO = {p.caminho: p.titulo for p in nav.PAGINAS}
 
 
 def _painel_metricas() -> None:
@@ -44,22 +43,25 @@ def _painel_metricas() -> None:
                 st.caption(":orange[Desatualizada]")
 
 
-def _grade_ferramentas() -> None:
-    for secao in nav.ORDEM_SECOES:
-        paginas = [p for p in nav.PAGINAS if p.secao == secao]
-        if not paginas:
-            continue
-        st.subheader(secao)
-        # Uma grade por seção, preenchida em linhas de COLUNAS cards. As colunas
-        # são criadas por linha (e não uma vez só) para que a última linha
-        # incompleta não estique os cards que sobraram.
-        for inicio in range(0, len(paginas), COLUNAS):
-            linha = paginas[inicio : inicio + COLUNAS]
-            colunas = st.columns(COLUNAS)
-            for coluna, pagina in zip(colunas, linha):
-                with coluna, st.container(border=True):
-                    st.page_link(pagina.caminho, label=f"**{pagina.titulo}**", icon=pagina.icone)
-                    st.caption(pagina.descricao)
+def _painel_pendencias() -> None:
+    """O que está esperando ação. Não repete o menu lateral: cada item existe
+    por causa de um fato apurado nas bases, e o link é só o caminho para
+    resolvê-lo."""
+    st.subheader("Pendências")
+    itens = metrics.pendencias()
+    if not itens:
+        st.success("Nada pendente nas bases.", icon=":material/check_circle:")
+        return
+    for item in itens:
+        with st.container(border=True):
+            marcador = ":orange[▲]" if item.atencao else ":gray[•]"
+            st.markdown(f"{marcador} **{item.titulo}**")
+            st.caption(item.detalhe)
+            st.page_link(
+                item.pagina,
+                label=f"Abrir {TITULO_POR_CAMINHO.get(item.pagina, item.pagina)}",
+                icon=":material/arrow_forward:",
+            )
 
 
 def _pagina_inicio():
@@ -72,7 +74,7 @@ def _pagina_inicio():
     st.write("")
     _painel_metricas()
     st.divider()
-    _grade_ferramentas()
+    _painel_pendencias()
 
 
 inicio = st.Page(_pagina_inicio, title="Início", icon=":material/home:", default=True)

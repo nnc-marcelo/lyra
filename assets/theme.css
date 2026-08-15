@@ -41,40 +41,15 @@
   letter-spacing: 0.02em;
 }
 
-/* Cards de ferramenta do Home: st.container(border=True) com um st.page_link
-   dentro. A borda é desenhada no stLayoutWrapper (o nome do test id mudou no
-   Streamlit 1.54; antes era stVerticalBlockBorderWrapper).
+/* Itens do painel de pendências do Home: st.container(border=True) com um
+   st.page_link no fim. A borda é desenhada no stLayoutWrapper (o nome do test
+   id mudou no Streamlit 1.54; antes era stVerticalBlockBorderWrapper).
 
-   As três regras juntas fazem os cards de uma mesma linha esticarem até a
-   altura do mais alto — sem isso a grade fica serrilhada quando uma descrição
-   ocupa duas linhas e a vizinha, uma. */
-.stMain [data-testid="stColumn"]:has([data-testid="stPageLink"]) {
-  display: flex;
-}
-
-.stMain [data-testid="stColumn"]:has([data-testid="stPageLink"]) > [data-testid="stVerticalBlock"] {
-  flex: 1;
-}
-
-.stMain [data-testid="stColumn"] [data-testid="stLayoutWrapper"]:has([data-testid="stPageLink"]) {
-  height: 100%;
-  transition: border-color 120ms ease-in-out;
-}
-
-.stMain [data-testid="stColumn"] [data-testid="stLayoutWrapper"]:has([data-testid="stPageLink"]):hover {
-  border-color: var(--nn-azul);
-}
-
-/* Área clicável do card = largura toda, não só o texto do título. O bloco que
-   empilha os elementos do card usa `align-items: start`, então o contêiner do
-   link não estica sozinho: é ele que precisa da largura, e só então a âncora
-   dentro dele pode ocupá-la. */
-.stMain [data-testid="stColumn"] [data-testid="stElementContainer"]:has(> [data-testid="stPageLink"]) {
-  width: 100%;
-}
-
-.stMain [data-testid="stColumn"] [data-testid="stPageLink"] a {
-  width: 100%;
+   O link fica menor que o texto do item: ele é a saída para resolver a
+   pendência, não o assunto dela. */
+.stMain [data-testid="stLayoutWrapper"]:has([data-testid="stPageLink"]) [data-testid="stPageLink"] a {
+  font-size: 0.875rem;
+  padding-left: 0;
 }
 
 /* Tabelas HTML de utils/ui_components. */
