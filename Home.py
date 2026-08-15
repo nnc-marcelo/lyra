@@ -14,10 +14,52 @@ que está declarado aqui.
 
 import streamlit as st
 
-from utils import nav
+from utils import metrics, nav
 from utils.page import bootstrap
 
 bootstrap()
+
+# Rótulo e função que produz cada métrica do painel. A função devolve None
+# quando a base correspondente não está disponível — ver utils/metrics.py.
+METRICAS = [
+    ("Faixas mapeadas", metrics.faixas_mapeadas),
+    ("Obras — Irmãos Vitale", metrics.obras_catalogo),
+    ("Credenciais ativas", metrics.credenciais),
+    ("Última varredura", metrics.ultima_varredura),
+]
+
+# Quantas ferramentas por linha na grade de cards.
+COLUNAS = 3
+
+
+def _painel_metricas() -> None:
+    for coluna, (rotulo, carregar) in zip(st.columns(len(METRICAS)), METRICAS):
+        with coluna:
+            metrica = carregar()
+            if metrica is None:
+                st.metric(rotulo, "—", help="Base não disponível neste ambiente.")
+                continue
+            st.metric(rotulo, metrica.valor, help=metrica.ajuda)
+            if metrica.alerta:
+                st.caption(":orange[Desatualizada]")
+
+
+def _grade_ferramentas() -> None:
+    for secao in nav.ORDEM_SECOES:
+        paginas = [p for p in nav.PAGINAS if p.secao == secao]
+        if not paginas:
+            continue
+        st.subheader(secao)
+        # Uma grade por seção, preenchida em linhas de COLUNAS cards. As colunas
+        # são criadas por linha (e não uma vez só) para que a última linha
+        # incompleta não estique os cards que sobraram.
+        for inicio in range(0, len(paginas), COLUNAS):
+            linha = paginas[inicio : inicio + COLUNAS]
+            colunas = st.columns(COLUNAS)
+            for coluna, pagina in zip(colunas, linha):
+                with coluna, st.container(border=True):
+                    st.page_link(pagina.caminho, label=f"**{pagina.titulo}**", icon=pagina.icone)
+                    st.caption(pagina.descricao)
 
 
 def _pagina_inicio():
@@ -27,15 +69,10 @@ def _pagina_inicio():
         "Processe relatórios das distribuidoras, calcule taxas e descontos, "
         "e cruze tudo com o catálogo Nas Nuvens."
     )
+    st.write("")
+    _painel_metricas()
     st.divider()
-    for secao in nav.ORDEM_SECOES:
-        paginas = [p for p in nav.PAGINAS if p.secao == secao]
-        if not paginas:
-            continue
-        st.subheader(secao)
-        for pagina in paginas:
-            st.page_link(pagina.caminho, label=pagina.titulo, icon=pagina.icone)
-            st.caption(pagina.descricao)
+    _grade_ferramentas()
 
 
 inicio = st.Page(_pagina_inicio, title="Início", icon=":material/home:", default=True)
