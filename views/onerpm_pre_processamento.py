@@ -45,7 +45,7 @@ setup_page(__file__)
 # Seleção do tipo de processamento
 tipo_processamento = st.selectbox(
     "Selecione o tipo de processamento:",
-    ["OneRPM (Masters + Youtube + Shares)", "Conta Nas Nuvens", "Publishing Rights", "OneRPM Fragmentado (CSVs)"],
+    ["OneRPM (Masters + Youtube + Shares)", "Nas Nuvens ou Zeider", "Publishing Rights", "OneRPM Fragmentado (CSVs)"],
     help="Escolha qual tipo de relatório será processado"
 )
 
@@ -55,8 +55,8 @@ st.divider()
 if tipo_processamento == "OneRPM (Masters + Youtube + Shares)":
     st.write("Faça upload dos arquivos xlsx contendo as planilhas Masters, Youtube Channels e Shares In & Out")
     uploaded_files = st.file_uploader("Selecione os arquivos xlsx", type=['xlsx'], accept_multiple_files=True)
-elif tipo_processamento == "Conta Nas Nuvens":
-    st.write("Faça upload dos arquivos xlsx do relatório Nas Nuvens (processa Shares In & Out sem filtros)")
+elif tipo_processamento == "Nas Nuvens ou Zeider":
+    st.write("Faça upload dos arquivos xlsx do relatório Nas Nuvens ou Zeider (processa Shares In & Out sem filtros)")
     uploaded_files = st.file_uploader("Selecione os arquivos xlsx", type=['xlsx'], accept_multiple_files=True)
 elif tipo_processamento == "Publishing Rights":
     st.write("Faça upload dos arquivos xlsx contendo a planilha Publishing Rights")
@@ -230,10 +230,10 @@ if uploaded_files:
                         )
         
         # ============================================================================
-        # PROCESSAMENTO CONTA NAS NUVENS (idêntico ao OneRPM original, sem o filtro
+        # PROCESSAMENTO NAS NUVENS OU ZEIDER (idêntico ao OneRPM original, sem o filtro
         # que exclui o Receiver Name 'listener-1703345420400')
         # ============================================================================
-        elif tipo_processamento == "Conta Nas Nuvens":
+        elif tipo_processamento == "Nas Nuvens ou Zeider":
             # Inicializar dataframes vazios para consolidação
             all_masters = []
             all_youtube = []
