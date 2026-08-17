@@ -19,6 +19,18 @@ def _extract_date_from_filename(filename: str) -> str:
         return m.group(1)
     return datetime.now().strftime('%Y%m%d')
 
+
+def _extract_receiver_name_suffix(df: pd.DataFrame) -> str:
+    """Extrai o Receiver Name da aba Shares In & Out como sufixo.
+    Retorna string vazia se a coluna não existe ou está vazia."""
+    if 'Receiver Name' in df.columns:
+        unique_names = df['Receiver Name'].dropna().unique()
+        if len(unique_names) > 0:
+            # Usar o primeiro valor único, substituindo espaços por underscore
+            receiver = str(unique_names[0]).strip()
+            return f"_{receiver}" if receiver else ""
+    return ""
+
 setup_page(__file__)
 
 # Seleção do tipo de processamento
@@ -139,10 +151,10 @@ if uploaded_files:
                 st.dataframe(summary_final, hide_index=True, use_container_width=True)
             
             st.divider()
-            
+
             # Downloads
             st.subheader("Download dos resultados finais")
-            
+
             # Função para criar arquivo Excel
             def to_excel(df):
                 df = df.copy()
@@ -153,27 +165,38 @@ if uploaded_files:
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df.to_excel(writer, index=False)
                 return output.getvalue()
-            
+
+            # Extrair sufixo do Receiver Name (se disponível em algum arquivo com Shares)
+            receiver_suffix = ""
+            for uploaded_file in uploaded_files:
+                try:
+                    df_shares_temp = pd.read_excel(uploaded_file, sheet_name='Shares In & Out')
+                    receiver_suffix = _extract_receiver_name_suffix(df_shares_temp)
+                    if receiver_suffix:
+                        break
+                except:
+                    pass
+
             if not df_publishing_final.empty:
                 # Download completo (todas as moedas)
                 excel_data_all = to_excel(df_publishing_final)
                 st.download_button(
                     label="📥 Download Publishing Rights (Todas as moedas)",
                     data=excel_data_all,
-                    file_name=f"Publishing_Rights_COMPLETO_{report_date}.xlsx",
+                    file_name=f"Publishing_Rights_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
-                
+
                 st.write("")
                 st.write("**Download por moeda:**")
-                
+
                 # Downloads individuais por moeda
                 currencies = sorted([str(c) for c in df_publishing_final['Currency'].unique() if pd.notna(c)])
-                
+
                 # Criar colunas para organizar os botões
                 cols = st.columns(min(len(currencies), 3))
-                
+
                 for idx, currency in enumerate(currencies):
                     col_idx = idx % 3
                     with cols[col_idx]:
@@ -182,7 +205,7 @@ if uploaded_files:
                         st.download_button(
                             label=f"Download {currency}",
                             data=excel_data,
-                            file_name=f"Publishing_Rights_{currency}_{report_date}.xlsx",
+                            file_name=f"Publishing_Rights_{currency}_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
@@ -476,6 +499,9 @@ if uploaded_files:
                         df.to_excel(writer, index=False)
                     return output.getvalue()
 
+                # Extrair sufixo do Receiver Name (para Masters e Youtube vem de Shares)
+                receiver_suffix = _extract_receiver_name_suffix(df_shares) if not df_shares.empty else ""
+
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
@@ -485,7 +511,7 @@ if uploaded_files:
                         st.download_button(
                             label="📥 Download Masters (Todas as moedas)",
                             data=excel_data_all,
-                            file_name=f"Masters_COMPLETO_{report_date}.xlsx",
+                            file_name=f"Masters_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="frag_dl_masters_all"
@@ -499,7 +525,7 @@ if uploaded_files:
                             st.download_button(
                                 label=f"Download Masters {currency}",
                                 data=excel_data,
-                                file_name=f"Masters_{currency}_{report_date}.xlsx",
+                                file_name=f"Masters_{currency}_{report_date}{receiver_suffix}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 key=f"frag_dl_masters_{currency}"
@@ -512,7 +538,7 @@ if uploaded_files:
                         st.download_button(
                             label="📥 Download Youtube (Todas as moedas)",
                             data=excel_data_all,
-                            file_name=f"Youtube_COMPLETO_{report_date}.xlsx",
+                            file_name=f"Youtube_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="frag_dl_youtube_all"
@@ -526,7 +552,7 @@ if uploaded_files:
                             st.download_button(
                                 label=f"Download Youtube {currency}",
                                 data=excel_data,
-                                file_name=f"Youtube_{currency}_{report_date}.xlsx",
+                                file_name=f"Youtube_{currency}_{report_date}{receiver_suffix}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 key=f"frag_dl_youtube_{currency}"
@@ -539,7 +565,7 @@ if uploaded_files:
                         st.download_button(
                             label="📥 Download Publishing (Todas as moedas)",
                             data=excel_data_all,
-                            file_name=f"Publishing_Rights_COMPLETO_{report_date}.xlsx",
+                            file_name=f"Publishing_Rights_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="frag_dl_pub_all"
@@ -553,7 +579,7 @@ if uploaded_files:
                             st.download_button(
                                 label=f"Download Publishing {currency}",
                                 data=excel_data,
-                                file_name=f"Publishing_Rights_{currency}_{report_date}.xlsx",
+                                file_name=f"Publishing_Rights_{currency}_{report_date}{receiver_suffix}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 key=f"frag_dl_pub_{currency}"
@@ -842,10 +868,10 @@ if uploaded_files:
                 st.dataframe(summary_youtube_final, hide_index=True, use_container_width=True)
             
             st.divider()
-            
+
             # Downloads
             st.subheader("Download dos resultados finais")
-            
+
             # Função para criar arquivo Excel
             def to_excel(df):
                 df = df.copy()
@@ -856,9 +882,12 @@ if uploaded_files:
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df.to_excel(writer, index=False)
                 return output.getvalue()
-            
+
+            # Extrair sufixo do Receiver Name
+            receiver_suffix = _extract_receiver_name_suffix(df_shares)
+
             col1, col2 = st.columns(2)
-            
+
             # Downloads Masters
             with col1:
                 st.write("**Masters + Shares In & Out:**")
@@ -868,14 +897,14 @@ if uploaded_files:
                     st.download_button(
                         label="📥 Download Masters (Todas as moedas)",
                         data=excel_data_all,
-                        file_name=f"Masters_COMPLETO_{report_date}.xlsx",
+                        file_name=f"Masters_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
-                    
+
                     st.write("")
                     st.write("*Por moeda:*")
-                    
+
                     # Downloads individuais por moeda
                     currencies_masters = sorted(df_masters_final['Currency'].unique())
                     for currency in currencies_masters:
@@ -884,11 +913,11 @@ if uploaded_files:
                         st.download_button(
                             label=f"Download Masters {currency}",
                             data=excel_data,
-                            file_name=f"Masters_{currency}_{report_date}.xlsx",
+                            file_name=f"Masters_{currency}_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
-            
+
             # Downloads Youtube
             with col2:
                 st.write("**Youtube Channels:**")
@@ -898,14 +927,14 @@ if uploaded_files:
                     st.download_button(
                         label="📥 Download Youtube (Todas as moedas)",
                         data=excel_data_all,
-                        file_name=f"Youtube_COMPLETO_{report_date}.xlsx",
+                        file_name=f"Youtube_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
-                    
+
                     st.write("")
                     st.write("*Por moeda:*")
-                    
+
                     # Downloads individuais por moeda
                     currencies_youtube = sorted(df_youtube_final['Currency'].unique())
                     for currency in currencies_youtube:
@@ -914,7 +943,7 @@ if uploaded_files:
                         st.download_button(
                             label=f"Download Youtube {currency}",
                             data=excel_data,
-                            file_name=f"Youtube_{currency}_{report_date}.xlsx",
+                            file_name=f"Youtube_{currency}_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
