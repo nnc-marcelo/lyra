@@ -45,7 +45,7 @@ setup_page(__file__)
 # Seleção do tipo de processamento
 tipo_processamento = st.selectbox(
     "Selecione o tipo de processamento:",
-    ["OneRPM (Masters + Youtube + Shares)", "Publishing Rights", "OneRPM Fragmentado (CSVs)"],
+    ["OneRPM (Masters + Youtube + Shares)", "Conta Nas Nuvens", "Publishing Rights", "OneRPM Fragmentado (CSVs)"],
     help="Escolha qual tipo de relatório será processado"
 )
 
@@ -54,6 +54,9 @@ st.divider()
 # Upload de múltiplos arquivos
 if tipo_processamento == "OneRPM (Masters + Youtube + Shares)":
     st.write("Faça upload dos arquivos xlsx contendo as planilhas Masters, Youtube Channels e Shares In & Out")
+    uploaded_files = st.file_uploader("Selecione os arquivos xlsx", type=['xlsx'], accept_multiple_files=True)
+elif tipo_processamento == "Conta Nas Nuvens":
+    st.write("Faça upload dos arquivos xlsx do relatório Nas Nuvens (processa Shares In & Out sem filtros)")
     uploaded_files = st.file_uploader("Selecione os arquivos xlsx", type=['xlsx'], accept_multiple_files=True)
 elif tipo_processamento == "Publishing Rights":
     st.write("Faça upload dos arquivos xlsx contendo a planilha Publishing Rights")
@@ -226,6 +229,172 @@ if uploaded_files:
                             use_container_width=True
                         )
         
+        # ============================================================================
+        # PROCESSAMENTO CONTA NAS NUVENS
+        # ============================================================================
+        elif tipo_processamento == "Conta Nas Nuvens":
+            all_shares = []
+
+            # Processar cada arquivo
+            st.subheader("Arquivos carregados")
+            for i, uploaded_file in enumerate(uploaded_files, 1):
+                st.write(f"{i}. {uploaded_file.name}")
+
+                try:
+                    df_shares = pd.read_excel(uploaded_file, sheet_name='Shares In & Out')
+                    all_shares.append(df_shares)
+                except Exception as e:
+                    st.warning(f"Arquivo {uploaded_file.name}: Não contém aba 'Shares In & Out'")
+
+            if not all_shares:
+                st.error("Nenhum arquivo válido encontrado com aba 'Shares In & Out'")
+            else:
+                # Consolidar todos os dataframes
+                df_shares = pd.concat(all_shares, ignore_index=True)
+
+                st.success(f"{len(uploaded_files)} arquivo(s) carregado(s) e consolidado(s) com sucesso")
+                st.divider()
+
+                # RESUMO 1: Valores consolidados
+                st.subheader("Valores consolidados")
+
+                st.write("**Shares In & Out (sem filtros):**")
+                if df_shares.empty or 'Net' not in df_shares.columns or df_shares['Net'].isna().all() or df_shares['Net'].sum() == 0:
+                    st.write("*Sem rendimentos*")
+                else:
+                    if 'Currency' in df_shares.columns:
+                        summary = df_shares.groupby('Currency')['Net'].sum().reset_index()
+                        summary.columns = ['Moeda', 'Valor']
+                        st.dataframe(summary, hide_index=True, use_container_width=True)
+                    else:
+                        st.write(f"Total: {df_shares['Net'].sum():,.2f}")
+
+                # Análise Share-In e Share-Out
+                if not df_shares.empty and 'Share Type' in df_shares.columns and 'Net' in df_shares.columns:
+                    st.write("")
+                    share_in = df_shares[df_shares['Share Type'] == 'In']
+                    share_out = df_shares[df_shares['Share Type'] == 'Out']
+
+                    st.write("**Share-In:**")
+                    if share_in.empty or share_in['Net'].sum() == 0:
+                        st.write("*Sem rendimentos*")
+                    else:
+                        if 'Currency' in share_in.columns:
+                            summary_in = share_in.groupby('Currency')['Net'].sum().reset_index()
+                            summary_in.columns = ['Moeda', 'Valor']
+                            st.dataframe(summary_in, hide_index=True, use_container_width=True)
+
+                    st.write("**Share-Out:**")
+                    if share_out.empty or share_out['Net'].sum() == 0:
+                        st.write("*Sem rendimentos*")
+                    else:
+                        if 'Currency' in share_out.columns:
+                            summary_out = share_out.groupby('Currency')['Net'].sum().reset_index()
+                            summary_out.columns = ['Moeda', 'Valor']
+                            st.dataframe(summary_out, hide_index=True, use_container_width=True)
+
+                # Análise por Receiver Name
+                if not df_shares.empty and 'Receiver Name' in df_shares.columns:
+                    st.write("")
+                    st.write("**Valores por Receiver Name (top 10):**")
+                    receiver_summary = df_shares.groupby('Receiver Name')['Net'].sum().sort_values(ascending=False).head(10).reset_index()
+                    receiver_summary.columns = ['Receiver', 'Valor']
+                    st.dataframe(receiver_summary, hide_index=True, use_container_width=True)
+
+                st.divider()
+
+                # Inputs para taxas bancárias
+                st.subheader("Taxas bancárias")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    taxa_brl = st.number_input("Taxa BRL", min_value=0.0, value=0.49, step=0.01, format="%.2f", help="Valor da taxa bancária a ser descontada proporcionalmente")
+                with col2:
+                    taxa_usd = st.number_input("Taxa USD", min_value=0.0, value=26.00, step=0.01, format="%.2f", help="Valor da taxa bancária a ser descontada proporcionalmente")
+
+                st.divider()
+
+                # Aplicar descontos
+                def apply_discount(df, currency, discount_amount):
+                    if discount_amount == 0:
+                        return df
+
+                    total_currency = df[df['Currency'] == currency]['Net'].sum()
+
+                    if total_currency == 0:
+                        return df
+
+                    fator_reducao = (total_currency - discount_amount) / total_currency
+
+                    df.loc[df['Currency'] == currency, 'Net'] = \
+                        df.loc[df['Currency'] == currency, 'Net'] * fator_reducao
+
+                    return df
+
+                df_shares_final = df_shares.copy()
+
+                if taxa_brl > 0:
+                    df_shares_final = apply_discount(df_shares_final, 'BRL', taxa_brl)
+
+                if taxa_usd > 0:
+                    df_shares_final = apply_discount(df_shares_final, 'USD', taxa_usd)
+
+                # RESUMO 2: Valores após descontos
+                st.subheader("Valores após descontos das taxas")
+
+                if df_shares_final.empty or df_shares_final['Net'].sum() == 0:
+                    st.write("*Sem rendimentos*")
+                else:
+                    summary_final = df_shares_final.groupby('Currency')['Net'].sum().reset_index()
+                    summary_final.columns = ['Moeda', 'Valor']
+                    st.dataframe(summary_final, hide_index=True, use_container_width=True)
+
+                st.divider()
+
+                # Downloads
+                st.subheader("Download dos resultados finais")
+
+                def to_excel(df):
+                    df = df.copy()
+                    for col in df.columns:
+                        if pd.api.types.is_datetime64_any_dtype(df[col]):
+                            df[col] = df[col].dt.strftime('%Y-%m-%d')
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False)
+                    return output.getvalue()
+
+                if not df_shares_final.empty:
+                    # Download completo (todas as moedas)
+                    excel_data_all = to_excel(df_shares_final)
+                    st.download_button(
+                        label="📥 Download Shares (Todas as moedas)",
+                        data=excel_data_all,
+                        file_name=f"Conta_NasNuvens_COMPLETO_{report_date}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+
+                    st.write("")
+                    st.write("**Download por moeda:**")
+
+                    currencies = sorted([str(c) for c in df_shares_final['Currency'].unique() if pd.notna(c)])
+                    cols = st.columns(min(len(currencies), 3))
+
+                    for idx, currency in enumerate(currencies):
+                        col_idx = idx % 3
+                        with cols[col_idx]:
+                            df_download = df_shares_final[df_shares_final['Currency'] == currency]
+                            excel_data = to_excel(df_download)
+                            st.download_button(
+                                label=f"Download {currency}",
+                                data=excel_data,
+                                file_name=f"Conta_NasNuvens_{currency}_{report_date}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True,
+                                key=f"nas_nuvens_dl_{currency}"
+                            )
+
         # ============================================================================
         # PROCESSAMENTO ONERPM FRAGMENTADO (CSVs)
         # ============================================================================
