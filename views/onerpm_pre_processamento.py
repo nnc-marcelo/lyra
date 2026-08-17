@@ -255,23 +255,27 @@ if uploaded_files:
                 st.success(f"{len(uploaded_files)} arquivo(s) carregado(s) e consolidado(s) com sucesso")
                 st.divider()
 
-                # RESUMO 1: Valores consolidados
-                st.subheader("Valores consolidados")
+                # RESUMO 1: Valores por planilha original
+                st.subheader("Valores por planilha original (consolidado)")
 
-                st.write("**Shares In & Out (sem filtros):**")
-                if df_shares.empty or 'Net' not in df_shares.columns or df_shares['Net'].isna().all() or df_shares['Net'].sum() == 0:
-                    st.write("*Sem rendimentos*")
-                else:
-                    if 'Currency' in df_shares.columns:
-                        summary = df_shares.groupby('Currency')['Net'].sum().reset_index()
-                        summary.columns = ['Moeda', 'Valor']
-                        st.dataframe(summary, hide_index=True, use_container_width=True)
+                def show_summary_df(df, sheet_name):
+                    st.write(f"**{sheet_name}:**")
+                    if df.empty or 'Net' not in df.columns or df['Net'].isna().all() or df['Net'].sum() == 0:
+                        st.write("*Sem rendimentos*")
                     else:
-                        st.write(f"Total: {df_shares['Net'].sum():,.2f}")
+                        if 'Currency' in df.columns:
+                            summary = df.groupby('Currency')['Net'].sum().reset_index()
+                            summary.columns = ['Moeda', 'Valor']
+                            st.dataframe(summary, hide_index=True, use_container_width=True)
+                        else:
+                            st.write(f"Total: {df['Net'].sum():,.2f}")
 
-                # Análise Share-In e Share-Out
+                show_summary_df(df_shares, "Shares In & Out")
+
+                # Análise Share-in e Share-out
                 if not df_shares.empty and 'Share Type' in df_shares.columns and 'Net' in df_shares.columns:
                     st.write("")
+
                     share_in = df_shares[df_shares['Share Type'] == 'In']
                     share_out = df_shares[df_shares['Share Type'] == 'Out']
 
@@ -293,13 +297,65 @@ if uploaded_files:
                             summary_out.columns = ['Moeda', 'Valor']
                             st.dataframe(summary_out, hide_index=True, use_container_width=True)
 
-                # Análise por Receiver Name
-                if not df_shares.empty and 'Receiver Name' in df_shares.columns:
-                    st.write("")
-                    st.write("**Valores por Receiver Name (top 10):**")
-                    receiver_summary = df_shares.groupby('Receiver Name')['Net'].sum().sort_values(ascending=False).head(10).reset_index()
-                    receiver_summary.columns = ['Receiver', 'Valor']
-                    st.dataframe(receiver_summary, hide_index=True, use_container_width=True)
+                st.divider()
+
+                # Processamento dos dados (sem filtro listener-id)
+                st.subheader("Processamento dos dados")
+
+                # Manter TODAS as colunas originais dos Shares
+                df_shares_masters = df_shares[df_shares['Product Type'] != 'YouTube Video'].copy()
+                df_shares_youtube = df_shares[df_shares['Product Type'] == 'YouTube Video'].copy()
+
+                columns_masters = ['Track Title', 'Artists', 'Product Type', 'ISRC', 'UPC', 'Store',
+                                   'Territory', 'Sale Type', 'Transaction Month', 'Accounted Date',
+                                   'Currency', 'Quantity', 'Net']
+
+                columns_youtube = ['Video Title', 'Video ID', 'Channel ID', 'Store', 'Territory',
+                                   'Sale Type', 'Transaction Month', 'Accounted Date', 'Currency',
+                                   'Quantity', 'Net']
+
+                if not df_shares_masters.empty:
+                    df_shares_masters_mapped = df_shares_masters.rename(columns={
+                        'Title': 'Track Title',
+                        'ID': 'ISRC',
+                        'Parent ID': 'UPC'
+                    })[columns_masters]
+                else:
+                    df_shares_masters_mapped = pd.DataFrame(columns=columns_masters)
+
+                if not df_shares_youtube.empty:
+                    df_shares_youtube_mapped = df_shares_youtube.rename(columns={
+                        'Title': 'Video Title',
+                        'ID': 'Video ID',
+                        'Parent ID': 'Channel ID'
+                    })[columns_youtube]
+                else:
+                    df_shares_youtube_mapped = pd.DataFrame(columns=columns_youtube)
+
+                df_masters_concat = df_shares_masters_mapped.copy()
+                df_youtube_concat = df_shares_youtube_mapped.copy()
+
+                st.success("Dados processados com sucesso")
+                st.divider()
+
+                # RESUMO 2: Valores após processamento
+                st.subheader("Valores após processamento")
+
+                st.write("**Shares (Compositions/Tracks):**")
+                if df_masters_concat.empty or df_masters_concat['Net'].sum() == 0:
+                    st.write("*Sem rendimentos*")
+                else:
+                    summary_masters = df_masters_concat.groupby('Currency')['Net'].sum().reset_index()
+                    summary_masters.columns = ['Moeda', 'Valor']
+                    st.dataframe(summary_masters, hide_index=True, use_container_width=True)
+
+                st.write("**Shares (Youtube Videos):**")
+                if df_youtube_concat.empty or df_youtube_concat['Net'].sum() == 0:
+                    st.write("*Sem rendimentos*")
+                else:
+                    summary_youtube = df_youtube_concat.groupby('Currency')['Net'].sum().reset_index()
+                    summary_youtube.columns = ['Moeda', 'Valor']
+                    st.dataframe(summary_youtube, hide_index=True, use_container_width=True)
 
                 st.divider()
 
@@ -314,40 +370,65 @@ if uploaded_files:
 
                 st.divider()
 
-                # Aplicar descontos
-                def apply_discount(df, currency, discount_amount):
+                # Aplicar descontos proporcionais
+                def apply_proportional_discount(df_masters, df_youtube, currency, discount_amount):
                     if discount_amount == 0:
-                        return df
+                        return df_masters, df_youtube
 
-                    total_currency = df[df['Currency'] == currency]['Net'].sum()
+                    # Calcular totais por dataframe
+                    total_masters = df_masters[df_masters['Currency'] == currency]['Net'].sum() if not df_masters.empty else 0
+                    total_youtube = df_youtube[df_youtube['Currency'] == currency]['Net'].sum() if not df_youtube.empty else 0
+                    total_combined = total_masters + total_youtube
 
-                    if total_currency == 0:
-                        return df
+                    if total_combined == 0:
+                        return df_masters, df_youtube
 
-                    fator_reducao = (total_currency - discount_amount) / total_currency
+                    # Calcular proporção de desconto para cada dataframe
+                    discount_masters = discount_amount * (total_masters / total_combined)
+                    discount_youtube = discount_amount * (total_youtube / total_combined)
 
-                    df.loc[df['Currency'] == currency, 'Net'] = \
-                        df.loc[df['Currency'] == currency, 'Net'] * fator_reducao
+                    # Aplicar desconto proporcional
+                    if total_masters > 0 and not df_masters.empty:
+                        df_masters.loc[df_masters['Currency'] == currency, 'Net'] = \
+                            df_masters.loc[df_masters['Currency'] == currency, 'Net'] - \
+                            (df_masters.loc[df_masters['Currency'] == currency, 'Net'] / total_masters * discount_masters)
 
-                    return df
+                    if total_youtube > 0 and not df_youtube.empty:
+                        df_youtube.loc[df_youtube['Currency'] == currency, 'Net'] = \
+                            df_youtube.loc[df_youtube['Currency'] == currency, 'Net'] - \
+                            (df_youtube.loc[df_youtube['Currency'] == currency, 'Net'] / total_youtube * discount_youtube)
 
-                df_shares_final = df_shares.copy()
+                    return df_masters, df_youtube
 
+                # Criar cópias para aplicar os descontos
+                df_masters_final = df_masters_concat.copy()
+                df_youtube_final = df_youtube_concat.copy()
+
+                # Aplicar descontos de forma proporcional
                 if taxa_brl > 0:
-                    df_shares_final = apply_discount(df_shares_final, 'BRL', taxa_brl)
+                    df_masters_final, df_youtube_final = apply_proportional_discount(df_masters_final, df_youtube_final, 'BRL', taxa_brl)
 
                 if taxa_usd > 0:
-                    df_shares_final = apply_discount(df_shares_final, 'USD', taxa_usd)
+                    df_masters_final, df_youtube_final = apply_proportional_discount(df_masters_final, df_youtube_final, 'USD', taxa_usd)
 
-                # RESUMO 2: Valores após descontos
+                # RESUMO 3: Valores após descontos
                 st.subheader("Valores após descontos das taxas")
 
-                if df_shares_final.empty or df_shares_final['Net'].sum() == 0:
+                st.write("**Shares (Compositions/Tracks):**")
+                if df_masters_final.empty or df_masters_final['Net'].sum() == 0:
                     st.write("*Sem rendimentos*")
                 else:
-                    summary_final = df_shares_final.groupby('Currency')['Net'].sum().reset_index()
-                    summary_final.columns = ['Moeda', 'Valor']
-                    st.dataframe(summary_final, hide_index=True, use_container_width=True)
+                    summary_masters_final = df_masters_final.groupby('Currency')['Net'].sum().reset_index()
+                    summary_masters_final.columns = ['Moeda', 'Valor']
+                    st.dataframe(summary_masters_final, hide_index=True, use_container_width=True)
+
+                st.write("**Shares (Youtube Videos):**")
+                if df_youtube_final.empty or df_youtube_final['Net'].sum() == 0:
+                    st.write("*Sem rendimentos*")
+                else:
+                    summary_youtube_final = df_youtube_final.groupby('Currency')['Net'].sum().reset_index()
+                    summary_youtube_final.columns = ['Moeda', 'Valor']
+                    st.dataframe(summary_youtube_final, hide_index=True, use_container_width=True)
 
                 st.divider()
 
@@ -364,36 +445,107 @@ if uploaded_files:
                         df.to_excel(writer, index=False)
                     return output.getvalue()
 
-                if not df_shares_final.empty:
-                    # Download completo (todas as moedas)
-                    excel_data_all = to_excel(df_shares_final)
-                    st.download_button(
-                        label="📥 Download Shares (Todas as moedas)",
-                        data=excel_data_all,
-                        file_name=f"Conta_NasNuvens_COMPLETO_{report_date}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
+                # Extrair sufixo (Receiver Name ou Label)
+                receiver_suffix = _extract_receiver_name_suffix(df_shares, None)
 
-                    st.write("")
-                    st.write("**Download por moeda:**")
+                col1, col2 = st.columns(2)
 
-                    currencies = sorted([str(c) for c in df_shares_final['Currency'].unique() if pd.notna(c)])
-                    cols = st.columns(min(len(currencies), 3))
+                with col1:
+                    st.write("**Shares (Compositions/Tracks):**")
+                    if not df_masters_final.empty:
+                        excel_data_all = to_excel(df_masters_final)
+                        st.download_button(
+                            label="📥 Download Shares (Todas as moedas)",
+                            data=excel_data_all,
+                            file_name=f"Conta_NasNuvens_COMPLETO_{report_date}{receiver_suffix}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="nn_dl_shares_all"
+                        )
 
-                    for idx, currency in enumerate(currencies):
-                        col_idx = idx % 3
-                        with cols[col_idx]:
-                            df_download = df_shares_final[df_shares_final['Currency'] == currency]
+                        st.write("")
+                        st.write("*Por moeda:*")
+
+                        currencies_masters = sorted([str(c) for c in df_masters_final['Currency'].unique() if pd.notna(c)])
+                        for currency in currencies_masters:
+                            df_download = df_masters_final[df_masters_final['Currency'] == currency]
                             excel_data = to_excel(df_download)
                             st.download_button(
                                 label=f"Download {currency}",
                                 data=excel_data,
-                                file_name=f"Conta_NasNuvens_{currency}_{report_date}.xlsx",
+                                file_name=f"Conta_NasNuvens_{currency}_{report_date}{receiver_suffix}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
-                                key=f"nas_nuvens_dl_{currency}"
+                                key=f"nn_dl_shares_{currency}"
                             )
+
+                with col2:
+                    st.write("**Shares (Youtube Videos):**")
+                    if not df_youtube_final.empty:
+                        excel_data_all = to_excel(df_youtube_final)
+                        st.download_button(
+                            label="📥 Download Youtube (Todas as moedas)",
+                            data=excel_data_all,
+                            file_name=f"Conta_NasNuvens_Youtube_COMPLETO_{report_date}{receiver_suffix}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="nn_dl_youtube_all"
+                        )
+
+                        st.write("")
+                        st.write("*Por moeda:*")
+
+                        currencies_youtube = sorted([str(c) for c in df_youtube_final['Currency'].unique() if pd.notna(c)])
+                        for currency in currencies_youtube:
+                            df_download = df_youtube_final[df_youtube_final['Currency'] == currency]
+                            excel_data = to_excel(df_download)
+                            st.download_button(
+                                label=f"Download {currency}",
+                                data=excel_data,
+                                file_name=f"Conta_NasNuvens_Youtube_{currency}_{report_date}{receiver_suffix}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True,
+                                key=f"nn_dl_youtube_{currency}"
+                            )
+
+                st.divider()
+
+                # RESUMO 4: Valores finais com totais
+                st.subheader("Valores finais por moeda e dataframe")
+
+                st.write("**Shares (Compositions/Tracks):**")
+                if df_masters_final.empty or df_masters_final['Net'].sum() == 0:
+                    st.write("*Sem rendimentos*")
+                else:
+                    summary_masters_final = df_masters_final.groupby('Currency')['Net'].sum().reset_index()
+                    summary_masters_final.columns = ['Moeda', 'Valor']
+                    st.dataframe(summary_masters_final, hide_index=True, use_container_width=True)
+
+                st.write("**Shares (Youtube Videos):**")
+                if df_youtube_final.empty or df_youtube_final['Net'].sum() == 0:
+                    st.write("*Sem rendimentos*")
+                else:
+                    summary_youtube_final = df_youtube_final.groupby('Currency')['Net'].sum().reset_index()
+                    summary_youtube_final.columns = ['Moeda', 'Valor']
+                    st.dataframe(summary_youtube_final, hide_index=True, use_container_width=True)
+
+                # TOTAL GERAL
+                st.write("**TOTAL GERAL (Shares Compositions/Tracks + Youtube Videos):**")
+                all_currencies = set()
+                if not df_masters_final.empty:
+                    all_currencies |= set(df_masters_final['Currency'].dropna().unique())
+                if not df_youtube_final.empty:
+                    all_currencies |= set(df_youtube_final['Currency'].dropna().unique())
+
+                total_data = []
+                for currency in sorted([str(c) for c in all_currencies]):
+                    total_m = df_masters_final[df_masters_final['Currency'] == currency]['Net'].sum() if not df_masters_final.empty else 0
+                    total_y = df_youtube_final[df_youtube_final['Currency'] == currency]['Net'].sum() if not df_youtube_final.empty else 0
+                    total_currency = total_m + total_y
+                    total_data.append({'Moeda': currency, 'Valor': total_currency})
+
+                summary_total = pd.DataFrame(total_data)
+                st.dataframe(summary_total, hide_index=True, use_container_width=True)
 
         # ============================================================================
         # PROCESSAMENTO ONERPM FRAGMENTADO (CSVs)
