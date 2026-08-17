@@ -20,15 +20,24 @@ def _extract_date_from_filename(filename: str) -> str:
     return datetime.now().strftime('%Y%m%d')
 
 
-def _extract_receiver_name_suffix(df: pd.DataFrame) -> str:
-    """Extrai o Receiver Name da aba Shares In & Out como sufixo.
-    Retorna string vazia se a coluna não existe ou está vazia."""
-    if 'Receiver Name' in df.columns:
-        unique_names = df['Receiver Name'].dropna().unique()
+def _extract_receiver_name_suffix(df_shares: pd.DataFrame = None, df_masters: pd.DataFrame = None) -> str:
+    """Extrai o receptor/label para usar como sufixo.
+    Tenta: Receiver Name (Shares In & Out) → Label (Masters)
+    Retorna string vazia se nenhuma coluna existe ou está vazia."""
+    # Tentar coluna "Receiver Name" do Shares In & Out
+    if df_shares is not None and 'Receiver Name' in df_shares.columns:
+        unique_names = df_shares['Receiver Name'].dropna().unique()
         if len(unique_names) > 0:
-            # Usar o primeiro valor único, substituindo espaços por underscore
             receiver = str(unique_names[0]).strip()
             return f"_{receiver}" if receiver else ""
+
+    # Fallback: tentar coluna "Label" do Masters
+    if df_masters is not None and 'Label' in df_masters.columns:
+        unique_labels = df_masters['Label'].dropna().unique()
+        if len(unique_labels) > 0:
+            label = str(unique_labels[0]).strip()
+            return f"_{label}" if label else ""
+
     return ""
 
 setup_page(__file__)
@@ -166,7 +175,7 @@ if uploaded_files:
                     df.to_excel(writer, index=False)
                 return output.getvalue()
 
-            # Extrair sufixo do Receiver Name (se disponível em algum arquivo com Shares)
+            # Extrair sufixo (tentar Shares In & Out, depois Masters)
             receiver_suffix = ""
             for uploaded_file in uploaded_files:
                 try:
@@ -175,7 +184,14 @@ if uploaded_files:
                     if receiver_suffix:
                         break
                 except:
-                    pass
+                    # Se não tiver Shares, tentar Masters
+                    try:
+                        df_masters_temp = pd.read_excel(uploaded_file, sheet_name='Masters')
+                        receiver_suffix = _extract_receiver_name_suffix(None, df_masters_temp)
+                        if receiver_suffix:
+                            break
+                    except:
+                        pass
 
             if not df_publishing_final.empty:
                 # Download completo (todas as moedas)
@@ -499,8 +515,11 @@ if uploaded_files:
                         df.to_excel(writer, index=False)
                     return output.getvalue()
 
-                # Extrair sufixo do Receiver Name (para Masters e Youtube vem de Shares)
-                receiver_suffix = _extract_receiver_name_suffix(df_shares) if not df_shares.empty else ""
+                # Extrair sufixo (Receiver Name ou Label)
+                receiver_suffix = _extract_receiver_name_suffix(
+                    df_shares if not df_shares.empty else None,
+                    df_masters if not df_masters.empty else None
+                )
 
                 col1, col2, col3 = st.columns(3)
 
@@ -883,8 +902,8 @@ if uploaded_files:
                     df.to_excel(writer, index=False)
                 return output.getvalue()
 
-            # Extrair sufixo do Receiver Name
-            receiver_suffix = _extract_receiver_name_suffix(df_shares)
+            # Extrair sufixo (Receiver Name ou Label)
+            receiver_suffix = _extract_receiver_name_suffix(df_shares, df_masters)
 
             col1, col2 = st.columns(2)
 
