@@ -3,6 +3,8 @@ import pandas as pd
 import os
 from io import BytesIO
 
+from utils import execution_log
+from utils.abramus_pdf import ler_internacional
 from utils.page import setup_page
 
 # =============================================================================
@@ -163,6 +165,14 @@ def ler_nacional(arquivo):
     return pd.read_csv(arquivo, sep=';', encoding="ISO-8859-1", decimal=',', thousands='.', header=4)
 
 
+def ler_internacional_upload(arquivo):
+    """Lê o relatório Internacional, aceitando tanto o PDF original da
+    ABRAMUS (extraído automaticamente) quanto um Excel já convertido."""
+    if arquivo.name.lower().endswith('.pdf'):
+        return ler_internacional(arquivo)
+    return pd.read_excel(arquivo)
+
+
 def total_relatorio(df):
     t = 0.0
     if 'RATEIO' in df.columns:
@@ -188,21 +198,42 @@ def processar_lado(relatorios, tipo, processador, periodo):
         'total_nao_adquiridas': df_obras.loc[df_obras['AQUIRED'] == 'N', 'TOTAL'].sum(),
         'qtd_obras': len(df_obras),
         'df_incomes': df_incomes,
+        'validacao': calcular_validacao(df_incomes, total_proc),
     }
 
 
-def bloco_validacao(df_incomes, total_processado):
-    gross = df_incomes['Gross Amount'].iloc[0] if len(df_incomes) else 0
-    check1 = abs(gross - round(total_processado, 2)) < 0.02
-    soma_net = df_incomes['Net Amount (*)'].sum()
-    check2 = abs(soma_net - gross) < 0.02
+def calcular_validacao(df_incomes, total_processado):
+    """Os 3 checks de consistência, como dados (não como UI) — usado tanto
+    para renderizar quanto para registrar no log de execuções."""
+    gross = float(df_incomes['Gross Amount'].iloc[0]) if len(df_incomes) else 0.0
+    gross_ok = abs(gross - round(total_processado, 2)) < 0.02
+    soma_net = float(df_incomes['Net Amount (*)'].sum())
+    soma_net_ok = abs(soma_net - gross) < 0.02
     checks3 = [abs(r['SPLIT AMOUNT | Organization (*)'] + r['SPLIT AMOUNT | Rights-Holder (*)']
                    - r['Net Amount (*)']) < 0.02 for _, r in df_incomes.iterrows()]
+    return {
+        'gross': gross,
+        'total_processado': float(total_processado),
+        'gross_ok': bool(gross_ok),
+        'soma_net': soma_net,
+        'soma_net_ok': bool(soma_net_ok),
+        'splits_ok_qtd': int(sum(checks3)),
+        'splits_total': int(len(checks3)),
+        'splits_ok': bool(all(checks3)),
+    }
+
+
+def bloco_validacao(v):
     c1, c2, c3 = st.columns(3)
-    c1.metric("Gross = Total processado", "✅" if check1 else "❌",
-              f"{format_currency(gross)} = {format_currency(total_processado)}")
-    c2.metric("Soma Net = Gross", "✅" if check2 else "❌", format_currency(soma_net))
-    c3.metric("Splits = Net", "✅" if all(checks3) else "❌", f"{sum(checks3)}/{len(checks3)} linhas")
+    c1.metric("Gross = Total processado", "✅" if v['gross_ok'] else "❌",
+              f"{format_currency(v['gross'])} = {format_currency(v['total_processado'])}")
+    c2.metric("Soma Net = Gross", "✅" if v['soma_net_ok'] else "❌", format_currency(v['soma_net']))
+    c3.metric("Splits = Net", "✅" if v['splits_ok'] else "❌",
+              f"{v['splits_ok_qtd']}/{v['splits_total']} linhas")
+
+
+def validacao_ok(v):
+    return v['gross_ok'] and v['soma_net_ok'] and v['splits_ok']
 
 
 def exibir_lado(titulo, d):
@@ -218,7 +249,7 @@ def exibir_lado(titulo, d):
     st.subheader("Linhas de Income")
     st.dataframe(d['df_incomes'], hide_index=True, use_container_width=True)
     st.caption("🔍 Validação")
-    bloco_validacao(d['df_incomes'], d['total_processado'])
+    bloco_validacao(d['validacao'])
     with st.expander(f"Detalhamento de obras ({d['qtd_obras']})"):
         st.dataframe(d['df_obras'].sort_values('TOTAL', ascending=False)
                      .style.format({'TOTAL': format_currency}),
@@ -262,15 +293,25 @@ adquirida (`Y`) ou não (`N`). ⚠️ **Obra que não estiver nessa lista é ign
 **Como usar**
 
 1. Informe o **período** (vira o prefixo dos nomes das receitas, ex.: `2026M04`).
-2. Suba os relatórios da ABRAMUS — **Nacional (CSV)** e/ou **Internacional (Excel)** — separados em
-   *Douglas Cezar (Writer)* e *DC Editora (Publisher)*.
+2. Suba os relatórios da ABRAMUS — **Nacional (CSV)** e/ou **Internacional (PDF ou Excel)** — separados em
+   *Douglas Cezar (Writer)* e *DC Editora (Publisher)*. O PDF original do demonstrativo internacional é
+   lido automaticamente, sem precisar converter para Excel antes.
 3. Clique em **Processar**.
 4. Confira a **validação** (Gross = total, Σ Net = Gross, splits = net) e baixe o **CSV consolidado**
    para importar no Reprtoir.
 """
     )
 
-periodo = st.text_input("Período (prefixo dos nomes de income)", "2026M04")
+periodo = st.text_input("Período (prefixo dos nomes de income)", "2026M06")
+
+ultima_exec = execution_log.ultima("douglas_cezar_ep")
+if ultima_exec is not None:
+    todos_ok = all(validacao_ok(lado['validacao']) for lado in ultima_exec.resumo.values())
+    quando_fmt = ultima_exec.quando.replace("T", " ")
+    rotulo = "✅ validações ok" if todos_ok else "⚠️ conferir validações"
+    with st.expander(f"🕘 Última execução registrada: {ultima_exec.periodo} em {quando_fmt} ({rotulo})",
+                      expanded=False):
+        st.json(ultima_exec.resumo)
 
 try:
     obras_cadastradas = pd.read_excel(OBRAS_PATH)
@@ -286,11 +327,11 @@ col1, col2 = st.columns(2)
 with col1:
     st.markdown("**Douglas Cezar (Writer)**")
     up_w_nac = st.file_uploader("Nacional (CSV)", type=['csv'], key="w_nac")
-    up_w_int = st.file_uploader("Internacional (Excel)", type=['xlsx', 'xls'], key="w_int")
+    up_w_int = st.file_uploader("Internacional (PDF ou Excel)", type=['pdf', 'xlsx', 'xls'], key="w_int")
 with col2:
     st.markdown("**DC Editora (Publisher)**")
     up_p_nac = st.file_uploader("Nacional (CSV)", type=['csv'], key="p_nac")
-    up_p_int = st.file_uploader("Internacional (Excel)", type=['xlsx', 'xls'], key="p_int")
+    up_p_int = st.file_uploader("Internacional (PDF ou Excel)", type=['pdf', 'xlsx', 'xls'], key="p_int")
 
 if st.button("Processar", type="primary"):
     processador = ProcessadorRoyalties(obras_cadastradas)
@@ -300,7 +341,7 @@ if st.button("Processar", type="primary"):
     if up_w_nac:
         rel_w.append(ler_nacional(up_w_nac))
     if up_w_int:
-        rel_w.append(pd.read_excel(up_w_int))
+        rel_w.append(ler_internacional_upload(up_w_int))
     if rel_w:
         dados['writer'] = processar_lado(rel_w, "Writer", processador, periodo)
 
@@ -308,7 +349,7 @@ if st.button("Processar", type="primary"):
     if up_p_nac:
         rel_p.append(ler_nacional(up_p_nac))
     if up_p_int:
-        rel_p.append(pd.read_excel(up_p_int))
+        rel_p.append(ler_internacional_upload(up_p_int))
     if rel_p:
         dados['publisher'] = processar_lado(rel_p, "Publisher", processador, periodo)
 
@@ -316,6 +357,19 @@ if st.button("Processar", type="primary"):
         st.warning("Nenhum relatório carregado.")
     else:
         st.session_state['douglas_dados'] = dados
+        resumo = {
+            lado: {
+                'total_geral': float(d['total_geral']),
+                'total_processado': float(d['total_processado']),
+                'total_nao_processado': float(d['total_nao_processado']),
+                'total_adquiridas': float(d['total_adquiridas']),
+                'total_nao_adquiridas': float(d['total_nao_adquiridas']),
+                'qtd_obras': int(d['qtd_obras']),
+                'validacao': d['validacao'],
+            }
+            for lado, d in dados.items()
+        }
+        execution_log.registrar("douglas_cezar_ep", periodo, resumo)
 
 if st.session_state.get('douglas_dados'):
     dados = st.session_state['douglas_dados']

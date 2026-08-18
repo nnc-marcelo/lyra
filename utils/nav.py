@@ -51,13 +51,6 @@ PAGINAS: list[Pagina] = [
         descricao="Normaliza os relatórios OneRPM antes do processamento principal.",
     ),
     Pagina(
-        caminho="views/abramus_int_to_excel.py",
-        titulo="ABRAMUS INT para Excel",
-        icone=":material/table_view:",
-        secao="Processamento",
-        descricao="Extrai o PDF do demonstrativo internacional da ABRAMUS para planilha.",
-    ),
-    Pagina(
         caminho="views/cruzamento_catalogo.py",
         titulo="Cruzamento com catálogo",
         icone=":material/compare_arrows:",
