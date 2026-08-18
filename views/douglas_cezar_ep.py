@@ -115,8 +115,14 @@ def gerar_incomes_por_obra(df_obras, tipo, periodo):
     r = regras[chave]
     money_in = r[0]["Contract - Money In"]
 
+    colunas = [
+        "Name (*)", "Contract - Money In (*)", "Sale Date (*)", "Payment Date (*)",
+        "Net Amount (*)", "Gross Amount", "Foreign Currency", "Foreign Net Amount",
+        "Foreign Gross Amount", "Contract - Money Out (*)",
+        "SPLIT AMOUNT | Organization (*)", "SPLIT AMOUNT | Rights-Holder (*)", "Notes",
+    ]
     if df_obras is None or df_obras.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=colunas)
 
     acq = df_obras.loc[df_obras['AQUIRED'] == 'Y', 'TOTAL'].sum()
     nao = df_obras.loc[df_obras['AQUIRED'] == 'N', 'TOTAL'].sum()
