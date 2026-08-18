@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from io import BytesIO
+from io import BytesIO, StringIO
 
 from utils import execution_log
 from utils.abramus_pdf import ler_internacional
@@ -168,7 +168,24 @@ def gerar_incomes_por_obra(df_obras, tipo, periodo):
 
 
 def ler_nacional(arquivo):
-    return pd.read_csv(arquivo, sep=';', encoding="ISO-8859-1", decimal=',', thousands='.', header=4)
+    """Lê o relatório Nacional da ABRAMUS, aceitando tanto o formato 'XLS'
+    (4 linhas de metadados antes do cabeçalho, colunas acentuadas como
+    'CÓD. OBRA') quanto o formato alternativo 'VCV' (só o nome da conta antes
+    do cabeçalho, colunas sem acento como 'CODIGO_OBRA') — a ABRAMUS distribui
+    os dois para a mesma conta dependendo do mês. Detecta a linha do
+    cabeçalho pelo conteúdo em vez de uma posição fixa, e normaliza as
+    colunas para o layout 'XLS' usado no resto do processamento."""
+    if hasattr(arquivo, 'seek'):
+        arquivo.seek(0)
+    conteudo = arquivo.read() if hasattr(arquivo, 'read') else open(arquivo, 'rb').read()
+    if isinstance(conteudo, bytes):
+        conteudo = conteudo.decode('ISO-8859-1')
+
+    linhas = [linha for linha in conteudo.splitlines() if linha.strip()]
+    header_idx = next(i for i, linha in enumerate(linhas) if 'CÓD. OBRA' in linha or 'CODIGO_OBRA' in linha)
+
+    df = pd.read_csv(StringIO(conteudo), sep=';', decimal=',', thousands='.', header=header_idx)
+    return df.rename(columns={'CODIGO_OBRA': 'CÓD. OBRA', 'TITULO': 'TÍTULO DA MUSICA'})
 
 
 def ler_internacional_upload(arquivo):
