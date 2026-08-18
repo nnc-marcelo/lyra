@@ -5,6 +5,7 @@ from io import BytesIO, StringIO
 
 from utils import execution_log
 from utils.abramus_pdf import ler_internacional
+from utils.bi_extract import normalize, read_bi_extract
 from utils.page import setup_page
 
 # =============================================================================
@@ -13,6 +14,9 @@ from utils.page import setup_page
 AUTOR = "Douglas Cezar"
 EDITORA = "DC Editora"
 OBRAS_PATH = os.path.join("data", "catalogs", "douglas-cezar", "obras-cadastradas-DOUGLAS-CEZAR.xlsx")
+
+# Titular/Conta usado no extrato do BI para cada lado (ver ler_extrato_rr)
+TITULAR_POR_LADO = {"writer": AUTOR, "publisher": EDITORA}
 
 # Shares do deal (writer e publisher)
 WRITER_SHARE = 0.5          # Douglas (writer)
@@ -196,6 +200,26 @@ def ler_internacional_upload(arquivo):
     return pd.read_excel(arquivo)
 
 
+def ler_extrato_rr(uploaded):
+    """Lê o extrato do BI (RR) e devolve {titular normalizado: {valor, data, qtd}}
+    só para o catálogo DOUGLAS CEZAR. Usa `apenas_direct_income=False` porque
+    um recebimento pode ainda não ter sido classificado como Direct Income no
+    BI (é justamente o que esta página está prestes a gerar)."""
+    df_bi, info = read_bi_extract(uploaded, apenas_direct_income=False)
+    if df_bi is None:
+        return None, info
+
+    df_dc = df_bi[df_bi['Catalogo'].apply(normalize) == normalize('DOUGLAS CEZAR')]
+    por_titular = {}
+    for titular_norm, sub in df_dc.groupby(df_dc['Titular'].apply(normalize)):
+        por_titular[titular_norm] = {
+            'valor': round(float(sub['Valor'].sum()), 2),
+            'data': sub['Data'].max(),
+            'qtd': len(sub),
+        }
+    return por_titular, info
+
+
 def total_relatorio(df):
     t = 0.0
     if 'RATEIO' in df.columns:
@@ -259,7 +283,7 @@ def validacao_ok(v):
     return v['gross_ok'] and v['soma_net_ok'] and v['splits_ok']
 
 
-def exibir_lado(titulo, d):
+def exibir_lado(titulo, d, lado):
     st.header(titulo)
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total geral", format_currency(d['total_geral']))
@@ -273,6 +297,20 @@ def exibir_lado(titulo, d):
     st.dataframe(d['df_incomes'], hide_index=True, use_container_width=True)
     st.caption("🔍 Validação")
     bloco_validacao(d['validacao'])
+
+    extrato = d.get('extrato')
+    if extrato:
+        diff_ok = abs(extrato['valor'] - round(d['total_processado'], 2)) < 0.02
+        data_fmt = extrato['data'].strftime('%d/%m/%Y') if pd.notna(extrato['data']) else "-"
+        st.caption("💳 Validação com o extrato RR (BI)")
+        e1, e2, e3 = st.columns(3)
+        e1.metric("Extrato = Processado", "✅" if diff_ok else "❌",
+                  f"{format_currency(extrato['valor'])} = {format_currency(d['total_processado'])}")
+        e2.metric("Data de recebimento", data_fmt)
+        e3.metric("Linhas no extrato", extrato['qtd'])
+    elif d.get('extrato_carregado'):
+        st.info(f"Extrato RR carregado, mas nenhuma linha bateu com o titular deste lado "
+                f"('{TITULAR_POR_LADO[lado]}').")
     with st.expander(f"Detalhamento de obras ({d['qtd_obras']})"):
         st.dataframe(d['df_obras'].sort_values('TOTAL', ascending=False)
                      .style.format({'TOTAL': format_currency}),
@@ -356,9 +394,27 @@ with col2:
     up_p_nac = st.file_uploader("Nacional (CSV)", type=['csv'], key="p_nac")
     up_p_int = st.file_uploader("Internacional (PDF ou Excel)", type=['pdf', 'xlsx', 'xls'], key="p_int")
 
+st.subheader("Extrato RR (BI) — validação de recebimento (opcional)")
+st.caption(
+    "Extrato exportado do BI (mesmo formato usado no Direct Incomes), filtrado automaticamente para "
+    "o catálogo DOUGLAS CEZAR. Usado para conferir se o valor processado bate com o que efetivamente "
+    "caiu na conta, e para preencher Sale Date/Payment Date no CSV final."
+)
+up_bi = st.file_uploader("Extrato RR (xlsx, xls ou csv)", type=['xlsx', 'xls', 'csv'], key="bi_extrato")
+
 if st.button("Processar", type="primary"):
     processador = ProcessadorRoyalties(obras_cadastradas)
     dados = {}
+
+    extrato_por_titular, extrato_carregado = {}, False
+    if up_bi is not None:
+        extrato_por_titular, info_bi = ler_extrato_rr(up_bi)
+        if extrato_por_titular is None:
+            st.error(info_bi["erro"])
+            st.write("Colunas disponíveis:", info_bi["disponiveis"])
+            extrato_por_titular = {}
+        else:
+            extrato_carregado = True
 
     rel_w = []
     if up_w_nac:
@@ -375,6 +431,15 @@ if st.button("Processar", type="primary"):
         rel_p.append(ler_internacional_upload(up_p_int))
     if rel_p:
         dados['publisher'] = processar_lado(rel_p, "Publisher", processador, periodo)
+
+    for lado, d in dados.items():
+        d['extrato_carregado'] = extrato_carregado
+        extrato = extrato_por_titular.get(normalize(TITULAR_POR_LADO[lado]))
+        d['extrato'] = extrato
+        if extrato and pd.notna(extrato['data']) and len(d['df_incomes']):
+            data_str = extrato['data'].strftime('%Y-%m-%d')
+            d['df_incomes']['Sale Date (*)'] = data_str
+            d['df_incomes']['Payment Date (*)'] = data_str
 
     if not dados:
         st.warning("Nenhum relatório carregado.")
@@ -397,10 +462,10 @@ if st.button("Processar", type="primary"):
 if st.session_state.get('douglas_dados'):
     dados = st.session_state['douglas_dados']
     if 'writer' in dados:
-        exibir_lado("Writer (Douglas Cezar)", dados['writer'])
+        exibir_lado("Writer (Douglas Cezar)", dados['writer'], 'writer')
         st.divider()
     if 'publisher' in dados:
-        exibir_lado("Publisher (DC Editora)", dados['publisher'])
+        exibir_lado("Publisher (DC Editora)", dados['publisher'], 'publisher')
         st.divider()
 
     partes = [dados[k]['df_incomes'] for k in ('writer', 'publisher') if k in dados]

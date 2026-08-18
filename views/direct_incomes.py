@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 import json
-import unicodedata
 from pathlib import Path
 from datetime import datetime
 
+from utils.bi_extract import normalize, coerce_money, read_bi_extract
 from utils.page import setup_page
 
 # ============================================================================
@@ -60,40 +60,10 @@ RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "direct_incomes" 
 
 INCOME_COLS = ["descricao", "money_out", "org_pct", "rights_pct"]
 
-# Nomes de coluna aceitos no extrato do BI (novo template). Cada campo aceita
-# variações de nome; a leitura escolhe a primeira que existir.
-COL_CANDIDATES = {
-    "data": ["Data Pagamento", "Data"],
-    "catalogo": ["Catalogo", "Catálogo"],
-    "fonte": ["Fonte"],
-    "titular": ["Titular / Conta", "Titular", "Titular/Conta"],
-    "origem": ["Origem/Detalhe", "Origem / Detalhe", "Origem"],
-    "valor": ["Valor BRL", "Valor"],
-    "processamento": ["Processamento"],
-    "motivo": ["Motivo Processamento", "Motivo"],
-}
-
 
 # ---------------------------------------------------------------------------
 # Utilidades
 # ---------------------------------------------------------------------------
-def normalize(s):
-    """Maiúsculas, sem acento, espaços colapsados — para comparar chaves."""
-    s = str(s if s is not None else "")
-    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
-    return " ".join(s.upper().split())
-
-
-def coerce_money(series):
-    """Converte a coluna de valor para número, aceitando 1234.56 e 1.234,56."""
-    s = series.astype(str).str.strip()
-    num = pd.to_numeric(s, errors="coerce")
-    if num.isna().mean() > 0.3:
-        s2 = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
-        num = pd.to_numeric(s2, errors="coerce")
-    return num.fillna(0.0)
-
-
 def norm_date(value):
     if isinstance(value, pd.Timestamp):
         return value.strftime("%Y-%m-%d")
@@ -190,71 +160,6 @@ def find_rule(regras, cat, fonte, titular, origem):
         if score > best_score:
             best, best_score = r, score
     return best
-
-
-# ---------------------------------------------------------------------------
-# Leitura do extrato do BI (novo template)
-# ---------------------------------------------------------------------------
-def pick_col(df, names):
-    low = {str(c).strip().lower(): c for c in df.columns}
-    for n in names:
-        if n.lower() in low:
-            return low[n.lower()]
-    for c in df.columns:
-        cl = str(c).strip().lower()
-        if any(cl.startswith(n.lower()) for n in names):
-            return c
-    return None
-
-
-def read_input(uploaded):
-    """Lê o extrato e devolve (df_normalizado, info). df tem colunas:
-    Catalogo, Fonte, Titular, Origem, Valor, Data."""
-    uploaded.seek(0)
-    if uploaded.name.lower().endswith(".csv"):
-        raw = pd.read_csv(uploaded, sep=None, engine="python")
-    else:
-        raw = pd.read_excel(uploaded)
-
-    cols = {k: pick_col(raw, v) for k, v in COL_CANDIDATES.items()}
-    faltando = [k for k in ("data", "catalogo", "fonte", "valor") if cols[k] is None]
-    if faltando:
-        return None, {"erro": f"Colunas obrigatórias não encontradas: {faltando}",
-                      "disponiveis": list(raw.columns)}
-
-    df = pd.DataFrame({
-        "Catalogo": raw[cols["catalogo"]],
-        "Fonte": raw[cols["fonte"]],
-        "Titular": raw[cols["titular"]] if cols["titular"] else "",
-        "Origem": raw[cols["origem"]] if cols["origem"] else "",
-        "Valor": raw[cols["valor"]],
-        "Data": raw[cols["data"]],
-    })
-    if cols["processamento"]:
-        df["Processamento"] = raw[cols["processamento"]]
-    if cols["motivo"]:
-        df["Motivo"] = raw[cols["motivo"]]
-
-    n_total = len(df)
-
-    # Remove rodapés do BI (Total / Filtros aplicados / em branco): sem catálogo/fonte
-    df = df[df["Catalogo"].notna() & df["Fonte"].notna()].copy()
-    n_sem_rodape = len(df)
-
-    # Mantém apenas as linhas de Direct Income (coluna Motivo Processamento)
-    n_proc = None
-    if "Motivo" in df.columns:
-        mask = df["Motivo"].astype(str).str.contains("Direct Income", case=False, na=False)
-        df = df[mask].copy()
-        n_proc = len(df)
-
-    for c in ("Catalogo", "Fonte", "Titular", "Origem"):
-        df[c] = df[c].fillna("").astype(str).str.strip()
-    df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
-    df["Valor"] = coerce_money(df["Valor"])
-
-    info = {"n_total": n_total, "n_rodape": n_total - n_sem_rodape, "n_proc": n_proc, "n_final": len(df)}
-    return df, info
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +285,7 @@ with tab_calc:
     )
 
     if uploaded is not None:
-        df_norm, info = read_input(uploaded)
+        df_norm, info = read_bi_extract(uploaded)
         if df_norm is None:
             st.error(info["erro"])
             st.write("Colunas disponíveis:", info["disponiveis"])
