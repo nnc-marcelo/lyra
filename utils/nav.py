@@ -92,6 +92,13 @@ PAGINAS: list[Pagina] = [
         secao="Utilitários",
         descricao="Organiza o .zip de comprovantes ABRAMUS/UBC na estrutura da base.",
     ),
+    Pagina(
+        caminho="views/abramus_int_to_excel.py",
+        titulo="ABRAMUS INT para Excel",
+        icone=":material/table_view:",
+        secao="Utilitários",
+        descricao="Extrai o PDF do demonstrativo internacional da ABRAMUS para planilha.",
+    ),
 ]
 
 # Ordem em que as seções aparecem no menu. Seção de página não listada aqui
