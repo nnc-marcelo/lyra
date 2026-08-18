@@ -37,13 +37,6 @@ PAGINAS: list[Pagina] = [
         descricao="Transforma relatórios das distribuidoras e prepara-os para o Reprtoir.",
     ),
     Pagina(
-        caminho="views/ingrooves_breaker.py",
-        titulo="Ingrooves breaker",
-        icone=":material/content_cut:",
-        secao="Processamento",
-        descricao="Desconta 30% das receitas dos EUA e separa o relatório por artista.",
-    ),
-    Pagina(
         caminho="views/onerpm_pre_processamento.py",
         titulo="OneRPM pré-processamento",
         icone=":material/tune:",
