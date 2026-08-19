@@ -60,36 +60,6 @@ RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "direct_incomes" 
 
 INCOME_COLS = ["descricao", "money_out", "org_pct", "rights_pct"]
 
-# ---------------------------------------------------------------------------
-# Conhecimento de casos especiais (portado do projeto "Direct Incomes App",
-# fonte da verdade operacional — ver data/direct_incomes/regras.json e
-# docs/CASOS-ESPECIAIS.md do projeto original). Catálogos aqui NUNCA entram
-# no lote geral, mesmo que exista regra casando — são gerados à parte.
-# ---------------------------------------------------------------------------
-NEUTRALIZADOS = {"DOUGLAS CEZAR", "ROSENBLIT"}
-
-# Ignorados que sabemos que não devem gerar receita aqui (chave = catálogo
-# normalizado + fonte normalizada, ou "*" para qualquer fonte do catálogo).
-EXCLUSOES_ESPERADAS = {
-    ("DOUGLAS CEZAR", "*"): (
-        "Processado À PARTE por obra (página Douglas Cezar EP Calculator). "
-        "Neutralizado de propósito; mesclar a saída ao import final."
-    ),
-    ("ROSENBLIT", "*"): (
-        "Defasagem de 1 mês: extrato do Rosenblit é sempre do mês seguinte ao lote. "
-        "Lançar À PARTE e conferir Gross+Data contra o mês anterior antes de importar "
-        "(risco de duplicidade já ocorrido)."
-    ),
-    ("CELSO FONSECA", "NIKITA MUSIC DIGITAL"): "Não é Direct Income (confirmado jun/2026).",
-    ("DOUGLAS CEZAR", "R3 PRODUCOES"): "Não é Direct Income (confirmado jun/2026).",
-    ("MATSUMOTO", "UBC"): "Não tem Direct Income; Motivo mal rotulado na origem. Ignorar/corrigir no BI.",
-}
-
-# Gaps conhecidos: sem regra cadastrada, mas deveriam ter — exigem ação.
-GAPS_CONHECIDOS = {
-    ("ZEIDER", "CASA 1 PRODUTORA"): "GAP conhecido: sem regra cadastrada. Definir split e cadastrar.",
-}
-
 
 # ---------------------------------------------------------------------------
 # Utilidades
@@ -195,19 +165,6 @@ def find_rule(regras, cat, fonte, titular, origem):
 # ---------------------------------------------------------------------------
 # Cálculo
 # ---------------------------------------------------------------------------
-def classificar_ignorado(cat, fonte):
-    """Classifica um grupo ignorado como ESPERADA (ok ignorar) / GAP (falta
-    cadastrar) / INVESTIGAR (possível regra nova), com o motivo conhecido."""
-    cu, fu = normalize(cat), normalize(fonte)
-    for (a, b), motivo in EXCLUSOES_ESPERADAS.items():
-        if normalize(a) == cu and (b == "*" or normalize(b) == fu):
-            return "ESPERADA", motivo
-    for (a, b), motivo in GAPS_CONHECIDOS.items():
-        if normalize(a) == cu and normalize(b) == fu:
-            return "GAP", motivo
-    return "INVESTIGAR", "Sem regra e não está na lista de exclusões esperadas."
-
-
 def processar(df_norm, data):
     """Resolve a regra de cada linha e consolida POR REGRA CASADA (não por titular).
     Catálogos com regra geral (titular vazio) viram 1 grupo; catálogos com regras
@@ -221,9 +178,9 @@ def processar(df_norm, data):
     rule_por_linha, buckets = [], []
     for _, row in df.iterrows():
         cat, fonte = row["Catalogo"], row["Fonte"]
-        if normalize(cat) in NEUTRALIZADOS:
-            rule_por_linha.append("NEUTRALIZADO")
-            buckets.append(f"NEUTRALIZADO|{normalize(cat)}|{normalize(fonte)}")
+        if normalize(cat) == "DOUGLAS CEZAR":
+            rule_por_linha.append("DOUGLAS")
+            buckets.append(f"DOUGLAS|{normalize(cat)}|{normalize(fonte)}")
             continue
         rule = find_rule(regras, cat, fonte, row["Titular"], row["Origem"])
         rule_por_linha.append(rule)
@@ -243,20 +200,15 @@ def processar(df_norm, data):
         valor = round(float(sub["Valor"].sum()), 2)
         data_pg = norm_date(sub["Data"].max())
 
-        if rule == "NEUTRALIZADO":
-            _, motivo = classificar_ignorado(cat, fonte)
+        if isinstance(rule, str):  # DOUGLAS
             ignorados.append({"Catalogo": cat, "Fonte": fonte, "Titular": titular or "-",
                               "Origem": origem or "-", "Valor": valor, "Data": data_pg,
-                              "Classe": "ESPERADA", "Motivo": motivo})
+                              "Motivo": "Calculado por obra (página Douglas Cezar EP Calculator)"})
             continue
         if rule is None or valor == 0:
-            if valor == 0:
-                classe, motivo = "ESPERADA", "Valor zero"
-            else:
-                classe, motivo = classificar_ignorado(cat, fonte)
             ignorados.append({"Catalogo": cat, "Fonte": fonte, "Titular": titular or "-",
                               "Origem": origem or "-", "Valor": valor, "Data": data_pg,
-                              "Classe": classe, "Motivo": motivo})
+                              "Motivo": "Sem regra" if rule is None else "Valor zero"})
             continue
 
         for inc in rule["incomes"]:
@@ -393,25 +345,9 @@ with tab_calc:
             st.info("Nenhuma receita gerada — verifique se há regras para os catálogos do arquivo.")
 
         if len(df_ign):
-            n_investigar = int((df_ign["Classe"] == "INVESTIGAR").sum()) if "Classe" in df_ign else 0
-            n_gap = int((df_ign["Classe"] == "GAP").sum()) if "Classe" in df_ign else 0
-            st.markdown("##### ⚠️ Grupos ignorados — triagem")
-            st.caption(
-                "**ESPERADA** = sabemos que não gera receita aqui, ok ignorar · "
-                "**GAP** = falta cadastrar regra · **INVESTIGAR** = não está em nenhuma lista, "
-                "pode ser regra nova ou erro de rótulo."
-            )
-            ordem_classe = {"INVESTIGAR": 0, "GAP": 1, "ESPERADA": 2}
-            df_ign_view = df_ign.copy()
-            df_ign_view["_ordem"] = df_ign_view["Classe"].map(ordem_classe).fillna(3)
-            df_ign_view = df_ign_view.sort_values("_ordem").drop(columns="_ordem")
-            st.dataframe(df_ign_view, use_container_width=True, hide_index=True)
+            st.markdown("##### ⚠️ Grupos ignorados (sem regra)")
+            st.dataframe(df_ign, use_container_width=True, hide_index=True)
             st.caption(f"💰 Total ignorado: R$ {df_ign['Valor'].sum():,.2f}")
-            if n_investigar:
-                st.warning(f"❓ {n_investigar} grupo(s) em INVESTIGAR — confira antes de importar, "
-                           "pode ser regra nova ou catálogo mal rotulado no BI.")
-            if n_gap:
-                st.warning(f"🟡 {n_gap} grupo(s) em GAP — falta cadastrar regra (aba **Editar regras**).")
 
 
 # ===========================================================================
