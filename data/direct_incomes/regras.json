@@ -1,5 +1,5 @@
 {
-  "periodo": "2025Q4",
+  "periodo": "",
   "regras": [
     {
       "catalogo": "PREDELLA",
@@ -15,10 +15,16 @@
           "rights_pct": 50
         },
         {
-          "descricao": "(COSTA GOLD/ ONERPM) REALIZAVEL (50%)",
-          "money_out": "COSTA GOLD (REALIZAVEL) (LS - 45%)",
+          "descricao": "(COSTA GOLD/ ONERPM) REALIZAVEL - HITBILL (50%)",
+          "money_out": "COSTA GOLD (COSTA GOLD) (HITBILL) (LS - 7,5%)",
           "org_pct": 0,
-          "rights_pct": 50
+          "rights_pct": 7.5
+        },
+        {
+          "descricao": "(COSTA GOLD/ ONERPM) REALIZAVEL - NOG (50%)",
+          "money_out": "COSTA GOLD (COSTA GOLD) (NOG PRODUCOES) (LS - 42,5%)",
+          "org_pct": 0,
+          "rights_pct": 42.5
         }
       ]
     },
@@ -88,7 +94,7 @@
     {
       "catalogo": "TICO SANTA CRUZ",
       "fonte": "UBC",
-      "titular": null,
+      "titular": "TICO",
       "origem": null,
       "money_in": "UBC",
       "incomes": [
@@ -299,7 +305,7 @@
       "catalogo": "LAZAO",
       "fonte": "ABRAMUS",
       "titular": "POP MUNDI",
-      "origem": "VENDA CATALOGO",
+      "origem": "TRANSFERIDO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -314,7 +320,7 @@
       "catalogo": "LAZAO",
       "fonte": "ABRAMUS",
       "titular": "POP MUNDI",
-      "origem": "TRANSFERIDO",
+      "origem": "VENDA CATALOGO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
