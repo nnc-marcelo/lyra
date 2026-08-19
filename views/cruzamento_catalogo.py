@@ -1191,15 +1191,6 @@ if fonte == "ABRAMUS":
 
                     preview_dataframe(df_preview)
 
-                    xlsx_nao_mapeadas = df_to_xlsx_bytes(df_preview)
-                    st.download_button(
-                        "⬇️ Baixar obras não mapeadas (XLSX)",
-                        data=xlsx_nao_mapeadas,
-                        file_name=f"obras_nao_mapeadas_abramus_{period_suffix}.xlsx",
-                        mime=XLSX_MIME,
-                        type="secondary"
-                    )
-
                     if "CATEGORIA" in df_agrupado.columns:
                         st.markdown("**Distribuição por Categoria:**")
                         cat_stats = df_agrupado.groupby("CATEGORIA").agg({
