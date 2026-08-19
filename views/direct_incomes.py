@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -98,6 +99,12 @@ GAPS_CONHECIDOS = {
 # ---------------------------------------------------------------------------
 # Utilidades
 # ---------------------------------------------------------------------------
+def slug(value):
+    """Normaliza um texto (catálogo, fonte) pra usar no nome de arquivo."""
+    s = normalize(value).replace(" ", "_")
+    return re.sub(r"[^A-Za-z0-9_]+", "", s)
+
+
 def norm_date(value):
     if isinstance(value, pd.Timestamp):
         return value.strftime("%Y-%m-%d")
@@ -419,6 +426,8 @@ with tab_calc:
                     df_out, df_ign = processar(df_periodo, data)
                     st.session_state["di_result"] = df_out
                     st.session_state["di_ignorados"] = df_ign
+                    st.session_state["di_filtro_cat"] = cats_sel
+                    st.session_state["di_filtro_fonte"] = fontes_sel
                 if df_periodo.empty:
                     st.info("Nenhuma linha para processar com esse mês/catálogo(s).")
 
@@ -451,10 +460,21 @@ with tab_calc:
             csv_bytes = df_out.to_csv(index=False).encode("utf-8-sig")
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             per = (data.get("periodo") or "").strip() or "sem_periodo"
+
+            # Só entra catálogo/fonte no nome se o processamento foi filtrado —
+            # rodando tudo (sem filtro), o nome fica só com o período, como antes.
+            partes_nome = [f"direct_incomes_{per}"]
+            for f in st.session_state.get("di_filtro_cat") or []:
+                partes_nome.append(slug(f))
+            for f in st.session_state.get("di_filtro_fonte") or []:
+                partes_nome.append(slug(f))
+            partes_nome.append(ts)
+            file_name = "_".join(partes_nome) + ".csv"
+
             st.download_button(
                 "📥 Baixar CSV (Reprtoir)",
                 data=csv_bytes,
-                file_name=f"direct_incomes_{per}_{ts}.csv",
+                file_name=file_name,
                 mime="text/csv",
                 type="primary",
             )
