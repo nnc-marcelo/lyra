@@ -504,32 +504,33 @@ with tab_calc:
                         if len(df_extra):
                             st.markdown("**Incluir linhas fora do lote no processamento**")
                             st.caption(
-                                "Marcadas por padrão. Desmarque as que NÃO quiser incluir — as demais "
-                                "entram no cálculo deste mês como se o Motivo estivesse certo (o "
-                                "arquivo original na base continua igual; corrija lá quando puder)."
+                                "Desmarcadas por padrão. Marque as que quiser incluir — elas entram no "
+                                "cálculo deste mês como se o Motivo estivesse certo (o arquivo original "
+                                "na base continua igual; corrija lá quando puder)."
                             )
-                            df_extra_edit = df_extra.copy()
-                            if "Motivo" in df_extra_edit.columns:
-                                df_extra_edit["Motivo"] = df_extra_edit["Motivo"].apply(
-                                    lambda m: m if pd.notna(m) and str(m).strip() else "(vazio/em branco)"
-                                )
-                            df_extra_edit.insert(0, "Incluir", True)
-                            cols_show = [c for c in
-                                         ["Incluir", "Data", "Catalogo", "Fonte", "Titular", "Origem", "Valor", "Motivo"]
-                                         if c in df_extra_edit.columns]
-                            edited_extra = st.data_editor(
-                                df_extra_edit[cols_show],
-                                hide_index=True,
-                                use_container_width=True,
-                                disabled=[c for c in cols_show if c != "Incluir"],
-                                key="di_extra_editor",
-                                column_config={
-                                    "Incluir": st.column_config.CheckboxColumn("Incluir?", default=True),
-                                    "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
-                                },
-                            )
-                            idx_marcadas = edited_extra.index[edited_extra["Incluir"]]
-                            linhas_incluidas = df_extra.loc[df_extra.index.intersection(idx_marcadas)]
+
+                            chave_incluir = lambda idx: f"di_incluir_{mes_sel}_{idx}"  # noqa: E731
+
+                            def _marcar_todas_extra(valor, idxs=tuple(df_extra.index)):
+                                for idx in idxs:
+                                    st.session_state[chave_incluir(idx)] = valor
+
+                            cbtn1, cbtn2, _ = st.columns([1, 1, 2])
+                            cbtn1.button("☑️ Marcar todas", on_click=_marcar_todas_extra, args=(True,))
+                            cbtn2.button("⬜ Desmarcar todas", on_click=_marcar_todas_extra, args=(False,))
+
+                            idx_marcadas = []
+                            for idx, row in df_extra.iterrows():
+                                motivo = row.get("Motivo")
+                                motivo_txt = motivo if pd.notna(motivo) and str(motivo).strip() else "(vazio/em branco)"
+                                data_txt = row["Data"].strftime("%d/%m/%Y") if pd.notna(row["Data"]) else "-"
+                                label = (f"**{row['Catalogo']} / {row['Fonte']}** — "
+                                         f"R$ {row['Valor']:,.2f} — {data_txt} — Motivo: _{motivo_txt}_")
+                                marcado = st.checkbox(label, value=False, key=chave_incluir(idx))
+                                if marcado:
+                                    idx_marcadas.append(idx)
+
+                            linhas_incluidas = df_extra.loc[idx_marcadas]
                             if len(linhas_incluidas):
                                 st.caption(
                                     f"✅ {len(linhas_incluidas)} linha(s) marcada(s) — "
