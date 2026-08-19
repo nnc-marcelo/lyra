@@ -157,10 +157,7 @@ def rules_to_dataframe(regras):
 # Casamento de regras
 # ---------------------------------------------------------------------------
 def titular_match(rule_tit, row_tit):
-    """Match tolerante de titular (resolve 'Hele'/'Helena', etc.). A tolerância por
-    abreviação exige pelo menos 2 letras nas duas pontas — senão um nome de 1 letra
-    (ex.: o artista "Z") vira prefixo de qualquer titular que comece com essa letra
-    (ex.: "ZEIDER" casaria com a regra de "Z PRODUCOES")."""
+    """Match tolerante de titular (resolve 'Hele'/'Helena', 'Z Produções', etc.)."""
     a, b = normalize(rule_tit), normalize(row_tit)
     if not a:
         return True  # regra sem titular = curinga
@@ -168,9 +165,7 @@ def titular_match(rule_tit, row_tit):
         return True
     at = a.split()[0] if a else ""
     bt = b.split()[0] if b else ""
-    if len(at) < 2 or len(bt) < 2:
-        return False
-    return at.startswith(bt) or bt.startswith(at)
+    return bool(at and bt) and (at.startswith(bt) or bt.startswith(at))
 
 
 def origem_match(rule_org, row_org):
