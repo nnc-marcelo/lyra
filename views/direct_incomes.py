@@ -224,6 +224,51 @@ def classificar_ignorado(cat, fonte):
     return "INVESTIGAR", "Sem regra e não está na lista de exclusões esperadas."
 
 
+def cobertura_regras(regras, df_mes_di, df_mes_raw):
+    """Para cada (Catálogo, Fonte) cadastrado em `regras` (exceto os neutralizados,
+    que nunca entram no lote geral de propósito), confere se apareceu no mês:
+    - nas linhas já filtradas por Direct Income (rodou normal), ou
+    - só no extrato bruto, com QUALQUER Motivo (existe dado mas não entrou —
+      geralmente Motivo Processamento errado na base, como o caso do Celso
+      Fonseca/Costa & Valle que passou batido), ou
+    - em lugar nenhum (o catálogo simplesmente não recebeu nada este mês).
+    Devolve um DataFrame de diagnóstico, uma linha por (Catálogo, Fonte)."""
+    pares = sorted({
+        (r.get("catalogo", ""), r.get("fonte", ""))
+        for r in regras
+        if normalize(r.get("catalogo")) not in NEUTRALIZADOS
+    })
+    linhas = []
+    for cat, fonte in pares:
+        ncat, nfonte = normalize(cat), normalize(fonte)
+        mask_di = (df_mes_di["Catalogo"].map(normalize) == ncat) & (df_mes_di["Fonte"].map(normalize) == nfonte)
+        mask_raw = (df_mes_raw["Catalogo"].map(normalize) == ncat) & (df_mes_raw["Fonte"].map(normalize) == nfonte)
+        valor_di = round(float(df_mes_di.loc[mask_di, "Valor"].sum()), 2)
+        valor_raw = round(float(df_mes_raw.loc[mask_raw, "Valor"].sum()), 2)
+
+        if valor_di != 0:
+            status = "✅ Processado"
+        elif valor_raw != 0:
+            raw_sub = df_mes_raw.loc[mask_raw]
+            if "Motivo" in raw_sub.columns:
+                motivos = sorted({m if pd.notna(m) and str(m).strip() else "(vazio/em branco)"
+                                   for m in raw_sub["Motivo"]})
+                motivos_txt = ", ".join(str(m) for m in motivos)
+            else:
+                motivos_txt = "(coluna Motivo ausente no arquivo)"
+            status = f"🚨 Tem valor no extrato mas não entrou — Motivo: {motivos_txt}"
+        else:
+            status = "⚪ Sem movimento este mês"
+
+        linhas.append({
+            "Catálogo": cat, "Fonte": fonte,
+            "Valor Direct Income": valor_di,
+            "Valor no extrato bruto": valor_raw,
+            "Status": status,
+        })
+    return pd.DataFrame(linhas)
+
+
 def processar(df_norm, data):
     """Resolve a regra de cada linha e consolida POR REGRA CASADA (não por titular).
     Catálogos com regra geral (titular vazio) viram 1 grupo; catálogos com regras
@@ -352,6 +397,7 @@ with tab_calc:
 
     if uploaded is not None:
         df_norm, info = read_bi_extract(uploaded)
+        df_raw_all, _ = read_bi_extract(uploaded, apenas_direct_income=False)
         if df_norm is None:
             st.error(info["erro"])
             st.write("Colunas disponíveis:", info["disponiveis"])
@@ -396,6 +442,36 @@ with tab_calc:
                 )
 
                 df_mes = df_norm[meses_serie == mes_sel].copy()
+
+                # ---------------------------------------------------------------
+                # Cobertura de regras: valida se alguma regra cadastrada tinha
+                # dado no extrato deste mês mas não entrou no lote (ex.: Motivo
+                # Processamento errado na base) -- sem precisar caçar manualmente.
+                # ---------------------------------------------------------------
+                if df_raw_all is not None:
+                    meses_raw = df_raw_all["Data"].dt.strftime("%YM%m")
+                    df_mes_raw = df_raw_all[meses_raw == mes_sel]
+                    df_cov = cobertura_regras(data.get("regras", []), df_mes, df_mes_raw)
+                    n_alerta = int(df_cov["Status"].str.startswith("🚨").sum()) if len(df_cov) else 0
+                    n_ok = int(df_cov["Status"].str.startswith("✅").sum()) if len(df_cov) else 0
+                    n_sem = int(df_cov["Status"].str.startswith("⚪").sum()) if len(df_cov) else 0
+                    titulo_cov = f"🔍 Cobertura de regras em {mes_sel} — {n_ok} rodaram, {n_sem} sem movimento"
+                    if n_alerta:
+                        titulo_cov += f", {n_alerta} ⚠️ COM DADO MAS NÃO ENTROU"
+                    with st.expander(titulo_cov, expanded=bool(n_alerta)):
+                        st.caption(
+                            "Para cada regra cadastrada (Catálogo + Fonte), confere se ela apareceu nas "
+                            "linhas de Direct Income deste mês. Se não apareceu MAS existe valor no "
+                            "extrato bruto (qualquer Motivo), é sinal de que passou batido — geralmente "
+                            "`Motivo Processamento` errado ou vazio na base."
+                        )
+                        if n_alerta:
+                            st.error(f"🚨 {n_alerta} regra(s) com dado no extrato que não entraram no lote — confira antes de fechar o mês.")
+                        ordem_cov = {"🚨": 0, "⚪": 1, "✅": 2}
+                        df_cov_view = df_cov.copy()
+                        df_cov_view["_ordem"] = df_cov_view["Status"].str[0].map(ordem_cov).fillna(3)
+                        df_cov_view = df_cov_view.sort_values("_ordem").drop(columns="_ordem")
+                        st.dataframe(df_cov_view, use_container_width=True, hide_index=True)
 
                 c_cat, c_fonte = st.columns(2)
                 catalogos_disponiveis = sorted(df_mes["Catalogo"].unique())
