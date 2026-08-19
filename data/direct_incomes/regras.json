@@ -304,8 +304,8 @@
     {
       "catalogo": "LAZAO",
       "fonte": "ABRAMUS",
-      "titular": "POP MUNDI",
-      "origem": "TRANSFERIDO",
+      "titular": null,
+      "origem": "VENDA CATALOGO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -319,8 +319,8 @@
     {
       "catalogo": "LAZAO",
       "fonte": "ABRAMUS",
-      "titular": "POP MUNDI",
-      "origem": "VENDA CATALOGO",
+      "titular": null,
+      "origem": "TRANSFERIDO",
       "money_in": "ABRAMUS",
       "incomes": [
         {
@@ -328,27 +328,6 @@
           "money_out": "POP MUNDI - LAZAO (12,5%)",
           "org_pct": 60,
           "rights_pct": 40
-        }
-      ]
-    },
-    {
-      "catalogo": "CELSO FONSECA",
-      "fonte": "UBC",
-      "titular": "CELSO FONSECA",
-      "origem": null,
-      "money_in": "UBC",
-      "incomes": [
-        {
-          "descricao": "EXECUCAO PUBLICA - CELSO FONSECA - NN AQUISICAO (80%)",
-          "money_out": "NAS NUVENS (CELSO FONSECA) (PS - 80%)",
-          "org_pct": 0,
-          "rights_pct": 80
-        },
-        {
-          "descricao": "EXECUCAO PUBLICA - CELSO FONSECA - RECUPERAVEL (20%)",
-          "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
-          "org_pct": 5,
-          "rights_pct": 15
         }
       ]
     },
@@ -367,27 +346,6 @@
         },
         {
           "descricao": "EXECUCAO PUBLICA - CELSO FONSECA + POLAROIDES - RECUPERAVEL (20%)",
-          "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
-          "org_pct": 5,
-          "rights_pct": 15
-        }
-      ]
-    },
-    {
-      "catalogo": "CELSO FONSECA",
-      "fonte": "UBC",
-      "titular": "POLAROIDE",
-      "origem": null,
-      "money_in": "UBC",
-      "incomes": [
-        {
-          "descricao": "EXECUCAO PUBLICA - POLAROIDES (PF) - NN AQUISICAO (80%)",
-          "money_out": "NAS NUVENS (CELSO FONSECA) (PS - 80%)",
-          "org_pct": 0,
-          "rights_pct": 80
-        },
-        {
-          "descricao": "EXECUCAO PUBLICA - POLAROIDES (PF) - RECUPERAVEL (20%)",
           "money_out": "CELSO FONSECA (CELSO FONSECA) (POLAROIDES) (PS - 20%)",
           "org_pct": 5,
           "rights_pct": 15
@@ -544,7 +502,7 @@
     {
       "catalogo": "LUIZA POSSI",
       "fonte": "ABRAMUS",
-      "titular": "LUIZA POSSI",
+      "titular": null,
       "origem": "VENDA CATALOGO",
       "money_in": "ABRAMUS",
       "incomes": [
@@ -574,7 +532,7 @@
     {
       "catalogo": "LUIZA POSSI",
       "fonte": "ABRAMUS",
-      "titular": "LUIZA POSSI",
+      "titular": null,
       "origem": "TRANSFERIDO",
       "money_in": "ABRAMUS",
       "incomes": [
@@ -667,7 +625,7 @@
     {
       "catalogo": "ZEIDER",
       "fonte": "ABRAMUS",
-      "titular": "ZEIDER",
+      "titular": null,
       "origem": "VENDA CATALOGO",
       "money_in": "ABRAMUS",
       "incomes": [
@@ -682,7 +640,7 @@
     {
       "catalogo": "ZEIDER",
       "fonte": "ABRAMUS",
-      "titular": "ZEIDER",
+      "titular": null,
       "origem": "TRANSFERIDO",
       "money_in": "ABRAMUS",
       "incomes": [
