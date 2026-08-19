@@ -224,14 +224,37 @@ def classificar_ignorado(cat, fonte):
     return "INVESTIGAR", "Sem regra e não está na lista de exclusões esperadas."
 
 
-def cobertura_regras(regras, df_mes_di, df_mes_raw):
+def linhas_fora_do_lote(regras, df_mes_di, df_mes_raw):
+    """Linhas do extrato BRUTO do mês (índice original preservado) que têm
+    Catálogo+Fonte com regra cadastrada mas NÃO estão no conjunto já filtrado
+    por Direct Income — Motivo errado/vazio na base, tipicamente. Compara por
+    índice (não por soma), então também pega o caso de um catálogo com ALGUMAS
+    linhas certas e outras com Motivo errado no mesmo mês. Devolve as
+    transações uma a uma, pra revisão e inclusão manual."""
+    pares_validos = {
+        (normalize(r.get("catalogo")), normalize(r.get("fonte")))
+        for r in regras
+        if normalize(r.get("catalogo")) not in NEUTRALIZADOS
+    }
+    extra_idx = df_mes_raw.index.difference(df_mes_di.index)
+    extra = df_mes_raw.loc[extra_idx]
+    if extra.empty:
+        return extra
+    mask = extra.apply(
+        lambda row: (normalize(row["Catalogo"]), normalize(row["Fonte"])) in pares_validos, axis=1
+    )
+    return extra.loc[mask]
+
+
+def cobertura_regras(regras, df_mes_di, df_extra):
     """Para cada (Catálogo, Fonte) cadastrado em `regras` (exceto os neutralizados,
-    que nunca entram no lote geral de propósito), confere se apareceu no mês:
-    - nas linhas já filtradas por Direct Income (rodou normal), ou
-    - só no extrato bruto, com QUALQUER Motivo (existe dado mas não entrou —
-      geralmente Motivo Processamento errado na base, como o caso do Celso
-      Fonseca/Costa & Valle que passou batido), ou
-    - em lugar nenhum (o catálogo simplesmente não recebeu nada este mês).
+    que nunca entram no lote geral de propósito), confere o mês:
+    - rodou normal (tem linha nas já filtradas por Direct Income e nada ficou
+      de fora), ou
+    - tem linha fora do lote (`df_extra`, de `linhas_fora_do_lote`) — existe
+      dado no extrato mas não entrou, geralmente Motivo Processamento errado
+      na base (foi o caso do Celso Fonseca/Costa & Valle), ou
+    - sem movimento (o catálogo simplesmente não recebeu nada este mês).
     Devolve um DataFrame de diagnóstico, uma linha por (Catálogo, Fonte)."""
     pares = sorted({
         (r.get("catalogo", ""), r.get("fonte", ""))
@@ -241,29 +264,31 @@ def cobertura_regras(regras, df_mes_di, df_mes_raw):
     linhas = []
     for cat, fonte in pares:
         ncat, nfonte = normalize(cat), normalize(fonte)
-        mask_di = (df_mes_di["Catalogo"].map(normalize) == ncat) & (df_mes_di["Fonte"].map(normalize) == nfonte)
-        mask_raw = (df_mes_raw["Catalogo"].map(normalize) == ncat) & (df_mes_raw["Fonte"].map(normalize) == nfonte)
-        valor_di = round(float(df_mes_di.loc[mask_di, "Valor"].sum()), 2)
-        valor_raw = round(float(df_mes_raw.loc[mask_raw, "Valor"].sum()), 2)
+        valor_di = round(float(df_mes_di.loc[
+            (df_mes_di["Catalogo"].map(normalize) == ncat) & (df_mes_di["Fonte"].map(normalize) == nfonte),
+            "Valor"].sum()), 2)
+        extra_sub = df_extra.loc[
+            (df_extra["Catalogo"].map(normalize) == ncat) & (df_extra["Fonte"].map(normalize) == nfonte)
+        ] if len(df_extra) else df_extra
+        valor_extra = round(float(extra_sub["Valor"].sum()), 2) if len(extra_sub) else 0.0
 
-        if valor_di != 0:
-            status = "✅ Processado"
-        elif valor_raw != 0:
-            raw_sub = df_mes_raw.loc[mask_raw]
-            if "Motivo" in raw_sub.columns:
+        if valor_extra != 0:
+            if "Motivo" in extra_sub.columns:
                 motivos = sorted({m if pd.notna(m) and str(m).strip() else "(vazio/em branco)"
-                                   for m in raw_sub["Motivo"]})
+                                   for m in extra_sub["Motivo"]})
                 motivos_txt = ", ".join(str(m) for m in motivos)
             else:
                 motivos_txt = "(coluna Motivo ausente no arquivo)"
-            status = f"🚨 Tem valor no extrato mas não entrou — Motivo: {motivos_txt}"
+            status = f"🚨 R$ {valor_extra:,.2f} fora do lote — Motivo: {motivos_txt}"
+        elif valor_di != 0:
+            status = "✅ Processado"
         else:
             status = "⚪ Sem movimento este mês"
 
         linhas.append({
             "Catálogo": cat, "Fonte": fonte,
             "Valor Direct Income": valor_di,
-            "Valor no extrato bruto": valor_raw,
+            "Valor fora do lote": valor_extra,
             "Status": status,
         })
     return pd.DataFrame(linhas)
@@ -447,11 +472,14 @@ with tab_calc:
                 # Cobertura de regras: valida se alguma regra cadastrada tinha
                 # dado no extrato deste mês mas não entrou no lote (ex.: Motivo
                 # Processamento errado na base) -- sem precisar caçar manualmente.
+                # Deixa incluir essas linhas no processamento, revisão por revisão.
                 # ---------------------------------------------------------------
+                linhas_incluidas = df_mes.iloc[0:0]
                 if df_raw_all is not None:
                     meses_raw = df_raw_all["Data"].dt.strftime("%YM%m")
                     df_mes_raw = df_raw_all[meses_raw == mes_sel]
-                    df_cov = cobertura_regras(data.get("regras", []), df_mes, df_mes_raw)
+                    df_extra = linhas_fora_do_lote(data.get("regras", []), df_mes, df_mes_raw)
+                    df_cov = cobertura_regras(data.get("regras", []), df_mes, df_extra)
                     n_alerta = int(df_cov["Status"].str.startswith("🚨").sum()) if len(df_cov) else 0
                     n_ok = int(df_cov["Status"].str.startswith("✅").sum()) if len(df_cov) else 0
                     n_sem = int(df_cov["Status"].str.startswith("⚪").sum()) if len(df_cov) else 0
@@ -473,13 +501,50 @@ with tab_calc:
                         df_cov_view = df_cov_view.sort_values("_ordem").drop(columns="_ordem")
                         st.dataframe(df_cov_view, use_container_width=True, hide_index=True)
 
+                        if len(df_extra):
+                            st.markdown("**Incluir linhas fora do lote no processamento**")
+                            st.caption(
+                                "Marcadas por padrão. Desmarque as que NÃO quiser incluir — as demais "
+                                "entram no cálculo deste mês como se o Motivo estivesse certo (o "
+                                "arquivo original na base continua igual; corrija lá quando puder)."
+                            )
+                            df_extra_edit = df_extra.copy()
+                            if "Motivo" in df_extra_edit.columns:
+                                df_extra_edit["Motivo"] = df_extra_edit["Motivo"].apply(
+                                    lambda m: m if pd.notna(m) and str(m).strip() else "(vazio/em branco)"
+                                )
+                            df_extra_edit.insert(0, "Incluir", True)
+                            cols_show = [c for c in
+                                         ["Incluir", "Data", "Catalogo", "Fonte", "Titular", "Origem", "Valor", "Motivo"]
+                                         if c in df_extra_edit.columns]
+                            edited_extra = st.data_editor(
+                                df_extra_edit[cols_show],
+                                hide_index=True,
+                                use_container_width=True,
+                                disabled=[c for c in cols_show if c != "Incluir"],
+                                key="di_extra_editor",
+                                column_config={
+                                    "Incluir": st.column_config.CheckboxColumn("Incluir?", default=True),
+                                    "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+                                },
+                            )
+                            idx_marcadas = edited_extra.index[edited_extra["Incluir"]]
+                            linhas_incluidas = df_extra.loc[df_extra.index.intersection(idx_marcadas)]
+                            if len(linhas_incluidas):
+                                st.caption(
+                                    f"✅ {len(linhas_incluidas)} linha(s) marcada(s) — "
+                                    f"R$ {linhas_incluidas['Valor'].sum():,.2f} — entram junto no processamento abaixo."
+                                )
+
+                df_mes_efetivo = pd.concat([df_mes, linhas_incluidas]) if len(linhas_incluidas) else df_mes
+
                 c_cat, c_fonte = st.columns(2)
-                catalogos_disponiveis = sorted(df_mes["Catalogo"].unique())
+                catalogos_disponiveis = sorted(df_mes_efetivo["Catalogo"].unique())
                 cats_sel = c_cat.multiselect(
                     "Filtrar catálogo(s) (opcional — vazio = todos os catálogos do mês)",
                     catalogos_disponiveis,
                 )
-                df_cat = df_mes[df_mes["Catalogo"].isin(cats_sel)] if cats_sel else df_mes
+                df_cat = df_mes_efetivo[df_mes_efetivo["Catalogo"].isin(cats_sel)] if cats_sel else df_mes_efetivo
 
                 fontes_disponiveis = sorted(df_cat["Fonte"].unique())
                 fontes_sel = c_fonte.multiselect(
@@ -489,6 +554,8 @@ with tab_calc:
                 df_periodo = df_cat[df_cat["Fonte"].isin(fontes_sel)] if fontes_sel else df_cat
 
                 partes_mes = [f"{len(df_mes)} linhas em {mes_sel}"]
+                if len(linhas_incluidas):
+                    partes_mes.append(f"+{len(linhas_incluidas)} incluída(s) manualmente")
                 if cats_sel:
                     partes_mes.append(f"{len(df_cat)} após filtro de catálogo")
                 if fontes_sel:
