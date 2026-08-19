@@ -34,7 +34,9 @@ importar no Reprtoir.
 **Como filtra**
 
 Usa apenas as linhas de **Direct Income** (coluna `Motivo Processamento`). Rodapés do BI (Total,
-"Filtros aplicados") são descartados. O extrato exportado do BI já vem do período escolhido.
+"Filtros aplicados") são descartados. Você pode subir o **histórico inteiro** do extrato (vários
+meses de uma vez): a página lista os meses encontrados na coluna `Data` (data de recebimento) e você
+escolhe qual processar. Também dá pra restringir a um ou alguns **catálogos** específicos.
 
 **Como calcula (regras)**
 
@@ -49,10 +51,12 @@ split dele depende de cada obra ser adquirida ou não. Aqui ele é ignorado de p
 
 **Como usar**
 
-1. Defina o **período** (prefixo dos nomes das receitas, ex.: `2026M04`).
-2. Na aba **Calcular**, faça o upload do extrato (xlsx/csv) e clique em **Processar receitas**.
-3. Confira a validação de totais e baixe o **CSV (Reprtoir)**.
-4. Gere o Douglas pela página dele e junte ao import final.
+1. Na aba **Calcular**, faça o upload do extrato (xlsx/csv) — pode ser o histórico inteiro.
+2. Escolha o **mês a processar** (detectado a partir da coluna `Data`) e, se quiser, um ou mais
+   **catálogos** para restringir.
+3. Defina o **período** (prefixo dos nomes das receitas, ex.: `2026M04`) e clique em **Processar receitas**.
+4. Confira a validação de totais e baixe o **CSV (Reprtoir)**.
+5. Gere o Douglas pela página dele e junte ao import final.
 """
     )
 
@@ -311,6 +315,7 @@ periodo = st.text_input(
     "Período (prefixo dos nomes das receitas)",
     value=data.get("periodo", ""),
     help="Ex.: 2026M04. Aplicado automaticamente no início de cada nome de receita.",
+    key="di_periodo",
 )
 if periodo != data.get("periodo", ""):
     data["periodo"] = periodo  # calc usa o valor atual; é gravado ao salvar uma regra
@@ -328,12 +333,13 @@ with tab_calc:
     st.caption(
         "O arquivo deve conter as colunas: `Data`, `Catalogo`, `Fonte`, "
         "`Titular / Conta`, `Origem/Detalhe`, `Valor BRL` e `Motivo Processamento`. "
+        "Pode ser o **histórico inteiro** (vários meses) — o mês é escolhido depois do upload. "
         "Linhas de rodapé (Total, Filtros aplicados) e que não sejam de **Direct Income** "
         "(pela coluna Motivo) são ignoradas."
     )
 
     uploaded = st.file_uploader(
-        "Faça o upload do extrato do BI (.xlsx, .xls ou .csv)",
+        "Faça o upload do extrato do BI (.xlsx, .xls ou .csv) — histórico completo ou só um período",
         type=["xlsx", "xls", "csv"],
     )
 
@@ -350,13 +356,52 @@ with tab_calc:
                 partes.append(f"{info['n_final']} de Direct Income")
             st.success(" · ".join(partes) + ".")
 
-            with st.expander("Ver dados lidos"):
-                st.dataframe(df_norm, use_container_width=True, hide_index=True)
+            meses_serie = df_norm["Data"].dt.strftime("%YM%m")
+            meses_disponiveis = sorted(
+                (m for m in meses_serie.dropna().unique()), reverse=True
+            )
 
-            if st.button("Processar receitas", type="primary"):
-                df_out, df_ign = processar(df_norm, data)
-                st.session_state["di_result"] = df_out
-                st.session_state["di_ignorados"] = df_ign
+            if not meses_disponiveis:
+                st.warning("Nenhuma linha com `Data` válida encontrada — não dá pra escolher o mês.")
+            else:
+                c_mes, c_btn = st.columns([3, 1])
+                default_idx = meses_disponiveis.index(periodo) if periodo in meses_disponiveis else 0
+                mes_sel = c_mes.selectbox(
+                    "Mês a processar (detectado pela coluna Data = recebimento)",
+                    meses_disponiveis,
+                    index=default_idx,
+                    help="Regra do projeto: o período é o mês de RECEBIMENTO (coluna Data), "
+                         "não o rótulo de lote (Mês Processamento).",
+                )
+                c_btn.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                if c_btn.button("↳ Usar como período", help=f"Preenche o campo Período acima com {mes_sel}"):
+                    st.session_state["di_periodo"] = mes_sel
+                    data["periodo"] = mes_sel
+                    st.rerun()
+
+                df_mes = df_norm[meses_serie == mes_sel].copy()
+
+                catalogos_disponiveis = sorted(df_mes["Catalogo"].unique())
+                cats_sel = st.multiselect(
+                    "Filtrar catálogo(s) (opcional — vazio = processa todos os catálogos do mês)",
+                    catalogos_disponiveis,
+                )
+                df_periodo = df_mes[df_mes["Catalogo"].isin(cats_sel)] if cats_sel else df_mes
+
+                partes_mes = [f"{len(df_mes)} linhas em {mes_sel}"]
+                if cats_sel:
+                    partes_mes.append(f"{len(df_periodo)} após filtro de catálogo")
+                st.caption(" · ".join(partes_mes) + ".")
+
+                with st.expander("Ver dados filtrados"):
+                    st.dataframe(df_periodo, use_container_width=True, hide_index=True)
+
+                if st.button("Processar receitas", type="primary", disabled=df_periodo.empty):
+                    df_out, df_ign = processar(df_periodo, data)
+                    st.session_state["di_result"] = df_out
+                    st.session_state["di_ignorados"] = df_ign
+                if df_periodo.empty:
+                    st.info("Nenhuma linha para processar com esse mês/catálogo(s).")
 
     # Resultado (persiste no estado para não sumir ao baixar)
     if "di_result" in st.session_state:
