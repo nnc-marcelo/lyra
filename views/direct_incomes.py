@@ -370,27 +370,46 @@ with tab_calc:
                     "Mês a processar (detectado pela coluna Data = recebimento)",
                     meses_disponiveis,
                     index=default_idx,
+                    key="di_mes_sel",
                     help="Regra do projeto: o período é o mês de RECEBIMENTO (coluna Data), "
                          "não o rótulo de lote (Mês Processamento).",
                 )
+
+                def _usar_mes_como_periodo():
+                    # Não dá pra escrever em st.session_state["di_periodo"] direto aqui embaixo:
+                    # o widget do campo Período já foi instanciado mais acima no script. Um
+                    # callback de on_click roda ANTES do rerun, então é seguro.
+                    st.session_state["di_periodo"] = st.session_state["di_mes_sel"]
+
                 c_btn.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-                if c_btn.button("↳ Usar como período", help=f"Preenche o campo Período acima com {mes_sel}"):
-                    st.session_state["di_periodo"] = mes_sel
-                    data["periodo"] = mes_sel
-                    st.rerun()
+                c_btn.button(
+                    "↳ Usar como período",
+                    help=f"Preenche o campo Período acima com {mes_sel}",
+                    on_click=_usar_mes_como_periodo,
+                )
 
                 df_mes = df_norm[meses_serie == mes_sel].copy()
 
+                c_cat, c_fonte = st.columns(2)
                 catalogos_disponiveis = sorted(df_mes["Catalogo"].unique())
-                cats_sel = st.multiselect(
-                    "Filtrar catálogo(s) (opcional — vazio = processa todos os catálogos do mês)",
+                cats_sel = c_cat.multiselect(
+                    "Filtrar catálogo(s) (opcional — vazio = todos os catálogos do mês)",
                     catalogos_disponiveis,
                 )
-                df_periodo = df_mes[df_mes["Catalogo"].isin(cats_sel)] if cats_sel else df_mes
+                df_cat = df_mes[df_mes["Catalogo"].isin(cats_sel)] if cats_sel else df_mes
+
+                fontes_disponiveis = sorted(df_cat["Fonte"].unique())
+                fontes_sel = c_fonte.multiselect(
+                    "Filtrar fonte(s) (opcional — vazio = todas as fontes)",
+                    fontes_disponiveis,
+                )
+                df_periodo = df_cat[df_cat["Fonte"].isin(fontes_sel)] if fontes_sel else df_cat
 
                 partes_mes = [f"{len(df_mes)} linhas em {mes_sel}"]
                 if cats_sel:
-                    partes_mes.append(f"{len(df_periodo)} após filtro de catálogo")
+                    partes_mes.append(f"{len(df_cat)} após filtro de catálogo")
+                if fontes_sel:
+                    partes_mes.append(f"{len(df_periodo)} após filtro de fonte")
                 st.caption(" · ".join(partes_mes) + ".")
 
                 with st.expander("Ver dados filtrados"):
