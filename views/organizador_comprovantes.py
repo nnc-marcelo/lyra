@@ -1,23 +1,28 @@
 """
-Organizador de Comprovantes — ABRAMUS / UBC
+Organizador de Comprovantes — ABRAMUS / UBC / SONY
 
-Recebe o .zip de comprovantes baixado do portal (ABRAMUS ou UBC), identifica de
-qual conta/artista é cada arquivo (pelo código ECAD no nome) e devolve um .zip
-já organizado na estrutura de pastas usada na base
-(Artista\\<ENTIDADE>\\Conta\\Ano\\Mês\\arquivo), pronto pra extrair e colar.
+Recebe o .zip de comprovantes baixado do portal (ABRAMUS, UBC) ou o .zip de
+lote gerado pelo downloader (Sony — ver build_lote_zip_for_lyra em
+rpa-royalties/adapters/run_sony_all_available.py), identifica de qual
+conta/artista é cada arquivo e devolve um .zip já organizado na estrutura de
+pastas usada na base (Artista\\<ENTIDADE>\\Conta\\Ano\\Mês\\arquivo), pronto
+pra extrair e colar.
 
 A entidade é escolhida num seletor na barra lateral — o fluxo é idêntico pras
-duas; só muda o padrão de código no nome do arquivo e o mapeamento de
-credenciais usado.
+três; só muda como o código é extraído (ABRAMUS/UBC: token no nome do
+arquivo; Sony: mesmo assim, mas a identidade do órfão vem do nome da pasta,
+não de ler o PDF) e o mapeamento de credenciais usado.
 
 Não escreve em lugar nenhum da base, não mexe em credencial nenhuma, e não
 guarda nada do que for enviado — tudo é processado em memória e descartado ao
 fim da sessão.
 
-Os mapeamentos (data/mapping/{abramus,ubc}_credentials_map.json) só têm código
-ECAD, nome de artista/conta e caminho relativo — sem login nem senha. Cada um
-precisa ser regerado (pelos exporters export_{abramus,ubc}_mapping_to_lyra.py em
-rpa-royalties) sempre que uma credencial nova for cadastrada na base.
+Os mapeamentos (data/mapping/{abramus,ubc,sony}_credentials_map.json) só têm
+código, nome de artista/conta e caminho relativo — sem login nem senha. Cada
+um precisa ser regerado (pelos exporters
+export_{abramus,ubc,sony}_mapping_to_lyra.py em rpa-royalties) sempre que uma
+credencial nova for cadastrada na base — o que a própria página já faz
+sozinha ao cadastrar (ver _register_credential).
 """
 
 import html
@@ -56,6 +61,10 @@ _ABRAMUS_FILE_RE = re.compile(r"_201_0*(\d+)")
 # UBC: demonstrativo nacional no token _093_XXXXXXXX. Os demais (INT, REC) não
 # têm token de tipo — o código ECAD é o 4º campo separado por "_".
 _UBC_FILE_RE = re.compile(r"_093_(\d+)")
+# Sony: nome sempre começa com "<AAAA><MESABR>_<código>_..." (ex.:
+# "2026JUN_1291422_1414543.pdf", "..._Detail.txt") — confirmado direto nos
+# arquivos baixados pelo run_sony_all_available.py.
+_SONY_FILE_RE = re.compile(r"^\d{4}[A-Z]{3}_(\d+)_")
 
 
 def extract_code_abramus(name: str):
@@ -83,6 +92,11 @@ def extract_code_ubc(name: str):
     return _extract_ubc_positional(name)
 
 
+def extract_code_sony(name: str):
+    m = _SONY_FILE_RE.search(name)
+    return str(int(m.group(1))) if m else None
+
+
 # ---------------------------------------------------------------------------
 # Palpite de identidade a partir do PDF — específico da ABRAMUS
 # ---------------------------------------------------------------------------
@@ -91,11 +105,12 @@ _ABRAMUS_ANCHOR_RE = re.compile(r"ABRAMUS\s*(\d+)", re.IGNORECASE)
 _LEFT_COLUMN_FRACTION = 0.68
 
 
-def extract_identity_abramus(pdf_bytes: bytes, code=None) -> dict:
+def extract_identity_abramus(pdf_bytes: bytes, code=None, source_path=None) -> dict:
     """Melhor esforço: lê a coluna esquerda da 1ª página e usa a linha
     'ABRAMUS<código>' como âncora pra achar titular/artista. Se não achar,
-    devolve vazio — a pessoa vê só o código mesmo. (`code` é ignorado aqui; existe
-    só pra manter a assinatura igual à da UBC, que ancora pelo código ECAD.)"""
+    devolve vazio — a pessoa vê só o código mesmo. (`code`/`source_path` são
+    ignorados aqui; existem só pra manter a assinatura igual à das outras
+    entidades — `source_path` é usado pela Sony, que ancora pela pasta.)"""
     info = {"holder_name": None, "artist_name": None, "abramus_code": None}
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -143,10 +158,11 @@ _UBC_DEM_ECAD_RE = re.compile(r"COD\s*ECAD:\s*0*(\d+)", re.IGNORECASE)
 _UBC_REC_ECAD_RE = re.compile(r"ECAD:\s*0*(\d+)", re.IGNORECASE)
 
 
-def extract_identity_ubc(pdf_bytes: bytes, code=None) -> dict:
+def extract_identity_ubc(pdf_bytes: bytes, code=None, source_path=None) -> dict:
     """Melhor esforço: acha titular (e artista, quando houver) na 1ª página,
     ancorando no código ECAD. Cobre demonstrativo e recibo. Se não achar,
-    devolve vazio — a pessoa vê só o código mesmo."""
+    devolve vazio — a pessoa vê só o código mesmo. (`source_path` ignorado
+    aqui — ver nota em extract_identity_abramus.)"""
     info = {"holder_name": None, "artist_name": None, "ubc_code": None}
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -185,6 +201,34 @@ def extract_identity_ubc(pdf_bytes: bytes, code=None) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Palpite de identidade — específico da Sony
+# ---------------------------------------------------------------------------
+#
+# Diferente de ABRAMUS/UBC, aqui não precisa ler o PDF: o downloader
+# (build_lote_zip_for_lyra em rpa-royalties) já organiza cada arquivo dentro
+# de uma pasta '<código> - <titular>' — mesmo padrão usado tanto pros
+# cadastrados quanto pros órfãos (_ORPHANS\SONY\<código> - <nome>). O nome da
+# pasta é mais confiável que tentar adivinhar pelo texto do PDF.
+
+_SONY_FOLDER_RE = re.compile(r"^\d+\s*-\s*(.+)$")
+
+
+def extract_identity_sony(pdf_bytes: bytes, code=None, source_path=None) -> dict:
+    """Pega o titular do nome da pasta pai no .zip ('<código> - <titular>').
+    `pdf_bytes`/`code` existem só pra manter a assinatura igual às outras
+    entidades — não são usados aqui."""
+    info = {"holder_name": None, "artist_name": None}
+    if not source_path:
+        return info
+    for part in source_path.split("/"):
+        m = _SONY_FOLDER_RE.match(part.strip())
+        if m:
+            info["holder_name"] = m.group(1).strip()
+            break
+    return info
+
+
+# ---------------------------------------------------------------------------
 # Configuração por entidade
 # ---------------------------------------------------------------------------
 
@@ -196,6 +240,16 @@ ENTITIES = {
         "filename_hint": "..._201_XXXXXXXX...",
         "pdf_identity": extract_identity_abramus,
         "portal_id": None,  # schema do portal ABRAMUS difere; cadastro não automatizado aqui
+        "path_segment": "ABRAMUS",
+    },
+    "SONY": {
+        "mapping_file": "sony_credentials_map.json",
+        "extract_code": extract_code_sony,
+        "folder": "SONY",
+        "filename_hint": "AAAAMES_CODIGO_... (ex.: 2026JUN_1291422_1414543.pdf)",
+        "pdf_identity": extract_identity_sony,
+        "portal_id": "sony_portal",
+        "path_segment": "SONY MUSIC PUBLISHING",
     },
     "UBC": {
         "mapping_file": "ubc_credentials_map.json",
@@ -204,6 +258,7 @@ ENTITIES = {
         "filename_hint": "..._093_XXXXXXXX... (nacional) ou ..._<ECAD>_INT/REC... (internacional)",
         "pdf_identity": extract_identity_ubc,
         "portal_id": "ubc_portal",  # cadastro direto habilitado (ver bloco "Cadastro de credencial")
+        "path_segment": "UBC",
     },
 }
 
@@ -230,20 +285,37 @@ def month_folder_name(year: int, month: int) -> str:
     return f"{month:02d}. {mm} {str(year)[-2:]}"
 
 
+_EN_MONTH_ABBR = {
+    "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+    "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
+}
+# Sony: ano colado no mês em inglês, sem separador (ex.: "2026JUN_1291422_...").
+_SONY_DATE_RE = re.compile(r"(?P<y>20\d{2})(?P<mon>JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)_")
+
+
 def extract_year_month(name: str):
     """Ano/mês no início do nome; fallback em qualquer posição, pra nomes
-    prefixados (ex.: 'DEM. INTERNACIONAL(2026_05_...)')."""
+    prefixados (ex.: 'DEM. INTERNACIONAL(2026_05_...)'). Cobre também o
+    padrão da Sony ('2026JUN_...')."""
     m = re.match(r"^(?P<y>20\d{2})_(?P<m>\d{1,2})[_\-]", name)
     if not m:
         m = re.search(r"(?P<y>20\d{2})_(?P<m>\d{1,2})[_\-]", name)
     if m:
         return int(m.group("y")), int(m.group("m"))
+    m = _SONY_DATE_RE.search(name)
+    if m:
+        return int(m.group("y")), _EN_MONTH_ABBR[m.group("mon")]
     return None, None
 
 
-def collect_zip_files(uploaded_zip: zipfile.ZipFile, extract_code) -> list[tuple[str, bytes]]:
+def collect_zip_files(uploaded_zip: zipfile.ZipFile, extract_code) -> list[tuple[str, bytes, str]]:
     """Extrai recursivamente: arquivos soltos e o conteúdo de zips aninhados
-    (ex.: _REC.zip, _VCV.zip), sempre que reconhecer o padrão de código."""
+    (ex.: _REC.zip, _VCV.zip), sempre que reconhecer o padrão de código.
+
+    Devolve (nome, conteúdo, caminho_original_no_zip) — o caminho preserva a
+    estrutura de pastas (ex.: '<código> - <nome>/2026/06. Jun 26/arquivo.pdf'
+    no lote da Sony), usado como pista de identidade por algumas entidades
+    (ver extract_identity_sony)."""
     collected = []
     for item in uploaded_zip.namelist():
         if item.endswith("/"):
@@ -259,18 +331,19 @@ def collect_zip_files(uploaded_zip: zipfile.ZipFile, extract_code) -> list[tuple
                         inner_name = inner_item.rsplit("/", 1)[-1]
                         if extract_code(inner_name) is None:
                             continue
-                        collected.append((inner_name, inner_zip.read(inner_item)))
+                        collected.append((inner_name, inner_zip.read(inner_item), f"{item}/{inner_item}"))
             except zipfile.BadZipFile:
                 continue
         elif extract_code(name) is not None:
-            collected.append((name, uploaded_zip.read(item)))
+            collected.append((name, uploaded_zip.read(item), item))
 
-    # dedup: mesmo nome de arquivo pode vir tanto solto quanto de dois zips
-    # aninhados diferentes (ex.: zip individual + zip "mestre" da conta master)
+    # dedup por caminho completo (não só nome) — um lote Sony junta vários
+    # titulares num zip só, então nomes de arquivo podem colidir entre pastas
+    # diferentes mesmo sem ser duplicata de verdade.
     dedup = {}
-    for name, content in collected:
-        dedup[name] = content
-    return list(dedup.items())
+    for name, content, source_path in collected:
+        dedup[source_path] = (name, content, source_path)
+    return list(dedup.values())
 
 
 def render_credentials_table(rows: list, query: str = ""):
@@ -322,15 +395,15 @@ def build_coverage(rows: list, account_counter: dict) -> list:
     return coverage
 
 
-def organize(files: list[tuple[str, bytes]], mapping: dict, extract_code, folder: str, pdf_identity):
+def organize(files: list[tuple[str, bytes, str]], mapping: dict, extract_code, folder: str, pdf_identity):
     """Retorna (zip_bytes, resumo_por_conta, orfaos) onde orfaos é uma lista
     de dicts com código, arquivo de exemplo e melhor palpite de identidade."""
     out_buffer = io.BytesIO()
     account_counter = defaultdict(int)
-    orphan_codes = defaultdict(list)  # code -> [(name, bytes), ...]
+    orphan_codes = defaultdict(list)  # code -> [(name, bytes, source_path), ...]
 
     with zipfile.ZipFile(out_buffer, "w", zipfile.ZIP_DEFLATED) as out_zip:
-        for name, content in files:
+        for name, content, source_path in files:
             code = extract_code(name)
             year, month = extract_year_month(name)
             if not code or not year or not month:
@@ -342,7 +415,7 @@ def organize(files: list[tuple[str, bytes]], mapping: dict, extract_code, folder
                 account_counter[(cred["artist"], cred["account"])] += 1
             else:
                 base = f"_ORPHANS\\{folder}\\CODE_{code}"
-                orphan_codes[code].append((name, content))
+                orphan_codes[code].append((name, content, source_path))
 
             dest = f"{base}\\{year}\\{month_folder_name(year, month)}\\{name}".replace("\\", "/")
             out_zip.writestr(dest, content)
@@ -355,10 +428,10 @@ def organize(files: list[tuple[str, bytes]], mapping: dict, extract_code, folder
             # recibo só titular. Guarda o 1º não-vazio como fallback, mas segue
             # procurando um completo (pros códigos que só têm recibo, ou cujo 1º
             # PDF é um ajuste/recibo sem nome artístico).
-            for n, c in entries:
+            for n, c, sp in entries:
                 if not n.lower().endswith(".pdf"):
                     continue
-                cand = pdf_identity(c, code) or {}
+                cand = pdf_identity(c, code, sp) or {}
                 if not (cand.get("holder_name") or cand.get("artist_name")):
                     continue
                 if cand.get("holder_name") and cand.get("artist_name"):
@@ -381,44 +454,62 @@ def organize(files: list[tuple[str, bytes]], mapping: dict, extract_code, folder
 # ---------------------------------------------------------------------------
 #
 # A fonte de verdade das credenciais NÃO é o lyra: é
-# rpa-royalties/config/portals/ubc_portal.json (repo privado, com login/senha).
-# O lyra só lê um espelho sanitizado (data/mapping/ubc_credentials_map.json),
-# gerado pelo exporter export_ubc_mapping_to_lyra.py.
+# rpa-royalties/config/portals/{ubc,sony}_portal.json (repo privado). O lyra
+# só lê um espelho sanitizado (data/mapping/{ubc,sony}_credentials_map.json),
+# gerado pelos exporters export_{ubc,sony}_mapping_to_lyra.py.
 #
 # O cadastro daqui só faz sentido rodando LOCAL, com o rpa-royalties ao lado
 # (é o uso real do app). Ele:
-#   1) faz backup do ubc_portal.json,
+#   1) faz backup do portal.json correspondente,
 #   2) adiciona a credencial nova (login master/unificado, SEM senha),
 #   3) roda o exporter pra atualizar o mapa do lyra na hora.
-# Nunca manuseia senha — contas UBC comuns usam o login master.
+# Nunca manuseia senha — UBC e Sony usam login master/unificado.
+#
+# REGISTRATION_CONFIG generaliza o que muda entre entidades: qual portal.json
+# gravar, qual exporter rodar, e qual campo carrega o código (ecad_code pra
+# UBC, sony_code pra Sony). ABRAMUS fica de fora (schema do portal difere;
+# ver comentário no ENTITIES).
 
 _RPA_ROOT = Path(__file__).resolve().parents[2] / "rpa-royalties"
-UBC_PORTAL_FILE = _RPA_ROOT / "config" / "portals" / "ubc_portal.json"
-UBC_EXPORTER = _RPA_ROOT / "tools" / "organizers" / "export_ubc_mapping_to_lyra.py"
 ROYALTIES_PREFIX = "Z:\\ROYALTY\\Royalties Statements_Historicals\\"
 
+REGISTRATION_CONFIG = {
+    "UBC": {
+        "portal_file": _RPA_ROOT / "config" / "portals" / "ubc_portal.json",
+        "exporter_file": _RPA_ROOT / "tools" / "organizers" / "export_ubc_mapping_to_lyra.py",
+        "code_field": "ecad_code",
+        "code_label": "Código ECAD",
+    },
+    "SONY": {
+        "portal_file": _RPA_ROOT / "config" / "portals" / "sony_portal.json",
+        "exporter_file": _RPA_ROOT / "tools" / "organizers" / "export_sony_mapping_to_lyra.py",
+        "code_field": "sony_code",
+        "code_label": "Código Sony",
+    },
+}
 
-def _rpa_ubc_available() -> bool:
+
+def _portal_available(reg_cfg: dict) -> bool:
     """Cadastro só é possível local, com o repo irmão e o exporter presentes."""
-    return UBC_PORTAL_FILE.exists() and UBC_EXPORTER.exists()
+    return reg_cfg["portal_file"].exists() and reg_cfg["exporter_file"].exists()
 
 
-def _load_ubc_portal():
+def _load_portal(reg_cfg: dict):
     try:
-        return json.loads(UBC_PORTAL_FILE.read_text(encoding="utf-8"))
+        return json.loads(reg_cfg["portal_file"].read_text(encoding="utf-8"))
     except Exception:
         return None
 
 
-def _existing_ubc_ids() -> set:
-    portal = _load_ubc_portal()
+def _existing_ids(reg_cfg: dict) -> set:
+    portal = _load_portal(reg_cfg)
     if not portal:
         return set()
     return {c.get("id") for c in portal.get("credentials", []) if c.get("id")}
 
 
 def _slugify_id(name: str, existing: set) -> str:
-    base = re.sub(r"[^a-z0-9]", "", (name or "").lower()) or "ubc"
+    base = re.sub(r"[^a-z0-9]", "", (name or "").lower()) or "conta"
     i, cand = 1, f"{base}1"
     while cand in existing:
         i += 1
@@ -426,10 +517,10 @@ def _slugify_id(name: str, existing: set) -> str:
     return cand
 
 
-def _suggest_ubc_path(artist: str, account: str) -> str:
+def _suggest_path(artist: str, account: str, path_segment: str) -> str:
     a = (artist or "").strip() or (account or "").strip() or "ARTISTA"
     acc = (account or "").strip() or a
-    return f"{ROYALTIES_PREFIX}{a}\\UBC\\{acc}"
+    return f"{ROYALTIES_PREFIX}{a}\\{path_segment}\\{acc}"
 
 
 @st.cache_data(show_spinner=False)
@@ -453,77 +544,83 @@ def _find_artist_folders(artist: str) -> list:
     return [n for n in _base_folder_names() if first in n.lower()][:6]
 
 
-def _run_ubc_exporter() -> int:
-    """Roda export_ubc_mapping_to_lyra.export_mapping() sem subprocess. O exporter
-    calcula SRC/DST pelo próprio __file__, então funciona de qualquer cwd."""
-    spec = importlib.util.spec_from_file_location("_export_ubc_map", str(UBC_EXPORTER))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.export_mapping()
-
-
-def _build_ubc_cred(id_val: str, artist_val: str, account_val: str, path_val: str, code: str) -> dict:
+def _build_cred(entity_name: str, reg_cfg: dict, id_val: str, artist_val: str, account_val: str,
+                 path_val: str, code: str) -> dict:
     account = account_val.strip() or artist_val.strip()
     hoje = datetime.now().strftime("%Y-%m-%d")
-    return {
+    cred = {
         "id": id_val.strip(),
         "artist": artist_val.strip() or account,
         "account": account,
-        "holder_name": account,
         "path": path_val.strip(),
-        "username": "",
-        "password": "",
-        "status": "active",
-        "notas": f"Cadastrado via Organizador de Comprovantes (lyra) em {hoje}. Login master/unificado.",
         "access_type": "unified",
-        "ecad_code": str(code),
+        "status": "active",
+        reg_cfg["code_field"]: str(code),
     }
+    if entity_name == "UBC":
+        # schema do ubc_portal.json tem esses campos a mais (username/password
+        # sempre vazios — login master; holder_name/notas por padrão do UBC).
+        cred["holder_name"] = account
+        cred["username"] = ""
+        cred["password"] = ""
+        cred["notas"] = f"Cadastrado via Organizador de Comprovantes (lyra) em {hoje}. Login master/unificado."
+    else:
+        cred["note"] = f"Cadastrado via Organizador de Comprovantes (lyra) em {hoje}. Login master/unificado."
+    return cred
 
 
-def register_ubc_credential(cred: dict) -> tuple[bool, str]:
-    """Faz backup, adiciona a credencial no ubc_portal.json e roda o exporter.
-    Recusa duplicatas (mesmo id, ou mesmo ECAD+pasta)."""
-    portal = _load_ubc_portal()
+def _register_credential(reg_cfg: dict, cred: dict) -> tuple[bool, str]:
+    """Faz backup, adiciona a credencial no portal.json correspondente e roda
+    o exporter. Recusa duplicatas (mesmo id, ou mesmo código+pasta)."""
+    portal_file = reg_cfg["portal_file"]
+    code_field = reg_cfg["code_field"]
+    portal = _load_portal(reg_cfg)
     if portal is None:
-        return False, "Não consegui ler o ubc_portal.json."
+        return False, f"Não consegui ler o {portal_file.name}."
 
     creds = portal.get("credentials", [])
-    code = str(cred["ecad_code"]).strip()
+    code = str(cred[code_field]).strip()
 
     if cred["id"] in {c.get("id") for c in creds}:
         return False, f"Já existe credencial com id '{cred['id']}'. Troque o ID."
     for c in creds:
-        ec = str(c.get("ecad_code") or "").strip()
+        ec = str(c.get(code_field) or "").strip()
         try:
             same_code = bool(ec) and str(int(ec)) == str(int(code))
         except ValueError:
             same_code = ec == code
         if same_code and (c.get("path") or "") == cred["path"]:
-            return False, f"Já existe credencial com ECAD {code} nessa mesma pasta (id '{c.get('id')}')."
+            return False, f"Já existe credencial com código {code} nessa mesma pasta (id '{c.get('id')}')."
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup = UBC_PORTAL_FILE.parent / f"ubc_portal.json.bak_{ts}"
+    backup = portal_file.parent / f"{portal_file.name}.bak_{ts}"
     try:
-        shutil.copy2(UBC_PORTAL_FILE, backup)
+        shutil.copy2(portal_file, backup)
         creds.append(cred)
         portal["credentials"] = creds
-        UBC_PORTAL_FILE.write_text(
-            json.dumps(portal, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        n = _run_ubc_exporter()
+        portal_file.write_text(json.dumps(portal, ensure_ascii=False, indent=2), encoding="utf-8")
+        # roda export_mapping() do exporter certo sem subprocess — ele calcula
+        # SRC/DST pelo próprio __file__, então funciona de qualquer cwd.
+        spec = importlib.util.spec_from_file_location("_export_map", str(reg_cfg["exporter_file"]))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        n = mod.export_mapping()
     except Exception as e:
         return False, f"Falhou ao gravar/exportar: {e}"
     return True, (
-        f"'{cred['id']}' cadastrado (ECAD {code}) e exportado — {n} credenciais no "
+        f"'{cred['id']}' cadastrado (código {code}) e exportado — {n} credenciais no "
         f"mapa. Backup: {backup.name}"
     )
 
 
 def render_orphans(orphans: list, cfg: dict, entity_name: str):
-    """Seção 'Códigos não reconhecidos'. Pra UBC rodando local, mostra um form de
-    cadastro por código; senão, cai na tabela informativa de sempre."""
+    """Seção 'Códigos não reconhecidos'. Pras entidades com cadastro direto
+    habilitado (UBC, Sony) e rodando local, mostra um form de cadastro por
+    código; senão, cai na tabela informativa de sempre."""
     st.subheader("⚠️ Códigos não reconhecidos")
     portal_id = cfg.get("portal_id")
+    reg_cfg = REGISTRATION_CONFIG.get(entity_name)
+    code_label = (reg_cfg or {}).get("code_label", "Código")
 
     def _static_table(extra_caption: str = ""):
         st.caption(
@@ -532,17 +629,17 @@ def render_orphans(orphans: list, cfg: dict, entity_name: str):
             "identificado) pra ele cadastrar na base." + extra_caption
         )
         render_html_table(
-            ["Código ECAD", "Arquivos", "Titular (palpite)", "Artista (palpite)"],
+            [code_label, "Arquivos", "Titular (palpite)", "Artista (palpite)"],
             [simple_row([o["code"], o["arquivos"], o["titular"], o["artista"]]) for o in orphans],
         )
 
-    # ABRAMUS (ou entidade sem portal_id): sem cadastro automatizado por ora.
-    if not portal_id:
+    # ABRAMUS (ou entidade sem portal_id/reg_cfg): sem cadastro automatizado por ora.
+    if not portal_id or not reg_cfg:
         _static_table()
         return
 
-    # UBC mas rodando fora do ambiente local (ex.: Streamlit Cloud): sem fonte pra gravar.
-    if not _rpa_ubc_available():
+    # Cadastro direto, mas rodando fora do ambiente local (ex.: Streamlit Cloud): sem fonte pra gravar.
+    if not _portal_available(reg_cfg):
         _static_table(
             " · O cadastro direto só aparece rodando o app **local**, com o repo "
             "`rpa-royalties` ao lado."
@@ -550,38 +647,42 @@ def render_orphans(orphans: list, cfg: dict, entity_name: str):
         return
 
     # Feedback persistente do último cadastro (sobrevive ao st.rerun).
-    msg = st.session_state.pop("_ubc_reg_msg", None)
+    msg_key = f"_{entity_name.lower()}_reg_msg"
+    msg = st.session_state.pop(msg_key, None)
     if msg:
         st.success(msg)
 
     st.caption(
-        "Preencha e clique **Cadastrar e ativar**: grava direto no `ubc_portal.json` "
-        "(com backup), roda o exporter e o código passa a ser reconhecido na hora. "
-        "Usa login **master/unificado** — sem senha."
+        f"Preencha e clique **Cadastrar e ativar**: grava direto no "
+        f"`{reg_cfg['portal_file'].name}` (com backup), roda o exporter e o código "
+        "passa a ser reconhecido na hora. Usa login **master/unificado** — sem senha."
     )
 
-    existing_ids = _existing_ubc_ids()
+    existing_ids = _existing_ids(reg_cfg)
+    path_segment = cfg.get("path_segment", cfg["folder"])
     for o in orphans:
         titular = o["titular"] if o["titular"] != "?" else ""
         artista = o["artista"] if o["artista"] != "?" else ""
         default_artist = artista or titular
         header_name = titular or artista or "sem palpite"
         with st.expander(f"🔢 {o['code']} — {header_name}  ·  {o['arquivos']} arq."):
-            default_slug = _slugify_id(default_artist or f"ubc{o['code']}", existing_ids)
+            default_slug = _slugify_id(default_artist or f"{entity_name.lower()}{o['code']}", existing_ids)
             with st.form(f"reg_{entity_name}_{o['code']}"):
                 c1, c2 = st.columns(2)
                 with c1:
-                    artist_val = st.text_input("Artista", value=default_artist, key=f"a_{o['code']}")
+                    artist_val = st.text_input("Artista", value=default_artist, key=f"a_{entity_name}_{o['code']}")
                     account_val = st.text_input(
-                        "Conta / Titular", value=titular or default_artist, key=f"ac_{o['code']}"
+                        "Conta / Titular", value=titular or default_artist, key=f"ac_{entity_name}_{o['code']}"
                     )
                 with c2:
-                    id_val = st.text_input("ID da credencial", value=default_slug, key=f"id_{o['code']}")
-                    st.text_input("Código ECAD", value=o["code"], disabled=True, key=f"e_{o['code']}")
+                    id_val = st.text_input(
+                        "ID da credencial", value=default_slug, key=f"id_{entity_name}_{o['code']}"
+                    )
+                    st.text_input(code_label, value=o["code"], disabled=True, key=f"e_{entity_name}_{o['code']}")
                 path_val = st.text_input(
                     "Pasta na base (Z:\\...)",
-                    value=_suggest_ubc_path(default_artist, titular or default_artist),
-                    key=f"p_{o['code']}",
+                    value=_suggest_path(default_artist, titular or default_artist, path_segment),
+                    key=f"p_{entity_name}_{o['code']}",
                     help="A credencial só entra no mapa se tiver pasta. Confirme o caminho real na base.",
                 )
                 matches = _find_artist_folders(default_artist)
@@ -594,10 +695,10 @@ def render_orphans(orphans: list, cfg: dict, entity_name: str):
                 if not id_val.strip() or not path_val.strip() or not (artist_val.strip() or account_val.strip()):
                     st.error("Preencha ao menos ID, Artista/Conta e Pasta.")
                 else:
-                    cred = _build_ubc_cred(id_val, artist_val, account_val, path_val, o["code"])
-                    ok, result_msg = register_ubc_credential(cred)
+                    cred = _build_cred(entity_name, reg_cfg, id_val, artist_val, account_val, path_val, o["code"])
+                    ok, result_msg = _register_credential(reg_cfg, cred)
                     if ok:
-                        st.session_state["_ubc_reg_msg"] = result_msg
+                        st.session_state[msg_key] = result_msg
                         load_mapping_rows.clear()
                         st.rerun()
                     else:
