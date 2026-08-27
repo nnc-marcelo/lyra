@@ -72,6 +72,13 @@ PAGINAS: list[Pagina] = [
         descricao="Distribui receitas diretas por catálogo, fonte e titular.",
     ),
     Pagina(
+        caminho="views/rr_conciliacao.py",
+        titulo="RR — conciliação de recebimentos",
+        icone=":material/receipt_long:",
+        secao="Cálculos",
+        descricao="Abre o recibo da ABRAMUS e diz quanto do crédito é de cada catálogo.",
+    ),
+    Pagina(
         caminho="views/douglas_cezar_ep.py",
         titulo="Douglas Cezar EP",
         icone=":material/album:",
