@@ -17,6 +17,13 @@ distintos, cada um com sua fonte de detalhe:
   `_XLS.csv`; o detalhe vem no `_INT.pdf`, que este módulo cruza com a base de
   obras da ABRAMUS por ISWC (e, quando falta, por título).
 
+Os débitos de editora (Warner/Universal, que o recibo só entrega como um total
+negativo por editora) rateiam do mesmo jeito, com o `_VCV.csv`: cada obra tem
+lá o contrato de cessão (`CESSAO (4%)`, `(7%)`, `(14%)`...), e o percentual diz
+a editora — 4/8/16% é Warner, 7/14% é Universal (confirmado em jul/26: a coluna
+VENDA soma o valor exato do débito do recibo). O catálogo vem da mesma base de
+obras, por ISWC/título.
+
 Sem `streamlit` de propósito: a página (`views/rr_conciliacao.py`) cuida só da
 tela, e esta lógica pode ser exercitada sem subir o app — mesma razão de
 `utils/bi_extract.py` e `utils/bases.py` existirem separados.
@@ -25,6 +32,7 @@ tela, e esta lógica pode ser exercitada sem subir o app — mesma razão de
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -55,6 +63,17 @@ MAPEAMENTO_A_RATEAR = "a ratear pelo cruzamento"
 MAPEAMENTO_A_RATEAR_INT = "a ratear pelo _INT.pdf"
 MAPEAMENTO_CRUZAMENTO = "cruzamento"
 MAPEAMENTO_INT = "_INT.pdf"
+MAPEAMENTO_VCV = "_VCV.csv"
+# Obra do rateio (execução pública, exterior ou débito) que a base de obras não
+# soube atribuir a um catálogo. Deliberadamente diferente de MAPEAMENTO_PENDENTE
+# — não pode virar entrada no de-para: o titular dessas linhas é ou a Nas Nuvens
+# ou a editora (Warner/Universal), e nenhum dos dois é dono de um catálogo só.
+MAPEAMENTO_OBRA_SEM_CATALOGO = "obra sem catálogo na base"
+
+# Percentual do contrato de cessão (coluna CONTRATO do _VCV.csv) que identifica
+# a editora do débito. Confirmado com o usuário em 27/08/2026.
+WARNER_PERCENTUAIS = {"4", "8", "16"}
+UNIVERSAL_PERCENTUAIS = {"7", "14"}
 
 COLUNAS_SAIDA = ["Período", "Catálogo", "Titular", "Valor"]
 COLUNAS = COLUNAS_SAIDA + ["Origem", "Titular no recibo", "Mapeamento"]
@@ -190,6 +209,96 @@ def ler_internacional(arquivo, caminho_base: Path = CAMINHO_BASE_OBRAS) -> pd.Da
     return agrupado.sort_values("Valor", ascending=False, ignore_index=True)
 
 
+def editora_da_titular(titular_recibo: str) -> str:
+    """'WARNER', 'UNIVERSAL' ou '' — identifica a editora pelo nome do titular
+    tal como o recibo grafa (`WARNER CHAPPELL EDICOES MUSICAIS LTDA`,
+    `UNIVERSAL MUSIC PUBLISHING MGB BRASIL LTDA`)."""
+    chave = normalizar(titular_recibo)
+    if "WARNER" in chave:
+        return "WARNER"
+    if "UNIVERSAL" in chave:
+        return "UNIVERSAL"
+    return ""
+
+
+def ler_debitos_editora(arquivo, caminho_base: Path = CAMINHO_BASE_OBRAS) -> pd.DataFrame:
+    """`_VCV.csv`: detalha o débito de editora (Warner/Universal) obra a obra.
+
+    A coluna CONTRATO traz o percentual de cessão (`CESSAO (4%)`, `(7%)`...);
+    4/8/16% é Warner, 7/14% é Universal. A coluna VENDA é a que reconstrói o
+    débito do recibo — testado em jul/26: soma R$ 3.132,82 (Warner) e
+    R$ 3.055,07 (Universal) contra R$ 3.132,81 e R$ 3.055,07 no recibo.
+
+    Uma obra pode ter as duas editoras na mesma linha (contrato misto, ex.:
+    `CESSAO (14%) / CESSAO (4%)`) — rara, mas nesse caso a VENDA é rateada entre
+    as duas na proporção dos percentuais.
+
+    Catálogo vem da base de obras da ABRAMUS, por ISWC e, na falta, por título
+    — mesma técnica de `ler_internacional`.
+    """
+    df = pd.read_csv(arquivo, sep=";", encoding="cp1252", skiprows=2, decimal=",")
+    colunas_esperadas = {"CONTRATO", "VENDA", "ISWC", "TITULO"}
+    if not colunas_esperadas.issubset(df.columns):
+        raise ValueError(
+            "Não reconheci esse arquivo como o `_VCV.csv` da ABRAMUS "
+            f"(faltam as colunas {sorted(colunas_esperadas - set(df.columns))})."
+        )
+    if df.empty:
+        return pd.DataFrame(columns=["Editora", "Catálogo", "Valor", "Obras", "Casado só por título"])
+
+    def percentuais(contrato) -> set[str]:
+        return set(re.findall(r"\((\d+)%\)", str(contrato)))
+
+    def dividir(linha) -> tuple[float, float]:
+        # Débito: o sinal do recibo é negativo, a VENDA do VCV vem positiva.
+        pcts = percentuais(linha["CONTRATO"])
+        warner, universal = pcts & WARNER_PERCENTUAIS, pcts & UNIVERSAL_PERCENTUAIS
+        if warner and not universal:
+            return -linha["VENDA"], 0.0
+        if universal and not warner:
+            return 0.0, -linha["VENDA"]
+        if warner and universal:
+            soma = sum(int(p) for p in pcts)
+            peso_warner = sum(int(p) for p in warner) / soma
+            return -linha["VENDA"] * peso_warner, -linha["VENDA"] * (1 - peso_warner)
+        return 0.0, 0.0
+
+    dividido = df.apply(dividir, axis=1, result_type="expand")
+    df["_warner"], df["_universal"] = dividido[0], dividido[1]
+
+    por_iswc, por_titulo = _lookup_obras(caminho_base)
+
+    def resolver(linha):
+        iswc = str(linha["ISWC"]).replace("-", "").upper()
+        if por_iswc.get(iswc):
+            return por_iswc[iswc], False
+        return por_titulo.get(normalizar(linha["TITULO"]), ""), True
+
+    resolvido = df.apply(resolver, axis=1, result_type="expand")
+    df["Catálogo"], df["_por_titulo"] = resolvido[0], resolvido[1]
+
+    partes = []
+    for editora, coluna in (("WARNER", "_warner"), ("UNIVERSAL", "_universal")):
+        bloco = df[df[coluna] != 0].copy()
+        if bloco.empty:
+            continue
+        bloco["_valor_titulo"] = bloco[coluna].where(bloco["_por_titulo"] & (bloco["Catálogo"] != ""), 0.0)
+        agrupado = bloco.groupby("Catálogo", as_index=False).agg(
+            Valor=(coluna, "sum"),
+            Obras=("TITULO", "nunique"),
+            **{"Casado só por título": ("_valor_titulo", "sum")},
+        )
+        agrupado.insert(0, "Editora", editora)
+        partes.append(agrupado)
+
+    if not partes:
+        return pd.DataFrame(columns=["Editora", "Catálogo", "Valor", "Obras", "Casado só por título"])
+    resultado = pd.concat(partes, ignore_index=True)
+    resultado["Valor"] = resultado["Valor"].round(2)
+    resultado["Casado só por título"] = resultado["Casado só por título"].round(2)
+    return resultado.sort_values(["Editora", "Valor"], ascending=[True, False], ignore_index=True)
+
+
 # ---------------------------------------------------------------------------
 # Linhas da RR
 # ---------------------------------------------------------------------------
@@ -210,6 +319,7 @@ def linhas_do_recibo(
     mapa: dict,
     agrupado: pd.DataFrame | None = None,
     internacional: pd.DataFrame | None = None,
+    debitos_editora: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Linhas da RR correspondentes a um recibo.
 
@@ -223,29 +333,40 @@ def linhas_do_recibo(
         titular_recibo = linha["Titular"]
         entrada = mapa.get(normalizar(titular_recibo)) if titular_recibo else None
         negativo = linha["Valor"] < 0
+        titular_recibo_label = titular_recibo or "(sem titular no recibo)"
 
         if entrada:
             catalogo, mapeamento = entrada.get("catalogo", ""), entrada.get("origem", "de-para")
+            registros.append(_linha(
+                periodo, catalogo, titular_recibo, linha["Valor"],
+                ORIGEM_DEBITO if negativo else ORIGEM_VENDA, titular_recibo_label, mapeamento,
+            ))
         elif negativo:
-            # Débito de editora: fica sem catálogo, identificado só pelo titular —
-            # a alocação correta é decisão à parte, fora do que o recibo informa.
-            catalogo, mapeamento = "", MAPEAMENTO_DEBITO
+            # Débito de editora: sem o _VCV.csv fica numa linha só, sem catálogo,
+            # identificado pelo titular. Com ele, rateia por catálogo obra a obra.
+            editora = editora_da_titular(titular_recibo)
+            detalhe = (
+                debitos_editora[debitos_editora["Editora"] == editora]
+                if debitos_editora is not None and editora else None
+            )
+            registros.extend(_bloco_rateado(
+                recibo, linha["Valor"], detalhe, ORIGEM_DEBITO, titular_recibo, titular_recibo_label,
+                MAPEAMENTO_VCV, MAPEAMENTO_DEBITO,
+            ))
         else:
-            catalogo, mapeamento = "", MAPEAMENTO_PENDENTE
-
-        registros.append(_linha(
-            periodo, catalogo, titular_recibo, linha["Valor"],
-            ORIGEM_DEBITO if negativo else ORIGEM_VENDA,
-            titular_recibo or "(sem titular no recibo)", mapeamento,
-        ))
+            registros.append(_linha(
+                periodo, "", titular_recibo, linha["Valor"],
+                ORIGEM_VENDA, titular_recibo_label, MAPEAMENTO_PENDENTE,
+            ))
 
     registros.extend(_bloco_rateado(
         recibo, recibo.valor_ecad, agrupado,
-        ORIGEM_PROPRIO, "(repertório próprio)", MAPEAMENTO_CRUZAMENTO, MAPEAMENTO_A_RATEAR,
+        ORIGEM_PROPRIO, TITULAR_PROPRIO, "(repertório próprio)", MAPEAMENTO_CRUZAMENTO, MAPEAMENTO_A_RATEAR,
     ))
     registros.extend(_bloco_rateado(
         recibo, recibo.valor_exterior, internacional,
-        ORIGEM_EXTERIOR, "(direito autoral do exterior)", MAPEAMENTO_INT, MAPEAMENTO_A_RATEAR_INT,
+        ORIGEM_EXTERIOR, TITULAR_PROPRIO, "(direito autoral do exterior)",
+        MAPEAMENTO_INT, MAPEAMENTO_A_RATEAR_INT,
     ))
 
     for chave, rotulo in (("despesas_bancarias", "DESPESAS BANCÁRIAS"), ("irrf", "IRRF")):
@@ -264,11 +385,14 @@ def _bloco_rateado(
     total: float,
     detalhe: pd.DataFrame | None,
     origem: str,
-    rotulo: str,
+    titular: str,
+    titular_recibo_label: str,
     mapeamento: str,
     mapeamento_sem_detalhe: str,
 ) -> list[dict]:
-    """Um bloco do repertório próprio, rateado pelo detalhe correspondente.
+    """Um bloco rateado por um arquivo de detalhe externo ao recibo (execução
+    pública, exterior ou débito de editora) — `titular` é quem a RR credita
+    (`NAS NUVENS CATALOG` para os dois primeiros; o nome da editora pro débito).
 
     Sem o arquivo de detalhe, sai numa linha só, marcada com o que falta subir.
     Com ele, sai uma linha por catálogo — e a sobra vira uma linha de resíduo,
@@ -281,12 +405,12 @@ def _bloco_rateado(
     periodo = recibo.competencia
 
     if detalhe is None or detalhe.empty:
-        return [_linha(periodo, "", TITULAR_PROPRIO, total, origem, rotulo, mapeamento_sem_detalhe)]
+        return [_linha(periodo, "", titular, total, origem, titular_recibo_label, mapeamento_sem_detalhe)]
 
     registros = [
         _linha(
-            periodo, linha["Catálogo"], TITULAR_PROPRIO, linha["Valor"], origem, rotulo,
-            mapeamento if str(linha["Catálogo"]).strip() else MAPEAMENTO_PENDENTE,
+            periodo, linha["Catálogo"], titular, linha["Valor"], origem, titular_recibo_label,
+            mapeamento if str(linha["Catálogo"]).strip() else MAPEAMENTO_OBRA_SEM_CATALOGO,
         )
         for _, linha in detalhe.iterrows()
         if abs(float(linha["Valor"])) >= 0.005
@@ -294,7 +418,7 @@ def _bloco_rateado(
     residuo = round(total - float(detalhe["Valor"].sum()), 2)
     if abs(residuo) >= 0.01:
         registros.append(_linha(
-            periodo, "", TITULAR_PROPRIO, residuo, origem + SUFIXO_RESIDUO,
-            rotulo, MAPEAMENTO_PENDENTE,
+            periodo, "", titular, residuo, origem + SUFIXO_RESIDUO,
+            titular_recibo_label, MAPEAMENTO_OBRA_SEM_CATALOGO,
         ))
     return registros

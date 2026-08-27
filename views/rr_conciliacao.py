@@ -49,6 +49,7 @@ from utils.rr_linhas import (  # noqa: E402
     carregar_depara,
     gravar_depara,
     ler_agrupado,
+    ler_debitos_editora,
     ler_internacional,
     linhas_do_recibo,
     novos_mapeamentos,
@@ -75,16 +76,19 @@ crédito bancário é de cada catálogo**, pronto para lançar na RR.
   (rubrica `DIR AUTORAL EXTERIOR`) não está nesse analítico: ele se quebra com o **`..._INT.pdf`**
   do mesmo mês, que esta página cruza com a base de obras da ABRAMUS por ISWC (e por título quando
   o ISWC não está na base). Sem os arquivos, cada bloco sai numa linha única marcada para ratear.
-- **Débitos e despesas bancárias**: saem em linhas próprias, com catálogo em branco, para você
-  decidir onde alocar. Assim a soma das linhas fecha com o que caiu no banco.
+- **Débitos de editora (Warner/Universal)**: o recibo só entrega um total negativo por editora. O
+  **`..._VCV.csv`** detalha obra a obra — o percentual do contrato (4/8/16% é Warner, 7/14% é
+  Universal) diz a editora, e a base de obras dá o catálogo. Sem ele, sai numa linha só, sem catálogo.
+- **Despesas bancárias**: saem em linha própria, com catálogo em branco. Assim a soma das linhas
+  fecha com o que caiu no banco.
 - **Titular**: sai exatamente como está no recibo (`ROBERTO MALTEZ GARRIDO FILHO`, e não
   `Beto Garrido`). O de-para guarda só o catálogo.
 
 **Como usar**
 
 1. Suba o `..._REC.pdf` (pode subir vários meses de uma vez).
-2. Se tiver, suba o relatório agrupado do cruzamento e o `..._INT.pdf` do mesmo mês para quebrar
-   o repertório próprio por catálogo.
+2. Se tiver, suba o relatório agrupado do cruzamento, o `..._INT.pdf` e o `..._VCV.csv` do mesmo
+   mês para quebrar repertório próprio e débitos de editora por catálogo.
 3. Confira o painel de fechamento (soma × TOTAL do recibo).
 4. Resolva os titulares pendentes na tabela — e grave no de-para para não perguntar de novo.
 5. Baixe o xlsx/CSV.
@@ -119,21 +123,27 @@ with tab_conciliar:
         "Recibo da ABRAMUS (`..._REC.pdf`)", type=["pdf"], accept_multiple_files=True,
         help="É o Demonstrativo de Pagamento. Pode subir vários meses de uma vez.",
     )
-    col_esq, col_dir = st.columns(2)
-    with col_esq:
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
         agrupado_arquivo = st.file_uploader(
             "Relatório agrupado do cruzamento (opcional)", type=["xlsx"],
             help="O xlsx com CATÁLOGO e RATEIO que a página de Cruzamento com catálogo gera a "
                  "partir do `..._XLS.csv` — quebra a execução pública por catálogo.",
         )
-    with col_dir:
+    with col_b:
         int_arquivo = st.file_uploader(
             "Demonstrativo internacional `..._INT.pdf` (opcional)", type=["pdf"],
             help="Do mesmo mês do recibo. Quebra o direito autoral do exterior por catálogo, "
                  "cruzando as obras com a base da ABRAMUS por ISWC.",
         )
+    with col_c:
+        vcv_arquivo = st.file_uploader(
+            "Débito de editora `..._VCV.csv` (opcional)", type=["csv"],
+            help="Do mesmo mês do recibo. Quebra o débito de Warner/Universal por catálogo — o "
+                 "percentual do contrato de cessão diz a editora.",
+        )
 
-    agrupado = internacional = None
+    agrupado = internacional = debitos_editora = None
     if agrupado_arquivo is not None:
         try:
             agrupado = ler_agrupado(agrupado_arquivo)
@@ -161,15 +171,37 @@ with tab_conciliar:
             st.caption(recado)
         except Exception as erro:  # noqa: BLE001 — arquivo do usuário
             st.error(f"Não consegui ler o demonstrativo internacional: {erro}")
+    if vcv_arquivo is not None:
+        try:
+            debitos_editora = ler_debitos_editora(vcv_arquivo)
+            por_titulo = float(debitos_editora["Casado só por título"].sum())
+            sem_catalogo = float(
+                debitos_editora.loc[debitos_editora["Catálogo"] == "", "Valor"].sum()
+            )
+            por_editora = debitos_editora.groupby("Editora")["Valor"].sum()
+            recado = "Débito de editora: " + ", ".join(
+                f"{editora.title()} {brl(-valor)}" for editora, valor in por_editora.items()
+            ) + "."
+            if sem_catalogo:
+                recado += f" {brl(-sem_catalogo)} sem catálogo na base de obras."
+            if por_titulo:
+                recado += (
+                    f" {brl(-por_titulo)} casado(s) só por título (o ISWC não está na base) — "
+                    "confira, pode haver obra homônima de outro autor."
+                )
+            st.caption(recado)
+        except Exception as erro:  # noqa: BLE001 — arquivo do usuário
+            st.error(f"Não consegui ler o _VCV.csv: {erro}")
 
+    detalhes_de_um_mes = (agrupado, internacional, debitos_editora)
     if pdfs:
-        if len(pdfs) > 1 and (agrupado is not None or internacional is not None):
+        if len(pdfs) > 1 and any(d is not None for d in detalhes_de_um_mes):
             st.warning(
                 "Os arquivos de detalhe são de um mês só. Com vários recibos no upload eles são "
-                "ignorados — suba um mês por vez para quebrar o repertório próprio.",
+                "ignorados — suba um mês por vez para quebrar o repertório próprio e os débitos.",
                 icon=":material/warning:",
             )
-            agrupado = internacional = None
+            agrupado = internacional = debitos_editora = None
 
         partes = []
         for arquivo in pdfs:
@@ -198,7 +230,7 @@ with tab_conciliar:
 
             if not recibo.linhas.empty:
                 partes.append(linhas_do_recibo(
-                    recibo, st.session_state["rr_depara"], agrupado, internacional
+                    recibo, st.session_state["rr_depara"], agrupado, internacional, debitos_editora
                 ))
 
         if partes:
