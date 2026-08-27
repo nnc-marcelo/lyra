@@ -1,0 +1,783 @@
+{
+  "fonte": "ABRAMUS",
+  "gerado_em": "2026-08-26",
+  "titulares": [
+    {
+      "titular_recibo": "(101333) Torquato Neto",
+      "chave": "101333 TORQUATO NETO",
+      "catalogo": "TORQUATO NETO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "(10884) Rodolfo Abrantes",
+      "chave": "10884 RODOLFO ABRANTES",
+      "catalogo": "RODOLFO ABRANTES",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "(16499336) Nas Nuvens Catalog",
+      "chave": "16499336 NAS NUVENS CATALOG",
+      "catalogo": "POLLO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "(3309582) Da Firma Produções Musicais",
+      "chave": "3309582 DA FIRMA PRODUCOES MUSICAIS",
+      "catalogo": "TIERRY",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "(3458608) Luiz Tomim",
+      "chave": "3458608 LUIZ TOMIM",
+      "catalogo": "POLLO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "(3458631) Adriel Teixeira",
+      "chave": "3458631 ADRIEL TEIXEIRA",
+      "catalogo": "POLLO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "(4641446) Thiago Nunes Direitos Editoriais",
+      "chave": "4641446 THIAGO NUNES DIREITOS EDITORIAIS",
+      "catalogo": "TORQUATO NETO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "(5507493) WFA Eventos",
+      "chave": "5507493 WFA EVENTOS",
+      "catalogo": "POLLO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "7 Mares",
+      "chave": "7 MARES",
+      "catalogo": "DIEGO SILVEIRA",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "(905627) Tierre de Araujo Paixao Costa",
+      "chave": "905627 TIERRE DE ARAUJO PAIXAO COSTA",
+      "catalogo": "TIERRY",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Aconchego",
+      "chave": "ACONCHEGO",
+      "catalogo": "NANDO CORDEL",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "ACONCHEGO EDICOES MUSICAIS LTDA.",
+      "chave": "ACONCHEGO EDICOES MUSICAIS LTDA",
+      "catalogo": "NANDO CORDEL",
+      "origem": "historico",
+      "ocorrencias": 5
+    },
+    {
+      "titular_recibo": "ADRIEL DE MENEZES FREIRIA TEIXEIRA",
+      "chave": "ADRIEL DE MENEZES FREIRIA TEIXEIRA",
+      "catalogo": "POLLO",
+      "origem": "historico",
+      "ocorrencias": 7
+    },
+    {
+      "titular_recibo": "AGENCIA PRODUTORA EDICOES MUSICAIS LTDA",
+      "chave": "AGENCIA PRODUTORA EDICOES MUSICAIS LTDA",
+      "catalogo": "RENATO TEIXEIRA",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "Andre Lemmos",
+      "chave": "ANDRE LEMMOS",
+      "catalogo": "ANDRE LEMMOS",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "ANDRE TORRES MORAES",
+      "chave": "ANDRE TORRES MORAES",
+      "catalogo": "ANDRE MORAES",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Arlindo Cruz",
+      "chave": "ARLINDO CRUZ",
+      "catalogo": "ARLINDO CRUZ",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "ARLINDO DOMINGOS DA CRUZ FILHO",
+      "chave": "ARLINDO DOMINGOS DA CRUZ FILHO",
+      "catalogo": "ARLINDO CRUZ",
+      "origem": "historico",
+      "ocorrencias": 10
+    },
+    {
+      "titular_recibo": "Bebeto",
+      "chave": "BEBETO",
+      "catalogo": "BEBETO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Beto Jamaica",
+      "chave": "BETO JAMAICA",
+      "catalogo": "BETO JAMAICA",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Bolzan",
+      "chave": "BOLZAN",
+      "catalogo": "LUIZA POSSI",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "CAIPIRAPIRA PRODUCOES ARTISTICAS LTDA.",
+      "chave": "CAIPIRAPIRA PRODUCOES ARTISTICAS LTDA",
+      "catalogo": "RENATO TEIXEIRA",
+      "origem": "historico",
+      "ocorrencias": 1
+    },
+    {
+      "titular_recibo": "CARLOS VINICIUS DA SILVA CANTUARIA",
+      "chave": "CARLOS VINICIUS DA SILVA CANTUARIA",
+      "catalogo": "VINICIUS CANTUARIA",
+      "origem": "historico",
+      "ocorrencias": 1
+    },
+    {
+      "titular_recibo": "Chrystian",
+      "chave": "CHRYSTIAN",
+      "catalogo": "CHRYSTIAN",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "CHRYSTIAN JOSE PEREIRA DA SILVA NETO",
+      "chave": "CHRYSTIAN JOSE PEREIRA DA SILVA NETO",
+      "catalogo": "CHRYSTIAN",
+      "origem": "historico",
+      "ocorrencias": 9
+    },
+    {
+      "titular_recibo": "CONTO DE FADAS EDICOES MUSICAIS LTDA ME",
+      "chave": "CONTO DE FADAS EDICOES MUSICAIS LTDA ME",
+      "catalogo": "BRUNO MARTINI",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "DC Editora",
+      "chave": "DC EDITORA",
+      "catalogo": "DOUGLAS CEZAR",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Diego Damasceno",
+      "chave": "DIEGO DAMASCENO",
+      "catalogo": "DIEGO DAMASCENO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "DIEGO HENRIQUE DA SILVEIRA MARTINS",
+      "chave": "DIEGO HENRIQUE DA SILVEIRA MARTINS",
+      "catalogo": "DIEGO SILVEIRA",
+      "origem": "historico",
+      "ocorrencias": 20
+    },
+    {
+      "titular_recibo": "DIEGO OLIVEIRA DAMASCENO",
+      "chave": "DIEGO OLIVEIRA DAMASCENO",
+      "catalogo": "DIEGO DAMASCENO",
+      "origem": "historico",
+      "ocorrencias": 18
+    },
+    {
+      "titular_recibo": "Digão",
+      "chave": "DIGAO",
+      "catalogo": "DIGAO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Douglas Cezar",
+      "chave": "DOUGLAS CEZAR",
+      "catalogo": "DOUGLAS CEZAR",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "DOUGLAS CEZAR ZANATTA DA SILVA",
+      "chave": "DOUGLAS CEZAR ZANATTA DA SILVA",
+      "catalogo": "DOUGLAS CEZAR",
+      "origem": "historico",
+      "ocorrencias": 7
+    },
+    {
+      "titular_recibo": "DOUGLAS CEZAR ZANATTA DA SILVA ME",
+      "chave": "DOUGLAS CEZAR ZANATTA DA SILVA ME",
+      "catalogo": "DOUGLAS CEZAR",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "Dudu Paixão",
+      "chave": "DUDU PAIXAO",
+      "catalogo": "DUDU PAIXAO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Editora Damasceno",
+      "chave": "EDITORA DAMASCENO",
+      "catalogo": "EDITORA DAMASCENO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "EDITORA DAMASCENO MUSIC LTDA",
+      "chave": "EDITORA DAMASCENO MUSIC LTDA",
+      "catalogo": "EDITORA DAMASCENO",
+      "origem": "historico",
+      "ocorrencias": 10
+    },
+    {
+      "titular_recibo": "EDUARDO MAGALHAES DE CARVALHO",
+      "chave": "EDUARDO MAGALHAES DE CARVALHO",
+      "catalogo": "DADI",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "EVERALDO CALAZANS DE ALMEIDA FILHO",
+      "chave": "EVERALDO CALAZANS DE ALMEIDA FILHO",
+      "catalogo": "VEVE CALAZANS",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "FERNANDO MANOEL CORREIA",
+      "chave": "FERNANDO MANOEL CORREIA",
+      "catalogo": "NANDO CORDEL",
+      "origem": "historico",
+      "ocorrencias": 4
+    },
+    {
+      "titular_recibo": "FIGA MUSIC DIGITAL - 8320503",
+      "chave": "FIGA MUSIC DIGITAL 8320503",
+      "catalogo": "VINICIUS JUNQUEIRA",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "FIGA MUSIC EDIÇÃO - 3028668",
+      "chave": "FIGA MUSIC EDICAO 3028668",
+      "catalogo": "VINICIUS JUNQUEIRA",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "FILIPE COSTA SILVA",
+      "chave": "FILIPE COSTA SILVA",
+      "catalogo": "FILIPE ESCANDURRAS",
+      "origem": "historico",
+      "ocorrencias": 5
+    },
+    {
+      "titular_recibo": "Flora Matos",
+      "chave": "FLORA MATOS",
+      "catalogo": "FLORA MATOS",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Flowra Produções",
+      "chave": "FLOWRA PRODUCOES",
+      "catalogo": "FLORA MATOS",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "FRANCISCO JOSE ZAMBIANCHI",
+      "chave": "FRANCISCO JOSE ZAMBIANCHI",
+      "catalogo": "KIKO ZAMBIANCHI",
+      "origem": "historico",
+      "ocorrencias": 21
+    },
+    {
+      "titular_recibo": "Fred",
+      "chave": "FRED",
+      "catalogo": "FRED",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "FREDERICO MELLO DE CASTRO",
+      "chave": "FREDERICO MELLO DE CASTRO",
+      "catalogo": "FRED",
+      "origem": "historico",
+      "ocorrencias": 17
+    },
+    {
+      "titular_recibo": "GIGISTUDIO EDITORA E PRODUCOES ARTISTICAS LTDA-ME",
+      "chave": "GIGISTUDIO EDITORA E PRODUCOES ARTISTICAS LTDA ME",
+      "catalogo": "GIGI CERQUEIRA",
+      "origem": "historico",
+      "ocorrencias": 4
+    },
+    {
+      "titular_recibo": "GUTTEMBERG NERY GUARABYRA FILHO",
+      "chave": "GUTTEMBERG NERY GUARABYRA FILHO",
+      "catalogo": "GUARABYRA",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "HELENA",
+      "chave": "HELENA",
+      "catalogo": "LUIZA POSSI",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "HELENA PRODUCOES ARTISTICAS LTDA ME",
+      "chave": "HELENA PRODUCOES ARTISTICAS LTDA ME",
+      "catalogo": "LUIZA POSSI",
+      "origem": "historico",
+      "ocorrencias": 7
+    },
+    {
+      "titular_recibo": "JEFFERSON CRISTIAN DOS SANTOS DE LIMA",
+      "chave": "JEFFERSON CRISTIAN DOS SANTOS DE LIMA",
+      "catalogo": "MC BINN",
+      "origem": "historico",
+      "ocorrencias": 3
+    },
+    {
+      "titular_recibo": "JOAO RODRIGUES DA SILVA JUNIOR",
+      "chave": "JOAO RODRIGUES DA SILVA JUNIOR",
+      "catalogo": "ZE HENRIQUE",
+      "origem": "historico",
+      "ocorrencias": 11
+    },
+    {
+      "titular_recibo": "JOSE HENRIQUE CAMPOS PEREIRA",
+      "chave": "JOSE HENRIQUE CAMPOS PEREIRA",
+      "catalogo": "CANISSO",
+      "origem": "historico",
+      "ocorrencias": 4
+    },
+    {
+      "titular_recibo": "JOSE TIAGO SABINO PEREIRA",
+      "chave": "JOSE TIAGO SABINO PEREIRA",
+      "catalogo": "PROJOTA",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "Kiko Zambianchi (13290017)",
+      "chave": "KIKO ZAMBIANCHI 13290017",
+      "catalogo": "KIKO ZAMBIANCHI",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Kiko Zambianchi PF (6175)",
+      "chave": "KIKO ZAMBIANCHI PF 6175",
+      "catalogo": "KIKO ZAMBIANCHI",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Kiko Zambianchi PJ (6382010)",
+      "chave": "KIKO ZAMBIANCHI PJ 6382010",
+      "catalogo": "KIKO ZAMBIANCHI",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Lazão",
+      "chave": "LAZAO",
+      "catalogo": "LAZAO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "LUCAS RAFAEL SANTOS LIMA",
+      "chave": "LUCAS RAFAEL SANTOS LIMA",
+      "catalogo": "MC RAHELL",
+      "origem": "historico",
+      "ocorrencias": 10
+    },
+    {
+      "titular_recibo": "LUIZ CLAUDIO RODRIGUES TOMIM",
+      "chave": "LUIZ CLAUDIO RODRIGUES TOMIM",
+      "catalogo": "POLLO",
+      "origem": "historico",
+      "ocorrencias": 7
+    },
+    {
+      "titular_recibo": "Luiza Possi (9887)",
+      "chave": "LUIZA POSSI 9887",
+      "catalogo": "LUIZA POSSI",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "LUIZA POSSI GADELHA",
+      "chave": "LUIZA POSSI GADELHA",
+      "catalogo": "LUIZA POSSI",
+      "origem": "historico",
+      "ocorrencias": 8
+    },
+    {
+      "titular_recibo": "LUZ EDICOES MUSICAIS LTDA",
+      "chave": "LUZ EDICOES MUSICAIS LTDA",
+      "catalogo": "FILIPE ESCANDURRAS",
+      "origem": "historico",
+      "ocorrencias": 3
+    },
+    {
+      "titular_recibo": "M. GARRIDO EVENTOS ARTISTICOS LTDA",
+      "chave": "M GARRIDO EVENTOS ARTISTICOS LTDA",
+      "catalogo": "BETO GARRIDO",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "MARCELO FERREIRA MENEZES",
+      "chave": "MARCELO FERREIRA MENEZES",
+      "catalogo": "MARCELO MENEZES",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "MARCELO FERREIRA MENEZES PROD.E ED.ARTISTICAS",
+      "chave": "MARCELO FERREIRA MENEZES PROD E ED ARTISTICAS",
+      "catalogo": "MARCELO MENEZES",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "Marcelo Ferreira Menezes Prod. E Ed. Artiticas",
+      "chave": "MARCELO FERREIRA MENEZES PROD E ED ARTITICAS",
+      "catalogo": "MARCELO MENEZES",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Marcelo Menezes - PF",
+      "chave": "MARCELO MENEZES PF",
+      "catalogo": "MARCELO MENEZES",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "MARCOS ANTONIO LAZARO DA CRUZ",
+      "chave": "MARCOS ANTONIO LAZARO DA CRUZ",
+      "catalogo": "LAZAO",
+      "origem": "historico",
+      "ocorrencias": 7
+    },
+    {
+      "titular_recibo": "Matheus Aleixo",
+      "chave": "MATHEUS ALEIXO",
+      "catalogo": "MATHEUS ALEIXO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "MATHEUS ALEIXO PINTO",
+      "chave": "MATHEUS ALEIXO PINTO",
+      "catalogo": "MATHEUS ALEIXO",
+      "origem": "historico",
+      "ocorrencias": 4
+    },
+    {
+      "titular_recibo": "MC Rahell",
+      "chave": "MC RAHELL",
+      "catalogo": "MC RAHELL",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "MFM Produções",
+      "chave": "MFM PRODUCOES",
+      "catalogo": "MARCELO MENEZES",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "MFM PRODUCOES ARTISTICAS EIRELI",
+      "chave": "MFM PRODUCOES ARTISTICAS EIRELI",
+      "catalogo": "MARCELO MENEZES",
+      "origem": "historico",
+      "ocorrencias": 2
+    },
+    {
+      "titular_recibo": "MONTGOMERRY FERREIRA NUNIS",
+      "chave": "MONTGOMERRY FERREIRA NUNIS",
+      "catalogo": "SOMBRINHA",
+      "origem": "historico",
+      "ocorrencias": 12
+    },
+    {
+      "titular_recibo": "MSK CONTEUDO E ENTRETENIMENTO LTDA",
+      "chave": "MSK CONTEUDO E ENTRETENIMENTO LTDA",
+      "catalogo": "MUSICKERIA",
+      "origem": "historico",
+      "ocorrencias": 2
+    },
+    {
+      "titular_recibo": "Nando Cordel",
+      "chave": "NANDO CORDEL",
+      "catalogo": "NANDO CORDEL",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Nas Nuvens Catalog",
+      "chave": "NAS NUVENS CATALOG",
+      "catalogo": "NAS NUVENS CATALOG",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "NEILTON CERQUEIRA SANTOS",
+      "chave": "NEILTON CERQUEIRA SANTOS",
+      "catalogo": "GIGI CERQUEIRA",
+      "origem": "historico",
+      "ocorrencias": 3
+    },
+    {
+      "titular_recibo": "Netinho de Paula",
+      "chave": "NETINHO DE PAULA",
+      "catalogo": "NETINHO DE PAULA",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "OK MUSIC",
+      "chave": "OK MUSIC",
+      "catalogo": "ZE HENRIQUE",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "OK MUSICA EVENTOS E PRODUCOES ARTISTICAS LTDA-EPP",
+      "chave": "OK MUSICA EVENTOS E PRODUCOES ARTISTICAS LTDA EPP",
+      "catalogo": "ZE HENRIQUE",
+      "origem": "historico",
+      "ocorrencias": 5
+    },
+    {
+      "titular_recibo": "Pop Mundi",
+      "chave": "POP MUNDI",
+      "catalogo": "LAZAO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "POP MUNDI PRODUCOES ARTISTICAS LTDA",
+      "chave": "POP MUNDI PRODUCOES ARTISTICAS LTDA",
+      "catalogo": "LAZAO",
+      "origem": "historico",
+      "ocorrencias": 8
+    },
+    {
+      "titular_recibo": "Renato Teixeira",
+      "chave": "RENATO TEIXEIRA",
+      "catalogo": "RENATO TEIXEIRA",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "RENATO TEIXEIRA DE OLIVEIRA",
+      "chave": "RENATO TEIXEIRA DE OLIVEIRA",
+      "catalogo": "RENATO TEIXEIRA",
+      "origem": "historico",
+      "ocorrencias": 8
+    },
+    {
+      "titular_recibo": "Roberto Lopes",
+      "chave": "ROBERTO LOPES",
+      "catalogo": "ROBERTO LOPES",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "ROBERTO LOPES DA COSTA",
+      "chave": "ROBERTO LOPES DA COSTA",
+      "catalogo": "ROBERTO LOPES",
+      "origem": "historico",
+      "ocorrencias": 9
+    },
+    {
+      "titular_recibo": "ROBERTO MALTEZ GARRIDO FILHO",
+      "chave": "ROBERTO MALTEZ GARRIDO FILHO",
+      "catalogo": "BETO GARRIDO",
+      "origem": "historico",
+      "ocorrencias": 4
+    },
+    {
+      "titular_recibo": "ROBERTO PEREIRA DOS SANTOS",
+      "chave": "ROBERTO PEREIRA DOS SANTOS",
+      "catalogo": "BETO JAMAICA",
+      "origem": "historico",
+      "ocorrencias": 9
+    },
+    {
+      "titular_recibo": "ROBERTO TADEU DE SOUZA",
+      "chave": "ROBERTO TADEU DE SOUZA",
+      "catalogo": "BEBETO",
+      "origem": "historico",
+      "ocorrencias": 9
+    },
+    {
+      "titular_recibo": "ROBSON LIBORIO PAIXAO",
+      "chave": "ROBSON LIBORIO PAIXAO",
+      "catalogo": "DUDU PAIXAO",
+      "origem": "historico",
+      "ocorrencias": 18
+    },
+    {
+      "titular_recibo": "RODOLFO LEITE GONCALVES DE ABRANTES",
+      "chave": "RODOLFO LEITE GONCALVES DE ABRANTES",
+      "catalogo": "RODOLFO ABRANTES",
+      "origem": "historico",
+      "ocorrencias": 23
+    },
+    {
+      "titular_recibo": "RODRIGO AGUIAR MADEIRA CAMPOS",
+      "chave": "RODRIGO AGUIAR MADEIRA CAMPOS",
+      "catalogo": "DIGAO",
+      "origem": "historico",
+      "ocorrencias": 13
+    },
+    {
+      "titular_recibo": "SANDRO COUTO CARNEIRO",
+      "chave": "SANDRO COUTO CARNEIRO",
+      "catalogo": "SANDRO COUTTO",
+      "origem": "historico",
+      "ocorrencias": 8
+    },
+    {
+      "titular_recibo": "Sete Mares",
+      "chave": "SETE MARES",
+      "catalogo": "MATHEUS ALEIXO",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "SETE MARES PRODUCOES ARTISTICAS LTDA - ME",
+      "chave": "SETE MARES PRODUCOES ARTISTICAS LTDA ME",
+      "catalogo": "MATHEUS ALEIXO",
+      "origem": "historico",
+      "ocorrencias": 4
+    },
+    {
+      "titular_recibo": "SILVIA LILIAN BARRIE KNAPP",
+      "chave": "SILVIA LILIAN BARRIE KNAPP",
+      "catalogo": "LILIAN KNAPP",
+      "origem": "historico",
+      "ocorrencias": 1
+    },
+    {
+      "titular_recibo": "Thiago Rossi",
+      "chave": "THIAGO ROSSI",
+      "catalogo": "THIAGO ROSSI",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "THIAGO ROSSI FERREIRA",
+      "chave": "THIAGO ROSSI FERREIRA",
+      "catalogo": "THIAGO ROSSI",
+      "origem": "historico",
+      "ocorrencias": 25
+    },
+    {
+      "titular_recibo": "Tico Santa Cruz - Três últimos anos - 21 - 24.xlsx",
+      "chave": "TICO SANTA CRUZ TRES ULTIMOS ANOS 21 24 XLSX",
+      "catalogo": "TICO SANTA CRUZ",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "TORQUATO PEREIRA DE ARAUJO NETO",
+      "chave": "TORQUATO PEREIRA DE ARAUJO NETO",
+      "catalogo": "TORQUATO NETO",
+      "origem": "historico",
+      "ocorrencias": 9
+    },
+    {
+      "titular_recibo": "VINICIUS RODRIGUES JUNQUEIRA",
+      "chave": "VINICIUS RODRIGUES JUNQUEIRA",
+      "catalogo": "VINICIUS JUNQUEIRA",
+      "origem": "historico",
+      "ocorrencias": 9
+    },
+    {
+      "titular_recibo": "VINICIUS RODRIGUES JUNQUEIRA - 491338",
+      "chave": "VINICIUS RODRIGUES JUNQUEIRA 491338",
+      "catalogo": "VINICIUS JUNQUEIRA",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Z Produções",
+      "chave": "Z PRODUCOES",
+      "catalogo": "ZEIDER",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "Z PRODUCOES ARTISTICAS LTDA - ME",
+      "chave": "Z PRODUCOES ARTISTICAS LTDA ME",
+      "catalogo": "ZEIDER",
+      "origem": "historico",
+      "ocorrencias": 6
+    },
+    {
+      "titular_recibo": "ZE HENRIQUE",
+      "chave": "ZE HENRIQUE",
+      "catalogo": "ZE HENRIQUE",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    },
+    {
+      "titular_recibo": "ZEIDER FERNANDO PIRES",
+      "chave": "ZEIDER FERNANDO PIRES",
+      "catalogo": "ZEIDER",
+      "origem": "historico",
+      "ocorrencias": 8
+    },
+    {
+      "titular_recibo": "Zeider Pires",
+      "chave": "ZEIDER PIRES",
+      "catalogo": "ZEIDER",
+      "origem": "credenciais",
+      "ocorrencias": 0
+    }
+  ]
+}
