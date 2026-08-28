@@ -39,7 +39,7 @@ import pandas as pd
 
 from utils.abramus_pdf import ler_internacional as _ler_internacional_pdf
 from utils.abramus_recibo import Recibo, normalizar, por_titular
-from utils.bases import normalize_catalog_column
+from utils.bases import read_catalog_base
 
 RAIZ = Path(__file__).resolve().parents[1]
 CAMINHO_DEPARA = RAIZ / "data" / "mapping" / "rr_titulares_abramus.json"
@@ -162,11 +162,13 @@ def _lookup_obras(caminho: Path = CAMINHO_BASE_OBRAS) -> tuple[dict, dict]:
     mais frequente."""
     if not Path(caminho).exists():
         return {}, {}
-    base = pd.read_excel(caminho)
-    # A base nova da ABRAMUS grava a coluna como "CATALOGO CORRETO" e não tem
-    # mais "AUTORES"; normaliza para "CATÁLOGO" antes de usar.
-    base = normalize_catalog_column(base)
-    base.columns = [str(c).strip() for c in base.columns]
+    # read_catalog_base: escolhe a aba certa se o arquivo tiver várias, faz strip
+    # nas colunas e já renomeia "CATALOGO CORRETO"/"Catálogo" -> "CATÁLOGO".
+    # (A base nova da ABRAMUS não tem mais "AUTORES".)
+    try:
+        base = read_catalog_base(caminho)
+    except ValueError:
+        return {}, {}
     base = base.dropna(subset=["CATÁLOGO"])
     base["_iswc"] = base["ISWC"].astype(str).str.replace(r"[^A-Za-z0-9]", "", regex=True).str.upper()
     # Título é fallback quando falta ISWC; se a coluna não vier (cabeçalho

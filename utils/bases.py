@@ -65,6 +65,18 @@ def read_mapping_sony(file_path: str) -> pd.DataFrame:
     return pd.DataFrame(rows_list)
 
 
+_CATALOGO_ALIASES = ("CATÁLOGO", "CATALOGO", "CATALOGO CORRETO", "CATÁLOGO CORRETO")
+
+
+def _catalog_col(df: pd.DataFrame):
+    """Nome real da coluna de catálogo em `df`, ou None."""
+    cols = {str(c).strip().upper(): c for c in df.columns}
+    for alias in _CATALOGO_ALIASES:
+        if alias in cols:
+            return cols[alias]
+    return None
+
+
 def normalize_catalog_column(df: pd.DataFrame) -> pd.DataFrame:
     """Renomeia a coluna de catálogo para `CATÁLOGO`.
 
@@ -72,15 +84,75 @@ def normalize_catalog_column(df: pd.DataFrame) -> pd.DataFrame:
     CORRETO" na base nova, com as colunas de ISWC/ISRC), Sony "Catalogo",
     Irmãos Vitale "Catálogo" — e o resto do código espera um nome só.
     """
-    cols = {c.upper(): c for c in df.columns}
-    for alias in ("CATÁLOGO", "CATALOGO", "CATALOGO CORRETO", "CATÁLOGO CORRETO"):
-        if alias in cols:
-            cat_col = cols[alias]
-            break
-    else:
-        raise ValueError("Base não tem coluna CATÁLOGO/CATALOGO.")
-
+    cat_col = _catalog_col(df)
+    if cat_col is None:
+        raise ValueError(
+            "Base não tem coluna de catálogo (esperado uma de: "
+            + ", ".join(_CATALOGO_ALIASES)
+            + f"). Colunas encontradas: {list(df.columns)}"
+        )
     if cat_col != "CATÁLOGO":
         df = df.rename(columns={cat_col: "CATÁLOGO"})
-
     return df
+
+
+def read_catalog_base(source, dtype=str) -> pd.DataFrame:
+    """Lê uma base de catálogo em XLSX de forma robusta a arquivos com várias
+    abas (planilhas), cabeçalho fora da primeira aba, ou aba de rascunho.
+
+    Percorre TODAS as abas e devolve, já com `.columns` limpo (strip) e a coluna
+    de catálogo renomeada para `CATÁLOGO`, a primeira aba que tenha uma coluna de
+    catálogo reconhecível. Prefere a aba que também tenha `CÓD. OBRA`. Se nenhuma
+    servir, levanta ValueError listando abas e colunas — mensagem acionável em
+    vez do `pd.read_excel` cego, que pegava a aba 0 (bug em produção quando a aba
+    boa não era a primeira).
+    """
+    planilhas = pd.read_excel(source, sheet_name=None, dtype=dtype)
+
+    candidatas = []
+    for nome, df in planilhas.items():
+        df = df.copy()
+        df.columns = [str(c).strip() for c in df.columns]
+        if _catalog_col(df) is not None:
+            tem_cod_obra = any(str(c).strip().upper() == "CÓD. OBRA" for c in df.columns)
+            candidatas.append((0 if tem_cod_obra else 1, nome, df))
+
+    if not candidatas:
+        resumo = {n: list(d.columns) for n, d in planilhas.items()}
+        raise ValueError(
+            "Nenhuma aba do arquivo tem coluna de catálogo "
+            f"({', '.join(_CATALOGO_ALIASES)}). Abas e colunas: {resumo}"
+        )
+
+    candidatas.sort(key=lambda t: t[0])
+    _, _nome, df = candidatas[0]
+    return normalize_catalog_column(df)
+
+
+def read_mapping_xlsx(source, dtype=str) -> pd.DataFrame:
+    """Lê um xlsx de mapeamento (catálogo, artistas, etc.) escolhendo a ABA
+    principal quando o arquivo tem várias.
+
+    Genérico (não exige coluna de catálogo, ao contrário de `read_catalog_base`):
+    prefere a aba com coluna de catálogo; senão a com `Artist`; senão a de maior
+    volume (linhas × colunas). Só faz `strip` nos nomes de coluna — não renomeia
+    nada.
+    """
+    planilhas = pd.read_excel(source, sheet_name=None, dtype=dtype)
+    if not planilhas:
+        return pd.DataFrame()
+
+    def _prep(df):
+        df = df.copy()
+        df.columns = [str(c).strip() for c in df.columns]
+        return df
+
+    abas = {n: _prep(d) for n, d in planilhas.items()}
+
+    for nome, df in abas.items():
+        if _catalog_col(df) is not None:
+            return df
+    for nome, df in abas.items():
+        if any(str(c).strip().lower() == "artist" for c in df.columns):
+            return df
+    return max(abas.values(), key=lambda d: d.shape[0] * max(d.shape[1], 1))

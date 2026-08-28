@@ -20,7 +20,12 @@ from utils.ui_components import render_html_table, simple_row, render_status_tab
 from utils.page import setup_page
 # Leitores das bases: compartilhados com o Home (utils/metrics.py), que conta o
 # conteudo de cada base sem importar esta pagina.
-from utils.bases import read_mapping_sony, normalize_catalog_column
+from utils.bases import (
+    read_mapping_sony,
+    normalize_catalog_column,
+    read_catalog_base,
+    read_mapping_xlsx,
+)
 
 # Integração opcional com Reprtoir — temporariamente DESATIVADA (reativação em
 # breve). Manter em False força as seções de "Buscar no Reprtoir" a só exibirem
@@ -98,8 +103,7 @@ def github_fetch_mapping(gh_config: dict, path: str = GITHUB_MAPPING_PATH):
     resp.raise_for_status()
     data = resp.json()
     content = base64.b64decode(data["content"])
-    df = pd.read_excel(BytesIO(content), dtype=str)
-    df.columns = [c.strip() for c in df.columns]
+    df = read_mapping_xlsx(BytesIO(content))
     return df, data["sha"]
 
 
@@ -338,11 +342,10 @@ def preview_dataframe(df: pd.DataFrame, height: int = 600) -> None:
 
 def read_base_xlsx(file_path: str) -> pd.DataFrame:
     """
-    Lê base de catálogo em XLSX.
+    Lê base de catálogo em XLSX. Robusto a arquivos com várias abas: escolhe a
+    aba que tem a coluna de catálogo (a coluna já sai renomeada para `CATÁLOGO`).
     """
-    df = pd.read_excel(file_path, dtype=str)
-    df.columns = [c.strip() for c in df.columns]
-    return df
+    return read_catalog_base(file_path)
 
 def build_lookup(df_base: pd.DataFrame, key_col: str) -> dict:
     """
@@ -996,8 +999,7 @@ if fonte == "ABRAMUS":
                 st.error(f"❌ Erro ao buscar base no GitHub: {e}")
         elif isinstance(base_source_abramus, str) and os.path.exists(base_source_abramus):
             try:
-                df_mapping_full_ab = pd.read_excel(base_source_abramus, dtype=str)
-                df_mapping_full_ab.columns = [c.strip() for c in df_mapping_full_ab.columns]
+                df_mapping_full_ab = read_mapping_xlsx(base_source_abramus)
             except Exception as e:
                 st.error(f"❌ Erro ao carregar base de catálogo: {e}")
         else:

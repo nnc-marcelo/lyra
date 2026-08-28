@@ -22,7 +22,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from utils.bases import normalize_catalog_column, read_mapping_sony
+from utils.bases import normalize_catalog_column, read_mapping_sony, read_mapping_xlsx
 
 RAIZ = Path(__file__).resolve().parents[1]
 MAPPING_DIR = RAIZ / "data" / "mapping"
@@ -126,7 +126,8 @@ class BaseFonte:
 def _ler_base(_caminho: str, leitor: str, mtime: float) -> pd.DataFrame:
     if leitor == "sony":
         return read_mapping_sony(_caminho)
-    return pd.read_excel(_caminho, dtype=str)
+    # read_mapping_xlsx: escolhe a aba principal quando o xlsx tem várias.
+    return read_mapping_xlsx(_caminho)
 
 
 @st.cache_data(show_spinner=False)
