@@ -41,6 +41,50 @@ except Exception:
 
 setup_page(__file__)
 
+with st.expander("ℹ️ O que é esta página e como usar", expanded=False):
+    st.markdown(
+        """
+**O que faz**
+
+Concilia o relatório de uma distribuidora (o rendimento **obra a obra** do período) com a
+**base de mapeamento** do catálogo (a planilha que diz "esta obra é do catálogo X") e devolve
+**quanto do repasse foi de cada catálogo**, mais o detalhamento linha a linha e a lista do que
+não casou.
+
+**As quatro fontes**
+
+| Fonte | Relatório | Chave de cruzamento | Base |
+| --- | --- | --- | --- |
+| **ABRAMUS** | ECAD `_XLS.csv` (uma linha por execução) | `CÓD. OBRA` ou `ISWC` (cat. E) / `CÓD FONOGRAMA` ou `ISRC` (demais), **sempre dentro da mesma categoria** | `Abramus Base_2026-08-27.xlsx` |
+| **Sony** | planilha Sony (cabeçalho na linha 10) | `Song No.` → catálogo | `Mapping_Sony.xlsx` |
+| **Irmãos Vitale** | demonstrativos DEX / DPV / Terceiros | título normalizado → catálogo | `Lista_Obras_Catalogo_Irmaos_Vitale.xlsx` |
+| **Ingrooves** | DSR, aba `Digital Sales Details` | artista → tag de artista (exato, depois por trecho) | `mapping-artistas-ingrooves.xlsx` |
+
+**A lógica do cruzamento ABRAMUS**
+
+1. **Mesma categoria** — linha `E` do relatório só casa com linha `E` da base; `PF` com `PF`; `I` com `I`.
+2. **Código *ou* ID** — para `E`, casa se bater `CÓD. OBRA` **ou** `ISWC`; para as demais, `CÓD FONOGRAMA` **ou** `ISRC`. Basta um. (A ABRAMUS renumera códigos entre períodos; o ISWC é estável.)
+3. **Conflito** — se código e ISWC/ISRC apontam catálogos diferentes, ou a base tem a mesma obra em dois catálogos (`MIDAS | POLLO`): usa o do código e marca a linha para revisão.
+
+**As abas do resultado**
+
+- **Agrupado por Catálogo** — o número final (total de `RATEIO` por catálogo). Conflitos vêm com ⚠️ e um bloco "Requer revisão".
+- **Detalhado** — uma linha por execução, com o catálogo resolvido; baixa em XLSX.
+- **Não Mapeados** — o que não casou, agrupado por obra e ordenado por valor. É a lista de trabalho.
+- **Revisar** (ABRAMUS) — casou só pelo ISWC/ISRC (código não bateu — ver coluna `CÓD. NA BASE`) e conflitos.
+
+**Como usar**
+
+1. Escolha a fonte na barra lateral e confira a base carregada.
+2. Selecione o período (ou faça upload do relatório se estiver fora da rede `Z:`).
+3. Clique em **Processar Cruzamento**.
+4. Confira o **Agrupado**, depois **Não Mapeados** e **Revisar**.
+5. Na aba de não mapeados, preencha o `CATÁLOGO` das obras que sobraram e **salve na base** —
+   grava um commit e o app reinicia com o mapeamento atualizado (dá para desfazer pelo botão
+   "Última gravação").
+"""
+    )
+
 # ---------------------------
 # Caminhos Fixos
 # ---------------------------
