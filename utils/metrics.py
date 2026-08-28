@@ -87,7 +87,7 @@ def _contar_faixas_ingrooves(_caminho: str, mtime: float) -> tuple[int, int]:
 BASES_FONTES = [
     {
         "fonte": "ABRAMUS",
-        "arquivo": "Robo_Abramus_Base.xlsx",
+        "arquivo": "Abramus Base_2026-08-27.xlsx",
         "coluna_item": "CÓD. OBRA",
         "unidade": "obras",
     },

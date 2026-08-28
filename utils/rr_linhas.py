@@ -39,11 +39,12 @@ import pandas as pd
 
 from utils.abramus_pdf import ler_internacional as _ler_internacional_pdf
 from utils.abramus_recibo import Recibo, normalizar, por_titular
+from utils.bases import normalize_catalog_column
 
 RAIZ = Path(__file__).resolve().parents[1]
 CAMINHO_DEPARA = RAIZ / "data" / "mapping" / "rr_titulares_abramus.json"
 # Mesma base de obras que a página de cruzamento usa para a ABRAMUS.
-CAMINHO_BASE_OBRAS = RAIZ / "data" / "mapping" / "Robo_Abramus_Base.xlsx"
+CAMINHO_BASE_OBRAS = RAIZ / "data" / "mapping" / "Abramus Base_2026-08-27.xlsx"
 
 FONTE_ABRAMUS = "ABRAMUS"
 # Titular que a RR usa para o que é do repertório da própria Nas Nuvens.
@@ -162,9 +163,16 @@ def _lookup_obras(caminho: Path = CAMINHO_BASE_OBRAS) -> tuple[dict, dict]:
     if not Path(caminho).exists():
         return {}, {}
     base = pd.read_excel(caminho)
+    # A base nova da ABRAMUS grava a coluna como "CATALOGO CORRETO" e não tem
+    # mais "AUTORES"; normaliza para "CATÁLOGO" antes de usar.
+    base = normalize_catalog_column(base)
+    base.columns = [str(c).strip() for c in base.columns]
     base = base.dropna(subset=["CATÁLOGO"])
     base["_iswc"] = base["ISWC"].astype(str).str.replace(r"[^A-Za-z0-9]", "", regex=True).str.upper()
-    base["_titulo"] = base["TÍTULO DA MUSICA"].map(normalizar)
+    # Título é fallback quando falta ISWC; se a coluna não vier (cabeçalho
+    # alterado na base), segue só por ISWC em vez de quebrar.
+    _col_titulo = next((c for c in base.columns if c.upper() in ("TÍTULO DA MUSICA", "TITULO DA MUSICA")), None)
+    base["_titulo"] = base[_col_titulo].map(normalizar) if _col_titulo else ""
     def moda(coluna):
         valido = base[base[coluna] != ""]
         return valido.groupby(coluna)["CATÁLOGO"].agg(lambda s: s.mode()[0]).to_dict()

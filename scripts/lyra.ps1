@@ -31,7 +31,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 foreach ($base in @("data\mapping\mapping-artistas-ingrooves.xlsx",
-                    "data\mapping\Robo_Abramus_Base.xlsx")) {
+                    "data\mapping\Abramus Base_2026-08-27.xlsx")) {
     $ultimo = & $git log -1 --format="%ad  %s" --date=format:"%d/%m %H:%M" -- $base
     Write-Host ("  {0,-45} {1}" -f (Split-Path $base -Leaf), $ultimo) -ForegroundColor DarkGray
 }

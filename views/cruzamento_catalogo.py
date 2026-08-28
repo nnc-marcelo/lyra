@@ -22,12 +22,17 @@ from utils.page import setup_page
 # conteudo de cada base sem importar esta pagina.
 from utils.bases import read_mapping_sony, normalize_catalog_column
 
-# Integração opcional com Reprtoir
+# Integração opcional com Reprtoir — temporariamente DESATIVADA (reativação em
+# breve). Manter em False força as seções de "Buscar no Reprtoir" a só exibirem
+# o aviso de indisponibilidade, sem tentar consultar a API.
+REPRTOIR_DISPONIVEL = False
+REPRTOIR_MSG_DESATIVADO = (
+    "🚧 A busca no Reprtoir está **temporariamente desativada** e será reativada em breve."
+)
 try:
-    from utils.reprtoir_lookup import ReprtorirClient, lookup_obra, match_catalogo_interno
-    REPRTOIR_DISPONIVEL = True
+    from utils.reprtoir_lookup import ReprtorirClient, lookup_obra, match_catalogo_interno  # noqa: F401
 except Exception:
-    REPRTOIR_DISPONIVEL = False
+    pass
 
 setup_page(__file__)
 
@@ -36,7 +41,7 @@ setup_page(__file__)
 # ---------------------------
 _PROJECT_ROOT = Path(__file__).parent.parent
 
-CAMINHO_BASE_ABRAMUS = str(_PROJECT_ROOT / "data" / "mapping" / "Robo_Abramus_Base.xlsx")
+CAMINHO_BASE_ABRAMUS = str(_PROJECT_ROOT / "data" / "mapping" / "Abramus Base_2026-08-27.xlsx")
 CAMINHO_ABRAMUS = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Catalog\ABRAMUS\NAS NUVENS CATALOG S.A"
 
 CAMINHO_BASE_SONY = str(_PROJECT_ROOT / "data" / "mapping" / "Mapping_Sony.xlsx")
@@ -52,7 +57,7 @@ CAMINHO_INGROOVES = r"Z:\ROYALTY\Royalties Statements_Historicals\Nas Nuvens Cat
 # GitHub (salvar mapeamento colaborativo direto no repositório)
 # ---------------------------
 GITHUB_MAPPING_PATH = "data/mapping/mapping-artistas-ingrooves.xlsx"
-GITHUB_MAPPING_PATH_ABRAMUS = "data/mapping/Robo_Abramus_Base.xlsx"
+GITHUB_MAPPING_PATH_ABRAMUS = "data/mapping/Abramus Base_2026-08-27.xlsx"
 
 
 def get_github_config():
@@ -267,10 +272,16 @@ def save_linhas_no_mapeamento(
     with st.spinner("Buscando versão atual do mapeamento no GitHub..."):
         df_mapping_atual, sha_atual = github_fetch_mapping(gh_config, path=path)
 
-    # A base ABRAMUS ainda grava o cabeçalho sem acento ("CATALOGO"); reconcilia
-    # com "CATÁLOGO" (usado pelo restante do app) antes de concatenar, senão o
-    # pd.concat cria as duas colunas em paralelo, cheias de NaN.
-    if "CATÁLOGO" in df_linhas.columns and "CATÁLOGO" not in df_mapping_atual.columns:
+    # As bases gravam o cabeçalho de catálogo de jeitos diferentes ("CATÁLOGO",
+    # "CATALOGO", "CATALOGO CORRETO" na base nova da ABRAMUS). Normaliza os dois
+    # lados para "CATÁLOGO" antes de concatenar (senão o pd.concat cria colunas
+    # paralelas cheias de NaN) e, no fim, devolve o nome original da base.
+    _cat_col_original = None
+    if "CATÁLOGO" in df_linhas.columns:
+        for _alias in ("CATÁLOGO", "CATALOGO", "CATALOGO CORRETO", "CATÁLOGO CORRETO"):
+            if _alias in df_mapping_atual.columns:
+                _cat_col_original = _alias
+                break
         try:
             df_mapping_atual = normalize_catalog_column(df_mapping_atual)
         except ValueError:
@@ -290,6 +301,8 @@ def save_linhas_no_mapeamento(
         return
 
     df_mapping_final = pd.concat([df_mapping_atual, df_novas_linhas], ignore_index=True)
+    if _cat_col_original and _cat_col_original != "CATÁLOGO":
+        df_mapping_final = df_mapping_final.rename(columns={"CATÁLOGO": _cat_col_original})
     with st.spinner("Salvando no GitHub..."):
         github_save_mapping(gh_config, df_mapping_final, sha_atual, commit_message=commit_message, path=path)
 
@@ -352,6 +365,55 @@ def build_lookup(df_base: pd.DataFrame, key_col: str) -> dict:
         .to_dict()
     )
     return grouped
+
+
+def build_lookup_abramus(
+    df_base: pd.DataFrame, code_col: str, id_col: str, categoria: str | None = None
+) -> tuple[dict, dict]:
+    """
+    Cruzamento ABRAMUS com a base nova (colunas de ISWC/ISRC):
+    categoria E -> CÓD. OBRA + ISWC ; demais -> CÓD FONOGRAMA + ISRC.
+
+    O cruzamento respeita a CATEGORIA: a linha do relatório só casa com linhas
+    da base de MESMA categoria (E com E, PF com PF, I com I). `categoria` = o
+    valor exato a filtrar; None não filtra (base antiga, sem a coluna).
+
+    Retorna (por_codigo, por_id, id_para_codigo):
+      - por_codigo:     <código> -> catálogo
+      - por_id:         <ISWC/ISRC> -> catálogo
+      - id_para_codigo: <ISWC/ISRC> -> código(s) que a base tem para esse ID
+        (para mostrar, na análise, qual código da base corresponde)
+    A linha casa se o CÓDIGO **ou** o ID bater (não precisa dos dois). Valores
+    repetidos juntam com ' | '.
+    """
+    if code_col not in df_base.columns or "CATÁLOGO" not in df_base.columns:
+        return {}, {}, {}
+
+    if categoria is not None and "CATEGORIA" in df_base.columns:
+        cat = df_base["CATEGORIA"].astype(str).str.strip().str.upper()
+        df_base = df_base[cat == str(categoria).strip().upper()]
+    df_base = df_base.reset_index(drop=True)
+
+    tmp = df_base[[code_col, "CATÁLOGO"]].copy()
+    tmp["__cod"] = tmp[code_col].astype(str).str.strip()
+    tmp["__id"] = (
+        df_base[id_col].astype(str).str.strip() if id_col in df_base.columns else ""
+    )
+    tmp["CATÁLOGO"] = tmp["CATÁLOGO"].astype(str).str.strip()
+    tmp = tmp[(tmp["CATÁLOGO"] != "") & (tmp["CATÁLOGO"].str.lower() != "nan")]
+
+    def _join(s):
+        return " | ".join(sorted(set(s)))
+
+    validos = lambda col: tmp[(tmp[col] != "") & (tmp[col].str.lower() != "nan")]
+    por_codigo = validos("__cod").groupby("__cod")["CATÁLOGO"].apply(_join).to_dict()
+    _com_id = validos("__id")
+    por_id = _com_id.groupby("__id")["CATÁLOGO"].apply(_join).to_dict()
+    id_para_codigo = (
+        _com_id[(_com_id["__cod"] != "") & (_com_id["__cod"].str.lower() != "nan")]
+        .groupby("__id")["__cod"].apply(_join).to_dict()
+    )
+    return por_codigo, por_id, id_para_codigo
 
 
 # ---------------------------
@@ -906,7 +968,7 @@ st.sidebar.markdown("---")
 
 if fonte == "ABRAMUS":
     st.header("📊 ABRAMUS - Processamento de Relatórios")
-    st.caption("Cruza por CÓD. OBRA (categoria E) ou CÓD FONOGRAMA (demais categorias) com a base de catálogo.")
+    st.caption("Cruza por CÓD. OBRA ou ISWC (categoria E) / CÓD FONOGRAMA ou ISRC (demais categorias), sempre dentro da mesma categoria da base.")
 
     # --- Base de catálogo ---
     if os.path.exists(CAMINHO_BASE_ABRAMUS):
@@ -944,7 +1006,7 @@ if fonte == "ABRAMUS":
         if df_mapping_full_ab is not None:
             st.caption(
                 f"{len(df_mapping_full_ab)} registro(s). Use a lupa no canto superior da tabela para buscar "
-                "por título, autor, código de obra/fonograma etc. Também dá para adicionar ou apagar linhas."
+                "por título, ISWC/ISRC, código de obra/fonograma, categoria etc. Também dá para adicionar ou apagar linhas."
             )
             df_mapping_editado_ab = st.data_editor(
                 df_mapping_full_ab,
@@ -1029,30 +1091,79 @@ if fonte == "ABRAMUS":
             # Verifica colunas-chave
             if "CÓD. OBRA" not in df_base.columns:
                 st.warning("Base não contém coluna 'CÓD. OBRA' (necessária para categoria E).")
+            if "ISWC" not in df_base.columns:
+                st.warning("Base não contém coluna 'ISWC' (cruzamento da categoria E cai só no código).")
             if "CÓD FONOGRAMA" not in df_base.columns:
                 st.warning("Base não contém coluna 'CÓD FONOGRAMA' (necessária para categorias não-E).")
-
-            # Lookups
-            obra_lookup = build_lookup(df_base, "CÓD. OBRA")
-            fono_lookup = build_lookup(df_base, "CÓD FONOGRAMA")
+            if "ISRC" not in df_base.columns:
+                st.warning("Base não contém coluna 'ISRC' (cruzamento das demais categorias cai só no código).")
 
             # Normaliza campos do relatório
-            for c in ["CÓD. OBRA", "CÓD FONOGRAMA", "CATEGORIA"]:
+            for c in ["CÓD. OBRA", "CÓD FONOGRAMA", "CATEGORIA", "ISWC", "ISRC"]:
                 if c in df_report.columns:
                     df_report[c] = df_report[c].astype(str).str.strip()
 
-            # Aplica regra: E -> obra, senão -> fonograma
-            def resolve_catalog(row):
-                cat = (row.get("CATEGORIA") or "").strip().upper()
-                if cat == "E":
-                    key = (row.get("CÓD. OBRA") or "").strip()
-                    return obra_lookup.get(key, "")
+            # Lookups POR CATEGORIA: a linha do relatório só casa com linhas da
+            # base de MESMA categoria (E com E, PF com PF, I com I). Categoria E
+            # cruza por CÓD. OBRA ou ISWC; as demais por CÓD FONOGRAMA ou ISRC —
+            # basta um dos dois bater.
+            _cats_relatorio = (
+                sorted(c for c in df_report.get("CATEGORIA", pd.Series(dtype=str)).unique() if c and c.lower() != "nan")
+                if "CATEGORIA" in df_report.columns else []
+            )
+            _lookups = {}
+            for _cat in _cats_relatorio:
+                if _cat.upper() == "E":
+                    _lookups[_cat] = ("CÓD. OBRA", "ISWC", *build_lookup_abramus(df_base, "CÓD. OBRA", "ISWC", categoria=_cat))
                 else:
-                    key = (row.get("CÓD FONOGRAMA") or "").strip()
-                    return fono_lookup.get(key, "")
+                    _lookups[_cat] = ("CÓD FONOGRAMA", "ISRC", *build_lookup_abramus(df_base, "CÓD FONOGRAMA", "ISRC", categoria=_cat))
+
+            def resolve_catalog(row):
+                """Retorna (catálogo, como_casou, cod_na_base). como_casou ∈
+                {'', 'codigo', 'iswc_isrc', 'conflito'}.
+                'conflito' = mapeamento contraditório, precisa de revisão manual:
+                  (a) código e ISWC/ISRC apontam catálogos diferentes, ou
+                  (b) o próprio código/ISWC está cadastrado na base com mais de
+                      um catálogo (valor vem com ' | ').
+                cod_na_base = o CÓD. OBRA/FONOGRAMA que a base tem para aquele
+                ISWC/ISRC, preenchido só quando o código da linha não bateu."""
+                cat = (row.get("CATEGORIA") or "").strip()
+                entry = _lookups.get(cat)
+                if entry is None:
+                    return "", "", ""
+                cod_col, id_col, por_codigo, por_id, id_para_codigo = entry
+                cod = (row.get(cod_col) or "").strip()
+                sec = (row.get(id_col) or "").strip()
+
+                val_cod = por_codigo.get(cod, "") if cod and cod.lower() != "nan" else ""
+                val_id = por_id.get(sec, "") if sec and sec.lower() != "nan" else ""
+                cod_base = id_para_codigo.get(sec, "") if sec and sec.lower() != "nan" else ""
+
+                if val_cod and val_id and val_cod != val_id:
+                    return val_cod, "conflito", cod_base  # código vs ISWC/ISRC
+                escolhido = val_cod or val_id
+                if not escolhido:
+                    return "", "", ""
+                if " | " in escolhido:
+                    return escolhido, "conflito", ("" if val_cod else cod_base)  # base ambígua
+                if val_cod:
+                    return val_cod, "codigo", ""
+                return val_id, "iswc_isrc", cod_base
 
             df_out = df_report.copy()
-            df_out["CATÁLOGO"] = df_out.apply(resolve_catalog, axis=1)
+            df_out[["CATÁLOGO", "CASOU_POR", "CÓD. NA BASE"]] = df_out.apply(
+                resolve_catalog, axis=1, result_type="expand"
+            )
+
+            _n_so_id = int((df_out["CASOU_POR"] == "iswc_isrc").sum())
+            _n_conflito = int((df_out["CASOU_POR"] == "conflito").sum())
+            _msgs = []
+            if _n_so_id:
+                _msgs.append(f"{_n_so_id} casada(s) só pelo ISWC/ISRC (CÓD. OBRA não bateu)")
+            if _n_conflito:
+                _msgs.append(f"{_n_conflito} CONFLITO(s) de catálogo na base")
+            if _msgs:
+                st.caption("ℹ️ " + " · ".join(_msgs) + " — ver aba de revisão")
 
             # Guarda o resultado no session_state: a edição do data_editor abaixo
             # dispara reruns da página, e sem isso o app voltaria pra tela inicial
@@ -1085,9 +1196,17 @@ if fonte == "ABRAMUS":
 
             df_nao_mapeadas_raw = df_out[df_out["CATÁLOGO"].isin(["", "nan"]) | df_out["CATÁLOGO"].isna()].copy()
 
-            tab_agrupado, tab_detalhado, tab_nao_mapeados = st.tabs([
-                "📊 Agrupado por Catálogo", "📋 Detalhado", "🔍 Não Mapeados"
-            ])
+            df_so_iswc = df_out[df_out["CASOU_POR"].isin(["iswc_isrc", "conflito"])].copy()
+            _n_obras_iswc = (
+                df_so_iswc["CÓD. OBRA"].nunique() if "CÓD. OBRA" in df_so_iswc.columns else len(df_so_iswc)
+            )
+
+            _tab_labels = ["📊 Agrupado por Catálogo", "📋 Detalhado", "🔍 Não Mapeados"]
+            if not df_so_iswc.empty:
+                _tab_labels.append(f"⚠️ Revisar — ISWC/ISRC e conflitos ({_n_obras_iswc})")
+            _tabs = st.tabs(_tab_labels)
+            tab_agrupado, tab_detalhado, tab_nao_mapeados = _tabs[0], _tabs[1], _tabs[2]
+            tab_so_iswc = _tabs[3] if not df_so_iswc.empty else None
 
             with tab_agrupado:
                 df_grouped = df_out.groupby("CATÁLOGO", as_index=False)["RATEIO"].sum()
@@ -1096,7 +1215,10 @@ if fonte == "ABRAMUS":
                 render_html_table(
                     ["Catálogo", "RATEIO"],
                     [
-                        simple_row([r["CATÁLOGO"] or "(sem catálogo)", f"R$ {r['RATEIO']:,.2f}"])
+                        simple_row([
+                            ("⚠️ " if " | " in str(r["CATÁLOGO"]) else "") + (r["CATÁLOGO"] or "(sem catálogo)"),
+                            f"R$ {r['RATEIO']:,.2f}",
+                        ])
                         for _, r in df_grouped.iterrows()
                     ],
                     max_height="480px",
@@ -1105,6 +1227,21 @@ if fonte == "ABRAMUS":
 
                 total_rateio = df_grouped["RATEIO"].sum()
                 st.markdown(f"**Total RATEIO: R$ {total_rateio:,.2f}**")
+
+                # Conflitos (catálogo contraditório) e casados só por ISWC/ISRC —
+                # mostrados aqui também, não só na aba de revisão.
+                _conf = df_out[df_out["CASOU_POR"] == "conflito"]
+                _isw = df_out[df_out["CASOU_POR"] == "iswc_isrc"]
+                if not _conf.empty or not _isw.empty:
+                    _linhas = []
+                    if not _conf.empty:
+                        for _c, _g in _conf.groupby("CATÁLOGO"):
+                            _linhas.append(f"- ⚠️ **{_c}** — R$ {_g['RATEIO'].sum():,.2f} ({_g['CÓD. OBRA'].nunique()} obra(s)) · *catálogo contraditório na base*")
+                    if not _isw.empty:
+                        _linhas.append(f"- ℹ️ casadas só pelo ISWC/ISRC — R$ {_isw['RATEIO'].sum():,.2f} ({_isw['CÓD. OBRA'].nunique()} obra(s))")
+                    st.markdown(
+                        "**Requer revisão** (detalhe na aba *Revisar*):\n" + "\n".join(_linhas)
+                    )
 
                 xlsx_bytes = df_to_xlsx_bytes(df_grouped)
                 st.download_button(
@@ -1121,7 +1258,8 @@ if fonte == "ABRAMUS":
 
                 colunas_detalhadas = [
                     "CATÁLOGO", "TÍTULO DA MUSICA", "CÓD. OBRA", "CÓD FONOGRAMA",
-                    "ISWC", "AUTORES", "CATEGORIA", "RATEIO"
+                    "ISWC", "ISRC", "AUTORES", "INTERPRETE", "CATEGORIA",
+                    "PARTICIPAÇÃO", "RATEIO"
                 ]
                 colunas_detalhadas_disp = [col for col in colunas_detalhadas if col in df_detalhado.columns]
 
@@ -1153,6 +1291,46 @@ if fonte == "ABRAMUS":
                     type="primary"
                 )
 
+            if tab_so_iswc is not None:
+                with tab_so_iswc:
+                    st.subheader("⚠️ Obras para revisar")
+                    st.markdown(
+                        "- **`iswc_isrc`** — o CÓD. OBRA/FONOGRAMA do relatório não existe na base; "
+                        "casou pelo ISWC/ISRC. Compare `CÓD. OBRA` (relatório) com `CÓD. NA BASE` — "
+                        "normalmente a ABRAMUS renumerou a obra.\n"
+                        "- **`conflito`** — mapeamento contraditório: ou código e ISWC/ISRC apontam "
+                        "catálogos diferentes, ou a **própria base** cadastrou o mesmo código/ISWC "
+                        "com mais de um catálogo (aparece como `X | Y`). Precisa acertar a base."
+                    )
+
+                    # Uma linha por obra (o relatório traz várias execuções da
+                    # mesma obra); soma o RATEIO.
+                    _grp_iswc = [
+                        c for c in ["CATÁLOGO", "CASOU_POR", "TÍTULO DA MUSICA", "CÓD. OBRA",
+                                    "CÓD. NA BASE", "CÓD FONOGRAMA", "ISWC", "ISRC", "AUTORES", "CATEGORIA"]
+                        if c in df_so_iswc.columns
+                    ]
+                    if "RATEIO" in df_so_iswc.columns:
+                        df_so_iswc_view = (
+                            df_so_iswc.groupby(_grp_iswc, as_index=False, dropna=False)["RATEIO"].sum()
+                            .sort_values("RATEIO", ascending=False)
+                        )
+                    else:
+                        df_so_iswc_view = df_so_iswc[_grp_iswc].drop_duplicates()
+
+                    _c1, _c2 = st.columns(2)
+                    _c1.metric("Obras p/ analisar", len(df_so_iswc_view))
+                    if "RATEIO" in df_so_iswc_view.columns:
+                        _c2.metric("RATEIO envolvido", f"R$ {df_so_iswc_view['RATEIO'].sum():,.2f}")
+
+                    preview_dataframe(df_so_iswc_view)
+                    st.download_button(
+                        "⬇️ Baixar (XLSX)",
+                        data=df_to_xlsx_bytes(df_so_iswc_view),
+                        file_name=f"abramus_casados_por_iswc_{period_suffix}.xlsx",
+                        mime=XLSX_MIME,
+                    )
+
             with tab_nao_mapeados:
                 df_nao_mapeadas = df_nao_mapeadas_raw
 
@@ -1168,7 +1346,7 @@ if fonte == "ABRAMUS":
 
                     df_nao_mapeadas["CHAVE_GRUPO"] = df_nao_mapeadas.apply(get_chave_agrupamento, axis=1)
 
-                    colunas_primeiro = ["TÍTULO DA MUSICA", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "AUTORES", "CATEGORIA"]
+                    colunas_primeiro = ["TÍTULO DA MUSICA", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "ISRC", "AUTORES", "CATEGORIA"]
                     colunas_primeiro_disp = [col for col in colunas_primeiro if col in df_nao_mapeadas.columns]
 
                     agg_dict = {col: 'first' for col in colunas_primeiro_disp}
@@ -1183,7 +1361,7 @@ if fonte == "ABRAMUS":
 
                     df_agrupado = df_agrupado.sort_values("RATEIO_NUM", ascending=False)
 
-                    colunas_exibir = ["TÍTULO DA MUSICA", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "AUTORES", "CATEGORIA", "RATEIO_NUM"]
+                    colunas_exibir = ["TÍTULO DA MUSICA", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "ISRC", "AUTORES", "CATEGORIA", "RATEIO_NUM"]
                     colunas_exibir_disp = [col for col in colunas_exibir if col in df_agrupado.columns]
 
                     df_preview = df_agrupado[colunas_exibir_disp].copy()
@@ -1203,7 +1381,15 @@ if fonte == "ABRAMUS":
                     st.markdown("---")
                     st.subheader("✏️ Resolver Obras Não Mapeadas")
 
-                    colunas_mapeamento_abramus = ["TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "CATÁLOGO"]
+                    # Estrutura da base nova da ABRAMUS (com ISRC/CATEGORIA, sem
+                    # AUTORES). O CATEGORIA é essencial: o cruzamento casa E-com-E,
+                    # PF-com-PF etc., então obra salva sem categoria não casaria.
+                    # "CATÁLOGO" é renomeado para "CATALOGO CORRETO" ao gravar.
+                    colunas_mapeamento_abramus = [
+                        c for c in ["TÍTULO DA MUSICA", "CÓD. OBRA", "ISWC", "CÓD FONOGRAMA",
+                                    "ISRC", "CATEGORIA"]
+                        if c in df_agrupado.columns
+                    ] + ["CATÁLOGO"]
 
                     render_ultima_gravacao(
                         gh_config_mapping_ab, GITHUB_MAPPING_PATH_ABRAMUS,
@@ -1217,14 +1403,17 @@ if fonte == "ABRAMUS":
                     )
 
                     if modo_resolucao_ab == "✏️ Editar na tela":
-                        colunas_template_ab = ["TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC"]
+                        # AUTORES entra como contexto para decidir o catálogo, mas
+                        # não é gravado (a base nova não tem essa coluna).
+                        colunas_template_ab = ["TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "ISRC", "CATEGORIA"]
                         colunas_template_ab_disp = [c for c in colunas_template_ab if c in df_agrupado.columns]
                         df_template_ab = df_agrupado[colunas_template_ab_disp].drop_duplicates().sort_values("TÍTULO DA MUSICA").reset_index(drop=True)
                         df_template_ab["CATÁLOGO"] = ""
 
                         st.markdown(
                             "**Preencha `CATÁLOGO`** — mesma estrutura da base de catálogo, "
-                            "pronta para salvar direto ou baixar e colar em `Robo_Abramus_Base.xlsx`:"
+                            "pronta para salvar direto ou baixar e colar na base ABRAMUS "
+                            "(a coluna vira `CATALOGO CORRETO` ao gravar):"
                         )
 
                         editor_key_ab = f"editor_abramus_naomapeados_{period_suffix}"
@@ -1372,7 +1561,7 @@ if fonte == "ABRAMUS":
                     st.markdown("---")
                     st.subheader("🔎 Buscar no Reprtoir")
                     if not REPRTOIR_DISPONIVEL:
-                        st.info("ℹ️ Integração com Reprtoir não disponível. Verifique o arquivo `.env` com `REPRTOIR_API_KEY`.")
+                        st.info(REPRTOIR_MSG_DESATIVADO)
                     else:
                         st.caption("Consulta a API do Reprtoir para identificar obras não mapeadas via ISWC ou título+autores.")
                         _rep_key_ab = f"reprtoir_abramus_{period_suffix}"
@@ -1789,7 +1978,7 @@ elif fonte == "SONY":
                     st.markdown("---")
                     st.subheader("🔎 Buscar no Reprtoir")
                     if not REPRTOIR_DISPONIVEL:
-                        st.info("ℹ️ Integração com Reprtoir não disponível. Verifique o arquivo `.env` com `REPRTOIR_API_KEY`.")
+                        st.info(REPRTOIR_MSG_DESATIVADO)
                     else:
                         st.caption("Consulta a API do Reprtoir para identificar músicas não mapeadas via título+autores.")
                         _rep_key_so = f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}"

@@ -68,14 +68,15 @@ def read_mapping_sony(file_path: str) -> pd.DataFrame:
 def normalize_catalog_column(df: pd.DataFrame) -> pd.DataFrame:
     """Renomeia a coluna de catálogo para `CATÁLOGO`.
 
-    Cada fonte grafa do seu jeito — ABRAMUS manda "CATÁLOGO", Sony "Catalogo",
+    Cada fonte grafa do seu jeito — ABRAMUS manda "CATÁLOGO" (ou "CATALOGO
+    CORRETO" na base nova, com as colunas de ISWC/ISRC), Sony "Catalogo",
     Irmãos Vitale "Catálogo" — e o resto do código espera um nome só.
     """
     cols = {c.upper(): c for c in df.columns}
-    if "CATÁLOGO" in cols:
-        cat_col = cols["CATÁLOGO"]
-    elif "CATALOGO" in cols:
-        cat_col = cols["CATALOGO"]
+    for alias in ("CATÁLOGO", "CATALOGO", "CATALOGO CORRETO", "CATÁLOGO CORRETO"):
+        if alias in cols:
+            cat_col = cols[alias]
+            break
     else:
         raise ValueError("Base não tem coluna CATÁLOGO/CATALOGO.")
 
