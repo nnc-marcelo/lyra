@@ -170,13 +170,19 @@ def _lookup_obras(caminho: Path = CAMINHO_BASE_OBRAS) -> tuple[dict, dict]:
     except ValueError:
         return {}, {}
     base = base.dropna(subset=["CATÁLOGO"])
-    base["_iswc"] = base["ISWC"].astype(str).str.replace(r"[^A-Za-z0-9]", "", regex=True).str.upper()
+    # fillna("") ANTES do astype(str): no pandas 2.3.3 (deploy) astype(str) num
+    # NaN vira a string "nan" -> ".upper()" -> "NAN", que formava um bucket falso
+    # em moda() e casava linhas de ISWC vazio num catálogo qualquer.
+    base["_iswc"] = (
+        base["ISWC"].fillna("").astype(str)
+        .str.replace(r"[^A-Za-z0-9]", "", regex=True).str.upper()
+    )
     # Título é fallback quando falta ISWC; se a coluna não vier (cabeçalho
     # alterado na base), segue só por ISWC em vez de quebrar.
     _col_titulo = next((c for c in base.columns if c.upper() in ("TÍTULO DA MUSICA", "TITULO DA MUSICA")), None)
-    base["_titulo"] = base[_col_titulo].map(normalizar) if _col_titulo else ""
+    base["_titulo"] = base[_col_titulo].fillna("").map(normalizar) if _col_titulo else ""
     def moda(coluna):
-        valido = base[base[coluna] != ""]
+        valido = base[~base[coluna].isin(["", "NAN", "NONE"])]
         return valido.groupby(coluna)["CATÁLOGO"].agg(lambda s: s.mode()[0]).to_dict()
     return moda("_iswc"), moda("_titulo")
 

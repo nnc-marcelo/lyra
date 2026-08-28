@@ -149,9 +149,15 @@ def read_mapping_xlsx(source, dtype=str) -> pd.DataFrame:
 
     abas = {n: _prep(d) for n, d in planilhas.items()}
 
-    for nome, df in abas.items():
-        if _catalog_col(df) is not None:
-            return df
+    com_catalogo = [df for df in abas.values() if _catalog_col(df) is not None]
+    if com_catalogo:
+        # Mesmo critério de desempate de read_catalog_base: entre abas com coluna
+        # de catálogo, prefere a que também tem "CÓD. OBRA" (a aba "boa" da base
+        # ABRAMUS), para as duas rotas de leitura nunca divergirem de aba.
+        com_catalogo.sort(
+            key=lambda d: 0 if any(str(c).strip().upper() == "CÓD. OBRA" for c in d.columns) else 1
+        )
+        return com_catalogo[0]
     for nome, df in abas.items():
         if any(str(c).strip().lower() == "artist" for c in df.columns):
             return df

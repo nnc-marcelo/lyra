@@ -123,11 +123,14 @@ class BaseFonte:
 
 
 @st.cache_data(show_spinner=False)
-def _ler_base(_caminho: str, leitor: str, mtime: float) -> pd.DataFrame:
+def _ler_base(caminho: str, leitor: str, mtime: float) -> pd.DataFrame:
+    # `caminho` SEM prefixo "_" de propósito: precisa entrar no hash do cache,
+    # senão a chave vira só (leitor, mtime) e ABRAMUS/Vitale/Ingrooves (todas
+    # leitor="excel") colidiriam se os mtimes empatassem após um checkout.
     if leitor == "sony":
-        return read_mapping_sony(_caminho)
+        return read_mapping_sony(caminho)
     # read_mapping_xlsx: escolhe a aba principal quando o xlsx tem várias.
-    return read_mapping_xlsx(_caminho)
+    return read_mapping_xlsx(caminho)
 
 
 @st.cache_data(show_spinner=False)

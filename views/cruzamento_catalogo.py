@@ -293,10 +293,18 @@ def save_linhas_no_mapeamento(
 
     dedup_cols_disp = [c for c in dedup_cols if c in df_mapping_atual.columns and c in df_linhas.columns]
     if dedup_cols_disp:
-        df_existente_valido = df_mapping_atual.dropna(subset=dedup_cols_disp)
-        chaves_existentes = set(df_existente_valido[dedup_cols_disp].astype(str).agg("|".join, axis=1))
-        chaves_novas = df_linhas[dedup_cols_disp].astype(str).agg("|".join, axis=1)
-        df_novas_linhas = df_linhas[~chaves_novas.isin(chaves_existentes)]
+        # Uma linha nova é duplicata se QUALQUER coluna de dedup já tiver aquele
+        # valor na base — compara coluna a coluna, não uma chave concatenada
+        # "a|b". A chave concatenada quebrava na base ABRAMUS: as obras de
+        # categoria E têm CÓD. OBRA mas ~metade não tem CÓD FONOGRAMA, então a
+        # chave "cod|nan" nunca batia (a linha da base caía no dropna how="any")
+        # e toda obra E era regravada a cada save/importação.
+        ja_existe = pd.Series(False, index=df_linhas.index)
+        for _c in dedup_cols_disp:
+            existentes = set(df_mapping_atual[_c].dropna().astype(str).str.strip()) - {"", "nan"}
+            col_novas = df_linhas[_c].fillna("").astype(str).str.strip()
+            ja_existe |= col_novas.ne("") & col_novas.isin(existentes)
+        df_novas_linhas = df_linhas[~ja_existe]
     else:
         df_novas_linhas = df_linhas
 
@@ -1236,11 +1244,13 @@ if fonte == "ABRAMUS":
                 _isw = df_out[df_out["CASOU_POR"] == "iswc_isrc"]
                 if not _conf.empty or not _isw.empty:
                     _linhas = []
+                    _tem_cod_obra = "CÓD. OBRA" in df_out.columns
+                    _n_obras = lambda d: d["CÓD. OBRA"].nunique() if _tem_cod_obra else len(d)
                     if not _conf.empty:
                         for _c, _g in _conf.groupby("CATÁLOGO"):
-                            _linhas.append(f"- ⚠️ **{_c}** — R$ {_g['RATEIO'].sum():,.2f} ({_g['CÓD. OBRA'].nunique()} obra(s)) · *catálogo contraditório na base*")
+                            _linhas.append(f"- ⚠️ **{_c}** — R$ {_g['RATEIO'].sum():,.2f} ({_n_obras(_g)} obra(s)) · *catálogo contraditório na base*")
                     if not _isw.empty:
-                        _linhas.append(f"- ℹ️ casadas só pelo ISWC/ISRC — R$ {_isw['RATEIO'].sum():,.2f} ({_isw['CÓD. OBRA'].nunique()} obra(s))")
+                        _linhas.append(f"- ℹ️ casadas só pelo ISWC/ISRC — R$ {_isw['RATEIO'].sum():,.2f} ({_n_obras(_isw)} obra(s))")
                     st.markdown(
                         "**Requer revisão** (detalhe na aba *Revisar*):\n" + "\n".join(_linhas)
                     )
