@@ -53,6 +53,9 @@ from utils.rr_linhas import (  # noqa: E402
     ler_internacional,
     linhas_do_recibo,
     novos_mapeamentos,
+    obras_conciliadas,
+    obras_debitos_editora,
+    obras_internacional,
 )
 
 setup_page(__file__)
@@ -83,6 +86,9 @@ crédito bancário é de cada catálogo**, pronto para lançar na RR.
   fecha com o que caiu no banco.
 - **Titular**: sai exatamente como está no recibo (`ROBERTO MALTEZ GARRIDO FILHO`, e não
   `Beto Garrido`). O de-para guarda só o catálogo.
+- **Obras conciliadas**: com o `..._INT.pdf` e/ou o `..._VCV.csv`, um botão baixa uma linha por
+  obra — qual catálogo casou, se foi por ISWC ou por título, e o valor. É a planilha pra pesquisar
+  depois as obras que não casaram com nenhum catálogo.
 
 **Como usar**
 
@@ -144,6 +150,7 @@ with tab_conciliar:
         )
 
     agrupado = internacional = debitos_editora = None
+    obras_int = obras_deb = None
     if agrupado_arquivo is not None:
         try:
             agrupado = ler_agrupado(agrupado_arquivo)
@@ -155,6 +162,7 @@ with tab_conciliar:
     if int_arquivo is not None:
         try:
             internacional = ler_internacional(int_arquivo)
+            obras_int = obras_internacional(int_arquivo)
             por_titulo = float(internacional["Casado só por título"].sum())
             sem_catalogo = float(internacional.loc[internacional["Catálogo"] == "", "Valor"].sum())
             recado = (
@@ -174,6 +182,7 @@ with tab_conciliar:
     if vcv_arquivo is not None:
         try:
             debitos_editora = ler_debitos_editora(vcv_arquivo)
+            obras_deb = obras_debitos_editora(vcv_arquivo)
             por_titulo = float(debitos_editora["Casado só por título"].sum())
             sem_catalogo = float(
                 debitos_editora.loc[debitos_editora["Catálogo"] == "", "Valor"].sum()
@@ -323,6 +332,18 @@ with tab_conciliar:
                     f"{len(novos)} titular(es) gravado(s). Baixe o JSON na aba **De-para de "
                     "titulares** e commite no repositório para não perder no próximo restart."
                 )
+
+        tabela_obras = obras_conciliadas(obras_int, obras_deb)
+        if not tabela_obras.empty:
+            st.download_button(
+                f"⬇️ Obras conciliadas — {len(tabela_obras)} obras (exterior + débito de editora)",
+                data=para_xlsx(tabela_obras),
+                file_name=f"obras_conciliadas_{FONTE_ABRAMUS.lower()}_{periodo}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                help="Uma linha por obra: qual catálogo casou, por ISWC ou por título, e o valor. "
+                     "Não inclui execução pública — o relatório agrupado do cruzamento já vem só "
+                     "por catálogo, sem o detalhe obra a obra.",
+            )
 
 # ---------------------------------------------------------------------------
 # De-para

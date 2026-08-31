@@ -195,6 +195,8 @@ def ler_internacional(arquivo, caminho_base: Path = CAMINHO_BASE_OBRAS) -> pd.Da
     título. O que não casar sai com catálogo em branco, para aparecer na tela em
     vez de se perder no resíduo.
     """
+    if hasattr(arquivo, "seek"):
+        arquivo.seek(0)
     detalhe = _ler_internacional_pdf(arquivo)
     if detalhe.empty:
         return pd.DataFrame(columns=["Catálogo", "Valor", "Obras"])
@@ -225,6 +227,36 @@ def ler_internacional(arquivo, caminho_base: Path = CAMINHO_BASE_OBRAS) -> pd.Da
     return agrupado.sort_values("Valor", ascending=False, ignore_index=True)
 
 
+def obras_internacional(arquivo, caminho_base: Path = CAMINHO_BASE_OBRAS) -> pd.DataFrame:
+    """Uma linha por obra do `_INT.pdf` (Título + ISWC) com o catálogo já
+    resolvido — é a mesma resolução de `ler_internacional`, só que sem agregar
+    por catálogo, para auditar qual obra casou em qual catálogo e como."""
+    if hasattr(arquivo, "seek"):
+        arquivo.seek(0)
+    detalhe = _ler_internacional_pdf(arquivo)
+    if detalhe.empty:
+        return pd.DataFrame(columns=["Título", "ISWC", "Catálogo", "Valor", "Casado por"])
+
+    por_iswc, por_titulo = _lookup_obras(caminho_base)
+
+    def resolver(linha):
+        iswc = str(linha["ISRC/ISWC"]).replace("-", "").upper()
+        if por_iswc.get(iswc):
+            return por_iswc[iswc], "ISWC"
+        catalogo = por_titulo.get(normalizar(linha["Título"]), "")
+        return catalogo, ("título" if catalogo else "não casou")
+
+    detalhe = detalhe.copy()
+    resolvido = detalhe.apply(resolver, axis=1, result_type="expand")
+    detalhe["Catálogo"], detalhe["Casado por"] = resolvido[0], resolvido[1]
+    agrupado = detalhe.groupby(
+        ["Título", "ISRC/ISWC", "Catálogo", "Casado por"], as_index=False, dropna=False
+    )["Rendimento"].sum()
+    agrupado = agrupado.rename(columns={"ISRC/ISWC": "ISWC", "Rendimento": "Valor"})
+    agrupado["Valor"] = agrupado["Valor"].round(2)
+    return agrupado.sort_values(["Catálogo", "Valor"], ascending=[True, False], ignore_index=True)
+
+
 def editora_da_titular(titular_recibo: str) -> str:
     """'WARNER', 'UNIVERSAL' ou '' — identifica a editora pelo nome do titular
     tal como o recibo grafa (`WARNER CHAPPELL EDICOES MUSICAIS LTDA`,
@@ -252,6 +284,8 @@ def ler_debitos_editora(arquivo, caminho_base: Path = CAMINHO_BASE_OBRAS) -> pd.
     Catálogo vem da base de obras da ABRAMUS, por ISWC e, na falta, por título
     — mesma técnica de `ler_internacional`.
     """
+    if hasattr(arquivo, "seek"):
+        arquivo.seek(0)
     df = pd.read_csv(arquivo, sep=";", encoding="cp1252", skiprows=2, decimal=",")
     colunas_esperadas = {"CONTRATO", "VENDA", "ISWC", "TITULO"}
     if not colunas_esperadas.issubset(df.columns):
@@ -313,6 +347,107 @@ def ler_debitos_editora(arquivo, caminho_base: Path = CAMINHO_BASE_OBRAS) -> pd.
     resultado["Valor"] = resultado["Valor"].round(2)
     resultado["Casado só por título"] = resultado["Casado só por título"].round(2)
     return resultado.sort_values(["Editora", "Valor"], ascending=[True, False], ignore_index=True)
+
+
+def obras_debitos_editora(arquivo, caminho_base: Path = CAMINHO_BASE_OBRAS) -> pd.DataFrame:
+    """Uma linha por (obra, editora) do `_VCV.csv` com o catálogo já resolvido
+    — mesma resolução de `ler_debitos_editora`, só que sem agregar por
+    catálogo, para auditar qual obra casou em qual catálogo e como."""
+    if hasattr(arquivo, "seek"):
+        arquivo.seek(0)
+    df = pd.read_csv(arquivo, sep=";", encoding="cp1252", skiprows=2, decimal=",")
+    colunas_esperadas = {"CONTRATO", "VENDA", "ISWC", "TITULO", "CODIGO_OBRA"}
+    if not colunas_esperadas.issubset(df.columns):
+        raise ValueError(
+            "Não reconheci esse arquivo como o `_VCV.csv` da ABRAMUS "
+            f"(faltam as colunas {sorted(colunas_esperadas - set(df.columns))})."
+        )
+    colunas_saida = ["Editora", "Título", "ISWC", "Código Obra", "Catálogo", "Valor", "Casado por"]
+    if df.empty:
+        return pd.DataFrame(columns=colunas_saida)
+
+    def percentuais(contrato) -> set[str]:
+        return set(re.findall(r"\((\d+)%\)", str(contrato)))
+
+    def dividir(linha) -> tuple[float, float]:
+        pcts = percentuais(linha["CONTRATO"])
+        warner, universal = pcts & WARNER_PERCENTUAIS, pcts & UNIVERSAL_PERCENTUAIS
+        if warner and not universal:
+            return -linha["VENDA"], 0.0
+        if universal and not warner:
+            return 0.0, -linha["VENDA"]
+        if warner and universal:
+            soma = sum(int(p) for p in pcts)
+            peso_warner = sum(int(p) for p in warner) / soma
+            return -linha["VENDA"] * peso_warner, -linha["VENDA"] * (1 - peso_warner)
+        return 0.0, 0.0
+
+    dividido = df.apply(dividir, axis=1, result_type="expand")
+    df["_warner"], df["_universal"] = dividido[0], dividido[1]
+    # ISWC/código em branco não pode virar chave NaN do groupby (o pandas
+    # descarta grupo com chave NaN por padrão) — é exatamente o caso da obra
+    # sem ISWC que apareceu no VCV de julho/26.
+    df["_iswc"] = df["ISWC"].fillna("").astype(str)
+    df["_codigo_obra"] = df["CODIGO_OBRA"].fillna("").astype(str)
+
+    por_iswc, por_titulo = _lookup_obras(caminho_base)
+
+    def resolver(linha):
+        iswc = str(linha["ISWC"]).replace("-", "").upper()
+        if por_iswc.get(iswc):
+            return por_iswc[iswc], "ISWC"
+        catalogo = por_titulo.get(normalizar(linha["TITULO"]), "")
+        return catalogo, ("título" if catalogo else "não casou")
+
+    resolvido = df.apply(resolver, axis=1, result_type="expand")
+    df["Catálogo"], df["Casado por"] = resolvido[0], resolvido[1]
+
+    partes = []
+    for editora, coluna in (("WARNER", "_warner"), ("UNIVERSAL", "_universal")):
+        bloco = df[df[coluna] != 0]
+        if bloco.empty:
+            continue
+        agrupado = bloco.groupby(
+            ["TITULO", "_iswc", "_codigo_obra", "Catálogo", "Casado por"], as_index=False, dropna=False
+        )[coluna].sum()
+        agrupado.insert(0, "Editora", editora)
+        agrupado = agrupado.rename(
+            columns={"TITULO": "Título", "_iswc": "ISWC", "_codigo_obra": "Código Obra", coluna: "Valor"}
+        )
+        partes.append(agrupado)
+
+    if not partes:
+        return pd.DataFrame(columns=colunas_saida)
+    resultado = pd.concat(partes, ignore_index=True)
+    resultado["Valor"] = resultado["Valor"].round(2)
+    resultado["_abs"] = resultado["Valor"].abs()
+    resultado = resultado.sort_values(["Editora", "_abs"], ascending=[True, False], ignore_index=True)
+    return resultado[colunas_saida]
+
+
+def obras_conciliadas(
+    internacional: pd.DataFrame | None = None, debitos_editora: pd.DataFrame | None = None
+) -> pd.DataFrame:
+    """Junta as obras do exterior (`obras_internacional`) e dos débitos de
+    editora (`obras_debitos_editora`) numa tabela só, para baixar e conferir
+    qual obra casou em qual catálogo — e como (por ISWC, por título, ou não
+    casou). A execução pública não entra aqui: o relatório agrupado do
+    cruzamento já vem só por catálogo, sem o detalhe obra a obra."""
+    colunas = ["Bloco", "Editora", "Catálogo", "Título", "ISWC", "Código Obra", "Valor", "Casado por"]
+    partes = []
+    if internacional is not None and not internacional.empty:
+        parte = internacional.copy()
+        parte.insert(0, "Bloco", ORIGEM_EXTERIOR)
+        parte["Editora"] = ""
+        parte["Código Obra"] = ""
+        partes.append(parte[colunas])
+    if debitos_editora is not None and not debitos_editora.empty:
+        parte = debitos_editora.copy()
+        parte.insert(0, "Bloco", ORIGEM_DEBITO)
+        partes.append(parte[colunas])
+    if not partes:
+        return pd.DataFrame(columns=colunas)
+    return pd.concat(partes, ignore_index=True)
 
 
 # ---------------------------------------------------------------------------
