@@ -361,6 +361,7 @@ def render_credentials_table(rows: list, query: str = ""):
         artist = html.escape(r.get("artist") or "")
         account = html.escape(r.get("account") or "")
         ecad = html.escape(r.get("ecad_code") or "—")
+        access = html.escape(r.get("access_type") or "—")
         text_style = "opacity: 1;" if active else "opacity: 0.4;"
         label = "ativa" if active else "suspensa"
         rows_html.append(
@@ -368,10 +369,11 @@ def render_credentials_table(rows: list, query: str = ""):
             f'<td style="padding:6px 10px;">{status_dot_html(active)}{artist}</td>'
             f'<td style="padding:6px 10px;">{account}</td>'
             f'<td style="padding:6px 10px;font-family:monospace;">{ecad}</td>'
+            f'<td style="padding:6px 10px;">{access}</td>'
             f"</tr>"
         )
 
-    render_html_table(["Artista", "Conta", "ECAD"], rows_html)
+    render_html_table(["Artista", "Conta", "ECAD", "Acesso"], rows_html)
     st.caption(f"{len(filtered)} de {len(rows)} — 🟢 acesa = reconhece automático · apagada = ainda suspensa/sem código")
 
 
