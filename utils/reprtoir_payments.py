@@ -94,6 +94,14 @@ class ReprtoirPaymentsClient:
                 + self._diagnosticar(r2)
             )
 
+        self._session.headers.update({
+            "X-CSRF-Token": csrf.get("content"),
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        })
+        self._logged_in = True
+
     @staticmethod
     def _diagnosticar(r: requests.Response) -> str:
         """Detalhe extra para o erro — sem isso, um bloqueio anti-bot (comum
@@ -113,14 +121,6 @@ class ReprtoirPaymentsClient:
             )
         amostra = re.sub(r"\s+", " ", r.text).strip()[:200]
         return f"(HTTP {r.status_code}, início da resposta: {amostra!r})"
-
-        self._session.headers.update({
-            "X-CSRF-Token": csrf.get("content"),
-            "X-Requested-With": "XMLHttpRequest",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        })
-        self._logged_in = True
 
     def _ensure_login(self) -> None:
         if not self._logged_in:
