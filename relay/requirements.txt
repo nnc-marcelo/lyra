@@ -1,0 +1,8 @@
+# Dependências do relay local — NÃO faz parte do deploy do Streamlit Cloud
+# (só requirements.txt na raiz é usado lá). Instale num venv local com:
+#   pip install -r relay/requirements.txt
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+requests==2.32.3
+beautifulsoup4==4.12.3
+python-dotenv==1.0.1

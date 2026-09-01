@@ -4,6 +4,9 @@
 # Segredos locais do Streamlit (nunca versionar - repo é público)
 .streamlit/secrets.toml
 
+# Segredos do relay local (RELAY_TOKEN, credenciais do Reprtoir)
+relay/.env
+
 # Python cache
 __pycache__/
 *.py[cod]

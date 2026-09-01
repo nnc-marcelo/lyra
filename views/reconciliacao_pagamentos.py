@@ -7,6 +7,13 @@ aplica: marca como Paid + data de pagamento quem foi pago, e registra nota de
 pendência em quem ficou pendente (ex.: pagamento que precisou ser refeito por
 outro meio).
 
+Por que via relay, e não falando com o Reprtoir direto: o Streamlit Community
+Cloud roda em IPs de datacenter compartilhados que o WAF na frente do
+Reprtoir bloqueia (HTTP 403) — mesmo pra chamadas GET simples via `requests`,
+sem navegador. Do IP residencial/escritório funciona normalmente. Por isso
+esta página fala com um relay rodando na sua máquina (ver `relay/`), que por
+sua vez fala com o Reprtoir — ver `utils/reprtoir_relay_client.py`.
+
 Por que comparar sempre contra o estado atual, e não um progresso salvo:
 a página roda no Streamlit Cloud, cujo processo pode reiniciar e cuja sessão
 de página é perdida a qualquer F5 do navegador — perder um "checkpoint" em
@@ -29,14 +36,8 @@ import streamlit as st
 
 from utils.page import setup_page
 from utils.execution_log import registrar
-from utils.reprtoir_payments import (
-    ReprtoirLoginError,
-    ReprtoirPaymentsClient,
-    ReprtoirRequestError,
-    carregar_planilha,
-    cruzar,
-    pendencias_em_aberto,
-)
+from utils.reprtoir_payments import carregar_planilha
+from utils.reprtoir_relay_client import RelayClient, RelayError
 
 PAGINA = "reconciliacao_pagamentos"
 
@@ -49,16 +50,19 @@ setup_page(
 )
 
 
-def _credencial(nome: str) -> str:
+def _config(nome: str) -> str:
     """Prioriza st.secrets (Streamlit Cloud); cai para variável de ambiente
-    (.env local) se não estiver nos secrets — mesma convenção de
-    utils/reprtoir_lookup.py, só que sem exigir um .env."""
+    (.env local) se não estiver nos secrets."""
     try:
         if nome in st.secrets:
             return st.secrets[nome]
     except Exception:
         pass
     return os.getenv(nome, "")
+
+
+def _relay() -> RelayClient:
+    return RelayClient(_config("RELAY_URL"), _config("RELAY_TOKEN"))
 
 
 with st.expander("ℹ️ O que é esta página e como usar", expanded=False):
@@ -76,8 +80,9 @@ aplicar qualquer coisa.
   seta a **data de pagamento**.
 - Linhas **NÃO** (não pago) cujo payment ainda está *Unpaid* → grava uma **nota** explicando
   a pendência (editável antes de aplicar) — não muda o status.
-- Linhas sem correspondência no Reprtoir, ou com status "Paid" mas a planilha dizendo
-  **NÃO** (inconsistência), são só **mostradas**, nunca aplicadas automaticamente.
+- Linhas sem correspondência, com mais de um payment candidato (ambíguo), ou com status
+  "Paid" mas a planilha dizendo **NÃO** (inconsistência), são só **mostradas**, nunca
+  aplicadas automaticamente.
 
 **Pendências entre competências**
 
@@ -89,13 +94,12 @@ planilha do mês seguinte já com a linha como SIM, a nota é limpa automaticame
 
 **Sobre a integração**
 
-Não existe API pública do Reprtoir para payments — esta página usa os mesmos endpoints
-internos que o próprio Reprtoir usa (login por sessão), não Playwright/navegador. Detalhes
-em `utils/reprtoir_payments.py`.
+Esta página não fala com o Reprtoir diretamente — o Streamlit Cloud é bloqueado pelo WAF do
+Reprtoir. Ela fala com um **relay rodando na sua máquina** (veja `relay/README.md` no repo
+para configurar). Sem o relay ligado, o botão "Conectar e comparar" abaixo vai dar erro de
+conexão.
 """)
 
-if "reconc_reprtoir_payments" not in st.session_state:
-    st.session_state.reconc_reprtoir_payments = None
 if "reconc_resultado" not in st.session_state:
     st.session_state.reconc_resultado = None
 
@@ -139,46 +143,35 @@ if nao_pagos:
 st.divider()
 
 # ---------------------------------------------------------------------------
-# 2. Conectar e comparar contra o estado atual do Reprtoir
+# 2. Conectar (via relay) e comparar contra o estado atual do Reprtoir
 # ---------------------------------------------------------------------------
 
 st.subheader("2. Comparar com o Reprtoir")
 st.caption(
     "Sempre busca o estado atual — se você já rodou isso antes hoje (ou a sessão caiu no meio), "
-    "rodar de novo é seguro: só aparece o que ainda falta."
+    "rodar de novo é seguro: só aparece o que ainda falta. Requer o relay local rodando "
+    "(veja `relay/README.md`)."
 )
 
 if st.button("🔄 Conectar e comparar", type="primary"):
-    email = _credencial("REPRTOIR_EMAIL")
-    password = _credencial("REPRTOIR_PASSWORD")
-
-    if not email or not password:
+    try:
+        relay = _relay()
+    except ValueError:
         st.error(
-            "REPRTOIR_EMAIL / REPRTOIR_PASSWORD não configurados. Adicione em "
-            "`.streamlit/secrets.toml` (local) ou nas Secrets do app no Streamlit Cloud."
+            "RELAY_URL / RELAY_TOKEN não configurados. Adicione nas Secrets do app "
+            "(Streamlit Cloud) ou em `.streamlit/secrets.toml` (local)."
         )
         st.stop()
 
-    client = ReprtoirPaymentsClient(email, password)
-    progress = st.progress(0.0, text="Conectando...")
-    try:
-        def _cb(pagina, total):
-            progress.progress(pagina / total, text=f"Extraindo página {pagina}/{total}...")
+    with st.spinner("Comparando com o Reprtoir (via relay)..."):
+        try:
+            resultado = relay.comparar(linhas)
+        except RelayError as e:
+            st.error(str(e))
+            st.stop()
 
-        payments = client.fetch_all_payments(progress_cb=_cb)
-    except ReprtoirLoginError as e:
-        progress.empty()
-        st.error(f"Login falhou: {e}")
-        st.stop()
-    except ReprtoirRequestError as e:
-        progress.empty()
-        st.error(f"Erro ao consultar o Reprtoir: {e}")
-        st.stop()
-
-    progress.empty()
-    st.session_state.reconc_reprtoir_payments = payments
-    st.session_state.reconc_resultado = cruzar(linhas, payments)
-    st.success(f"{len(payments)} payments extraídos do Reprtoir.")
+    st.session_state.reconc_resultado = resultado
+    st.success(f"{resultado['total_payments_reprtoir']} payments extraídos do Reprtoir.")
 
 resultado = st.session_state.reconc_resultado
 if resultado is None:
@@ -192,24 +185,32 @@ st.divider()
 
 st.subheader("3. Revisão")
 
+a_pagar = resultado["a_pagar"]
+pendentes = resultado["pendentes"]
+ja_ok = resultado["ja_ok"]
+conflitos = resultado["conflitos"]
+ambiguos = resultado["ambiguos"]
+sem_correspondencia = resultado["sem_correspondencia"]
+
 c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("A marcar como Paid", len(resultado.a_pagar))
-c2.metric("Pendências a registrar", len(resultado.pendentes))
-c3.metric("Já OK (nada a fazer)", len(resultado.ja_ok))
-c4.metric("Ambíguos", len(resultado.ambiguos))
-c5.metric("Sem correspondência", len(resultado.sem_correspondencia))
+c1.metric("A marcar como Paid", len(a_pagar))
+c2.metric("Pendências a registrar", len(pendentes))
+c3.metric("Já OK (nada a fazer)", len(ja_ok))
+c4.metric("Ambíguos", len(ambiguos))
+c5.metric("Sem correspondência", len(sem_correspondencia))
 
 data_padrao = None
-if resultado.a_pagar:
-    with st.expander(f"✅ Serão marcados como Paid ({len(resultado.a_pagar)})", expanded=True):
+if a_pagar:
+    with st.expander(f"✅ Serão marcados como Paid ({len(a_pagar)})", expanded=True):
         st.dataframe(
-            [{"Rights-Holder": m.linha.rightsholder, "VAT": m.linha.vat, "Valor": m.linha.amount,
-              "Data de pagamento": m.linha.data_pagamento or "— (obrigatório informar abaixo)"}
-             for m in resultado.a_pagar],
+            [{"Rights-Holder": m["linha"]["rightsholder"], "VAT": m["linha"]["vat"],
+              "Valor": m["linha"]["amount"],
+              "Data de pagamento": m["linha"]["data_pagamento"] or "— (obrigatório informar abaixo)"}
+             for m in a_pagar],
             use_container_width=True,
             hide_index=True,
         )
-        sem_data = [m for m in resultado.a_pagar if not m.linha.data_pagamento]
+        sem_data = [m for m in a_pagar if not m["linha"]["data_pagamento"]]
         if sem_data:
             st.warning(
                 f"{len(sem_data)} linha(s) sem data de pagamento na planilha — informe uma data "
@@ -218,55 +219,58 @@ if resultado.a_pagar:
             data_padrao = st.date_input("Data de pagamento (para as linhas sem data na planilha)")
 
 notas_editadas: dict[str, str] = {}
-if resultado.pendentes:
-    with st.expander(f"⏳ Pendências a registrar ({len(resultado.pendentes)})", expanded=True):
+if pendentes:
+    with st.expander(f"⏳ Pendências a registrar ({len(pendentes)})", expanded=True):
         st.caption("Edite o texto da nota se quiser — ela fica gravada no payment no Reprtoir.")
-        for m in resultado.pendentes:
-            padrao = m.linha.motivo or "Pendente — planilha marcou como NÃO pago neste ciclo."
-            notas_editadas[m.payment["uuid"]] = st.text_input(
-                f"{m.linha.rightsholder} — R$ {m.linha.amount:,.2f}",
+        for m in pendentes:
+            padrao = m["linha"]["motivo"] or "Pendente — planilha marcou como NÃO pago neste ciclo."
+            notas_editadas[m["payment"]["uuid"]] = st.text_input(
+                f"{m['linha']['rightsholder']} — R$ {m['linha']['amount']:,.2f}",
                 value=padrao,
-                key=f"nota_{m.payment['uuid']}",
+                key=f"nota_{m['payment']['uuid']}",
             )
 
-if resultado.ambiguos:
-    with st.expander(f"🔀 Ambíguos ({len(resultado.ambiguos)}) — não aplicado automaticamente", expanded=True):
+if ambiguos:
+    with st.expander(f"🔀 Ambíguos ({len(ambiguos)}) — não aplicado automaticamente", expanded=True):
         st.warning(
             "Mais de um payment do Reprtoir bate com o mesmo VAT + valor desta linha. "
             "Resolva manualmente no Reprtoir (ou ajuste a planilha) para evitar marcar o "
             "payment errado."
         )
-        for amb in resultado.ambiguos:
-            st.markdown(f"**{amb.linha.rightsholder}** — VAT {amb.linha.vat} — R$ {amb.linha.amount:,.2f}")
+        for amb in ambiguos:
+            st.markdown(
+                f"**{amb['linha']['rightsholder']}** — VAT {amb['linha']['vat']} — "
+                f"R$ {amb['linha']['amount']:,.2f}"
+            )
             st.dataframe(
                 [{"Payment (nome)": p["name"], "Status": p["status"]["text"], "Criado em": p["created_at"],
                   "uuid": p["uuid"]}
-                 for p in amb.candidatos],
+                 for p in amb["candidatos"]],
                 use_container_width=True,
                 hide_index=True,
             )
 
-if resultado.conflitos:
-    with st.expander(f"⚠️ Inconsistências ({len(resultado.conflitos)}) — não aplicado automaticamente", expanded=True):
+if conflitos:
+    with st.expander(f"⚠️ Inconsistências ({len(conflitos)}) — não aplicado automaticamente", expanded=True):
         st.warning("Planilha diz NÃO pago, mas o Reprtoir já mostra Paid. Confira manualmente.")
         st.dataframe(
-            [{"Rights-Holder": m.linha.rightsholder, "VAT": m.linha.vat, "Valor": m.linha.amount,
-              "Status no Reprtoir": m.payment["status"]["text"]}
-             for m in resultado.conflitos],
+            [{"Rights-Holder": m["linha"]["rightsholder"], "VAT": m["linha"]["vat"],
+              "Valor": m["linha"]["amount"], "Status no Reprtoir": m["payment"]["status"]["text"]}
+             for m in conflitos],
             use_container_width=True,
             hide_index=True,
         )
 
-if resultado.sem_correspondencia:
-    with st.expander(f"❓ Sem correspondência no Reprtoir ({len(resultado.sem_correspondencia)})", expanded=True):
+if sem_correspondencia:
+    with st.expander(f"❓ Sem correspondência no Reprtoir ({len(sem_correspondencia)})", expanded=True):
         st.dataframe(
-            [{"Rights-Holder": l.rightsholder, "VAT": l.vat, "Valor": l.amount}
-             for l in resultado.sem_correspondencia],
+            [{"Rights-Holder": l["rightsholder"], "VAT": l["vat"], "Valor": l["amount"]}
+             for l in sem_correspondencia],
             use_container_width=True,
             hide_index=True,
         )
 
-if not resultado.a_pagar and not resultado.pendentes:
+if not a_pagar and not pendentes:
     st.info("Nada a aplicar — planilha e Reprtoir já estão alinhados.")
     st.stop()
 
@@ -281,48 +285,31 @@ st.caption("Ação real, em produção. Confira a revisão acima antes de confir
 
 confirmar = st.checkbox("Revisei a lista acima e quero aplicar estas mudanças.")
 if st.button("Aplicar", disabled=not confirmar, type="primary"):
-    email = _credencial("REPRTOIR_EMAIL")
-    password = _credencial("REPRTOIR_PASSWORD")
-    client = ReprtoirPaymentsClient(email, password)
+    marcar_pagos = []
+    ignorados_sem_data = 0
+    for m in a_pagar:
+        data = m["linha"]["data_pagamento"] or (str(data_padrao) if data_padrao else None)
+        if not data:
+            ignorados_sem_data += 1
+            continue
+        marcar_pagos.append({"uuid": m["payment"]["uuid"], "name": m["payment"]["name"], "payment_date": data})
 
-    resumo = {"marcados_paid": 0, "pendencias_registradas": 0, "erros": []}
+    pendencias_payload = [
+        {
+            "uuid": m["payment"]["uuid"],
+            "name": m["payment"]["name"],
+            "status": m["payment"]["status"]["value"],
+            "notes": notas_editadas.get(m["payment"]["uuid"], ""),
+        }
+        for m in pendentes
+    ]
 
     try:
-        # --- marcar como Paid, agrupando por data (mesma data -> 1 chamada) ---
-        por_data: dict[str, list] = {}
-        for m in resultado.a_pagar:
-            data = m.linha.data_pagamento or (str(data_padrao) if data_padrao else None)
-            por_data.setdefault(data, []).append(m)
-
-        for data, matches in por_data.items():
-            if not data:
-                resumo["erros"].append(
-                    f"{len(matches)} payment(s) sem data de pagamento — pulados."
-                )
-                continue
-            uuids = [m.payment["uuid"] for m in matches]
-            nomes = {m.payment["uuid"]: m.payment["name"] for m in matches}
-            client.update_payments(uuids, name_by_uuid=nomes, status="paid", payment_date=data)
-            resumo["marcados_paid"] += len(uuids)
-
-        # --- registrar pendências (uma chamada por nota distinta) ---
-        if resultado.pendentes:
-            por_nota: dict[str, list] = {}
-            for m in resultado.pendentes:
-                nota = notas_editadas.get(m.payment["uuid"], "")
-                por_nota.setdefault(nota, []).append(m)
-            for nota, matches in por_nota.items():
-                uuids = [m.payment["uuid"] for m in matches]
-                nomes = {m.payment["uuid"]: m.payment["name"] for m in matches}
-                client.update_payments(
-                    uuids, name_by_uuid=nomes,
-                    status=matches[0].payment["status"]["value"],
-                    notes=nota,
-                )
-                resumo["pendencias_registradas"] += len(uuids)
-
-    except (ReprtoirLoginError, ReprtoirRequestError) as e:
-        st.error(f"Parou no meio da aplicação: {e}")
+        relay = _relay()
+        with st.spinner("Aplicando no Reprtoir (via relay)..."):
+            resumo = relay.aplicar(marcar_pagos, pendencias_payload)
+    except RelayError as e:
+        st.error(str(e))
         st.info(
             "Pode rodar a página de novo com segurança — quem já foi marcado não será "
             "reprocessado, só o que ainda falta."
@@ -332,12 +319,10 @@ if st.button("Aplicar", disabled=not confirmar, type="primary"):
             f"Concluído: {resumo['marcados_paid']} marcado(s) como Paid, "
             f"{resumo['pendencias_registradas']} pendência(s) registrada(s)."
         )
-        if resumo["erros"]:
-            for erro in resumo["erros"]:
-                st.warning(erro)
+        if ignorados_sem_data:
+            st.warning(f"{ignorados_sem_data} linha(s) sem data de pagamento — pulada(s).")
 
         registrar(PAGINA, periodo=arquivo.name, resumo=resumo)
-        st.session_state.reconc_reprtoir_payments = None
         st.session_state.reconc_resultado = None
 
 st.divider()
@@ -347,18 +332,21 @@ st.divider()
 # ---------------------------------------------------------------------------
 
 st.subheader("5. Pendências em aberto (todas, não só desta planilha)")
-payments_atuais = st.session_state.reconc_reprtoir_payments
-if payments_atuais:
-    abertas = pendencias_em_aberto(payments_atuais)
-    if abertas:
-        st.dataframe(
-            [{"Rights-Holder": p["rightholder"]["name"], "VAT": p["rightholder"]["vat_number"],
-              "Valor": float(p["amount"]), "Nota": p.get("notes", "")}
-             for p in abertas],
-            use_container_width=True,
-            hide_index=True,
-        )
+if st.button("Consultar pendências em aberto"):
+    try:
+        relay = _relay()
+        with st.spinner("Consultando..."):
+            abertas = relay.pendencias_em_aberto()
+    except (ValueError, RelayError) as e:
+        st.error(str(e))
     else:
-        st.success("Nenhuma pendência em aberto no Reprtoir. 🎉")
-else:
-    st.caption("Conecte e compare (passo 2) para ver as pendências em aberto.")
+        if abertas:
+            st.dataframe(
+                [{"Rights-Holder": p["rightholder"]["name"], "VAT": p["rightholder"]["vat_number"],
+                  "Valor": float(p["amount"]), "Nota": p.get("notes", "")}
+                 for p in abertas],
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.success("Nenhuma pendência em aberto no Reprtoir. 🎉")
