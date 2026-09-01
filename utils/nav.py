@@ -86,6 +86,13 @@ PAGINAS: list[Pagina] = [
         descricao="Calcula os shares do deal e consolida as incomes do EP.",
     ),
     Pagina(
+        caminho="views/reconciliacao_pagamentos.py",
+        titulo="Reconciliação de pagamentos",
+        icone=":material/price_check:",
+        secao="Cálculos",
+        descricao="Compara a planilha financeiro × Reprtoir e aplica Paid/data/pendências.",
+    ),
+    Pagina(
         caminho="views/organizador_comprovantes.py",
         titulo="Organizador de comprovantes",
         icone=":material/folder:",

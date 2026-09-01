@@ -18,3 +18,4 @@ xlsxwriter==3.2.9
 pdfplumber==0.11.9
 requests==2.32.3
 python-dotenv==1.0.1
+beautifulsoup4==4.12.3
