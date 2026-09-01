@@ -346,13 +346,22 @@ def collect_zip_files(uploaded_zip: zipfile.ZipFile, extract_code) -> list[tuple
     return list(dedup.values())
 
 
-def render_credentials_table(rows: list, query: str = ""):
+def render_credentials_table(rows: list, query: str = "", status_filter: str = "Todas", access_filter: str = "Todos"):
     """Tabela com credenciais ativas 'acesas' e suspensas 'apagadas'."""
     q = query.strip().lower()
-    filtered = [
-        r for r in rows
-        if not q or q in (r.get("artist") or "").lower() or q in (r.get("account") or "").lower()
-    ]
+
+    def _keep(r: dict) -> bool:
+        if q and q not in (r.get("artist") or "").lower() and q not in (r.get("account") or "").lower():
+            return False
+        if status_filter == "Ativas" and not r.get("active"):
+            return False
+        if status_filter == "Suspensas" and r.get("active"):
+            return False
+        if access_filter != "Todos" and (r.get("access_type") or "") != access_filter:
+            return False
+        return True
+
+    filtered = [r for r in rows if _keep(r)]
     filtered = sorted(filtered, key=lambda r: (not r.get("active"), (r.get("artist") or "").lower()))
 
     rows_html = []
@@ -905,9 +914,32 @@ def main():
         return
     mapping = build_ecad_index(rows)
 
-    with st.expander(f"Ver credenciais {entity_name} cadastradas ({len(rows)})"):
+    ss = st.session_state
+    query = ss.get(f"cred_search_{entity_name}", "")
+    status_filter = ss.get(f"cred_status_{entity_name}", "Todas")
+    access_filter = ss.get(f"cred_access_{entity_name}", "Todos")
+    filtros_ativos = bool(query.strip()) or status_filter != "Todas" or access_filter != "Todos"
+
+    with st.expander(
+        f"Ver credenciais {entity_name} cadastradas ({len(rows)})",
+        expanded=filtros_ativos,
+    ):
         query = st.text_input("Buscar por artista ou conta", key=f"cred_search_{entity_name}")
-        render_credentials_table(rows, query)
+        fcol1, fcol2 = st.columns(2)
+        status_filter = fcol1.radio(
+            "Status",
+            ["Todas", "Ativas", "Suspensas"],
+            horizontal=True,
+            key=f"cred_status_{entity_name}",
+        )
+        access_opts = sorted({r.get("access_type") for r in rows if r.get("access_type")})
+        access_filter = fcol2.radio(
+            "Acesso",
+            ["Todos", *access_opts],
+            horizontal=True,
+            key=f"cred_access_{entity_name}",
+        )
+        render_credentials_table(rows, query, status_filter, access_filter)
 
     uploaded = st.file_uploader(
         "Anexe o .zip de comprovantes", type="zip", key=f"uploader_{entity_name}"
