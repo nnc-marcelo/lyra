@@ -102,6 +102,33 @@ conexão.
 
 if "reconc_resultado" not in st.session_state:
     st.session_state.reconc_resultado = None
+if "reconc_relay_online" not in st.session_state:
+    st.session_state.reconc_relay_online = None  # None = ainda não checado
+
+
+def _checar_relay() -> None:
+    try:
+        st.session_state.reconc_relay_online = _relay().health()
+    except ValueError:
+        st.session_state.reconc_relay_online = None  # secrets não configurados
+
+
+if st.session_state.reconc_relay_online is None:
+    _checar_relay()
+
+status_col, botao_col = st.columns([5, 1])
+with status_col:
+    if st.session_state.reconc_relay_online:
+        st.success("🟢 Relay online")
+    else:
+        st.error(
+            "🔴 Relay offline — rode `uvicorn relay.server:app --port 8000` e o ngrok na sua "
+            "máquina antes de usar esta página (veja `relay/README.md`)."
+        )
+with botao_col:
+    if st.button("🔄 Verificar"):
+        _checar_relay()
+        st.rerun()
 
 # ---------------------------------------------------------------------------
 # 1. Upload da planilha
@@ -222,7 +249,8 @@ if ja_ok:
     with st.expander(f"✔️ Já OK, nada a fazer ({len(ja_ok)})", expanded=False):
         st.dataframe(
             [{"Rights-Holder": m["linha"]["rightsholder"], "VAT": m["linha"]["vat"],
-              "Valor": m["linha"]["amount"], "Status no Reprtoir": m["payment"]["status"]["text"]}
+              "Valor": m["linha"]["amount"], "Status no Reprtoir": m["payment"]["status"]["text"],
+              "Payment date": m["payment"]["payment_date"] or "—"}
              for m in ja_ok],
             use_container_width=True,
             hide_index=True,

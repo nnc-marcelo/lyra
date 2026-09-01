@@ -28,10 +28,10 @@ class RelayClient:
         self._base_url = base_url.rstrip("/")
         self._headers = {"Authorization": f"Bearer {token}"}
 
-    def _chamar(self, metodo: str, path: str, **kwargs) -> dict:
+    def _chamar(self, metodo: str, path: str, timeout: int = 60, **kwargs) -> dict:
         try:
             resp = requests.request(
-                metodo, f"{self._base_url}{path}", headers=self._headers, timeout=60, **kwargs
+                metodo, f"{self._base_url}{path}", headers=self._headers, timeout=timeout, **kwargs
             )
         except requests.RequestException as e:
             raise RelayError(
@@ -61,7 +61,9 @@ class RelayClient:
         return self._chamar("GET", "/pendencias")["pendencias"]
 
     def health(self) -> bool:
+        """Timeout curto de propósito — é uma checagem de status, não deve
+        travar a página por ~1 minuto se o relay estiver desligado."""
         try:
-            return self._chamar("GET", "/health").get("status") == "ok"
+            return self._chamar("GET", "/health", timeout=4).get("status") == "ok"
         except RelayError:
             return False
