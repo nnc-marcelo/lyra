@@ -915,22 +915,30 @@ def main():
     mapping = build_ecad_index(rows)
 
     ss = st.session_state
-    query = ss.get(f"cred_search_{entity_name}", "")
-    status_filter = ss.get(f"cred_status_{entity_name}", "Todas")
-    access_filter = ss.get(f"cred_access_{entity_name}", "Todos")
-    filtros_ativos = bool(query.strip()) or status_filter != "Todas" or access_filter != "Todos"
+    # Trava: ao mexer em qualquer filtro o expander fica aberto pelo resto da
+    # sessão. Sem isso, voltar um filtro pra "Todas" tornava expanded=False e o
+    # Streamlit fechava a tabela no meio da interação.
+    aberto_key = f"cred_aberto_{entity_name}"
+
+    def _travar_aberto():
+        ss[aberto_key] = True
 
     with st.expander(
         f"Ver credenciais {entity_name} cadastradas ({len(rows)})",
-        expanded=filtros_ativos,
+        expanded=ss.get(aberto_key, False),
     ):
-        query = st.text_input("Buscar por artista ou conta", key=f"cred_search_{entity_name}")
+        query = st.text_input(
+            "Buscar por artista ou conta",
+            key=f"cred_search_{entity_name}",
+            on_change=_travar_aberto,
+        )
         fcol1, fcol2 = st.columns(2)
         status_filter = fcol1.radio(
             "Status",
             ["Todas", "Ativas", "Suspensas"],
             horizontal=True,
             key=f"cred_status_{entity_name}",
+            on_change=_travar_aberto,
         )
         access_opts = sorted({r.get("access_type") for r in rows if r.get("access_type")})
         access_filter = fcol2.radio(
@@ -938,6 +946,7 @@ def main():
             ["Todos", *access_opts],
             horizontal=True,
             key=f"cred_access_{entity_name}",
+            on_change=_travar_aberto,
         )
         render_credentials_table(rows, query, status_filter, access_filter)
 
