@@ -218,6 +218,16 @@ if a_pagar:
             )
             data_padrao = st.date_input("Data de pagamento (para as linhas sem data na planilha)")
 
+if ja_ok:
+    with st.expander(f"✔️ Já OK, nada a fazer ({len(ja_ok)})", expanded=False):
+        st.dataframe(
+            [{"Rights-Holder": m["linha"]["rightsholder"], "VAT": m["linha"]["vat"],
+              "Valor": m["linha"]["amount"], "Status no Reprtoir": m["payment"]["status"]["text"]}
+             for m in ja_ok],
+            use_container_width=True,
+            hide_index=True,
+        )
+
 notas_editadas: dict[str, str] = {}
 if pendentes:
     with st.expander(f"⏳ Pendências a registrar ({len(pendentes)})", expanded=True):
