@@ -44,6 +44,13 @@ PAGINAS: list[Pagina] = [
         descricao="Normaliza os relatórios OneRPM antes do processamento principal.",
     ),
     Pagina(
+        caminho="views/reconciliacao_pagamentos.py",
+        titulo="Reconciliação de pagamentos",
+        icone=":material/price_check:",
+        secao="Processamento",
+        descricao="Compara a planilha financeiro × Reprtoir e aplica Paid/data/pendências.",
+    ),
+    Pagina(
         caminho="views/cruzamento_catalogo.py",
         titulo="Cruzamento com catálogo",
         icone=":material/compare_arrows:",
@@ -84,13 +91,6 @@ PAGINAS: list[Pagina] = [
         icone=":material/album:",
         secao="Cálculos",
         descricao="Calcula os shares do deal e consolida as incomes do EP.",
-    ),
-    Pagina(
-        caminho="views/reconciliacao_pagamentos.py",
-        titulo="Reconciliação de pagamentos",
-        icone=":material/price_check:",
-        secao="Cálculos",
-        descricao="Compara a planilha financeiro × Reprtoir e aplica Paid/data/pendências.",
     ),
     Pagina(
         caminho="views/organizador_comprovantes.py",
