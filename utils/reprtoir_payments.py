@@ -30,7 +30,16 @@ import requests
 from bs4 import BeautifulSoup
 
 REPRTOIR_URL = "https://nas-nuvens-catalog.reprtoir.io"
-_HEADERS = {"User-Agent": "Mozilla/5.0 (Lyra/reconciliacao-pagamentos)"}
+# UA de navegador real: um UA customizado ("Lyra/...") tem mais chance de ser
+# barrado por proteção anti-bot (Cloudflare etc.) na frente do Reprtoir,
+# especialmente vindo do IP de datacenter compartilhado do Streamlit Cloud em
+# vez de um IP residencial/escritório.
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+}
 _PER_PAGE = 500
 _COLUMN_KEYS = ["name", "status", "rightholder", "rightholder.vat_number", "amount", "payment_date", "notes"]
 
@@ -63,7 +72,8 @@ class ReprtoirPaymentsClient:
         token_input = soup.select_one('input[name="authenticity_token"]')
         if not token_input:
             raise ReprtoirLoginError(
-                "Não encontrei o formulário de login (o Reprtoir pode ter mudado)."
+                "Não encontrei o formulário de login (o Reprtoir pode ter mudado). "
+                + self._diagnosticar(r)
             )
 
         r2 = self._session.post(
@@ -80,8 +90,29 @@ class ReprtoirPaymentsClient:
         ainda_na_tela_login = soup2.select_one('input[type="password"]') is not None
         if not csrf or ainda_na_tela_login:
             raise ReprtoirLoginError(
-                "Login recusado — confira REPRTOIR_EMAIL/REPRTOIR_PASSWORD nos secrets."
+                "Login recusado — confira REPRTOIR_EMAIL/REPRTOIR_PASSWORD nos secrets. "
+                + self._diagnosticar(r2)
             )
+
+    @staticmethod
+    def _diagnosticar(r: requests.Response) -> str:
+        """Detalhe extra para o erro — sem isso, um bloqueio anti-bot (comum
+        vindo do IP compartilhado do Streamlit Cloud) e uma mudança real no
+        Reprtoir dão o mesmo erro genérico, e não dá pra saber qual é sem
+        acesso ao ambiente onde rodou."""
+        indicios_cloudflare = (
+            "cf-ray" in r.headers
+            or "cloudflare" in r.headers.get("server", "").lower()
+            or "just a moment" in r.text.lower()
+            or "checking your browser" in r.text.lower()
+        )
+        if indicios_cloudflare:
+            return (
+                f"(HTTP {r.status_code}, indícios de bloqueio anti-bot/Cloudflare — "
+                "provavelmente o IP do Streamlit Cloud está sendo desafiado.)"
+            )
+        amostra = re.sub(r"\s+", " ", r.text).strip()[:200]
+        return f"(HTTP {r.status_code}, início da resposta: {amostra!r})"
 
         self._session.headers.update({
             "X-CSRF-Token": csrf.get("content"),
