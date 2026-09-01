@@ -288,28 +288,58 @@ class Match:
 
 
 @dataclass
+class Ambiguidade:
+    linha: LinhaPlanilha
+    candidatos: list[dict]  # 2+ payments do Reprtoir que batem igualmente
+
+
+@dataclass
 class ResultadoMatching:
     a_pagar: list[Match] = field(default_factory=list)       # SIM, hoje Unpaid no Reprtoir
     pendentes: list[Match] = field(default_factory=list)     # NÃO, hoje Unpaid no Reprtoir
     ja_ok: list[Match] = field(default_factory=list)         # já bate (nada a fazer)
     conflitos: list[Match] = field(default_factory=list)     # NÃO na planilha, mas já Paid no Reprtoir
+    ambiguos: list[Ambiguidade] = field(default_factory=list)  # 2+ candidatos — não aplicado
     sem_correspondencia: list[LinhaPlanilha] = field(default_factory=list)
 
 
+# Meio centavo: só absorve erro de ponto flutuante — os dois lados já chegam
+# arredondados para 2 casas antes daqui, então valores realmente diferentes
+# (mesmo por 1 centavo) não devem ser tratados como o mesmo pagamento.
+_TOLERANCIA_VALOR = 0.005
+
+
 def cruzar(linhas: list[LinhaPlanilha], payments: list[dict]) -> ResultadoMatching:
+    """VAT + valor identifica o rights-holder com segurança (VAT é
+    praticamente único), mas um mesmo rights-holder pode ter mais de um
+    payment com valor igual (coincidência, ou dois períodos com o mesmo
+    valor). Por isso, quando mais de um payment do Reprtoir bate igualmente
+    com uma linha, a linha vai para `ambiguos` em vez de aplicar no primeiro
+    candidato encontrado — evita marcar como pago o payment errado entre
+    dois igualmente prováveis. Mesma lógica do lado do Reprtoir: um payment
+    já usado por uma linha não é reoferecido a outra (pega duplicata de
+    linha na planilha, que senão aplicaria a mesma ação duas vezes calada)."""
     resultado = ResultadoMatching()
+    usados: set[str] = set()
+
     for linha in linhas:
         vat_key = _normalizar_vat(linha.vat)
-        payment = next(
-            (p for p in payments
-             if _normalizar_vat(p["rightholder"]["vat_number"]) == vat_key
-             and abs(float(p["amount"]) - linha.amount) < 0.02),
-            None,
-        )
-        if payment is None:
+        candidatos = [
+            p for p in payments
+            if p["uuid"] not in usados
+            and _normalizar_vat(p["rightholder"]["vat_number"]) == vat_key
+            and abs(float(p["amount"]) - linha.amount) < _TOLERANCIA_VALOR
+        ]
+
+        if not candidatos:
             resultado.sem_correspondencia.append(linha)
             continue
+        if len(candidatos) > 1:
+            resultado.ambiguos.append(Ambiguidade(linha=linha, candidatos=candidatos))
+            continue
 
+        payment = candidatos[0]
+        usados.add(payment["uuid"])
         status_atual = payment["status"]["value"]
         m = Match(linha=linha, payment=payment)
         if linha.pago:

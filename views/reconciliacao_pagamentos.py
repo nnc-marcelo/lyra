@@ -192,11 +192,12 @@ st.divider()
 
 st.subheader("3. Revisão")
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("A marcar como Paid", len(resultado.a_pagar))
 c2.metric("Pendências a registrar", len(resultado.pendentes))
 c3.metric("Já OK (nada a fazer)", len(resultado.ja_ok))
-c4.metric("Sem correspondência", len(resultado.sem_correspondencia))
+c4.metric("Ambíguos", len(resultado.ambiguos))
+c5.metric("Sem correspondência", len(resultado.sem_correspondencia))
 
 data_padrao = None
 if resultado.a_pagar:
@@ -226,6 +227,23 @@ if resultado.pendentes:
                 f"{m.linha.rightsholder} — R$ {m.linha.amount:,.2f}",
                 value=padrao,
                 key=f"nota_{m.payment['uuid']}",
+            )
+
+if resultado.ambiguos:
+    with st.expander(f"🔀 Ambíguos ({len(resultado.ambiguos)}) — não aplicado automaticamente", expanded=True):
+        st.warning(
+            "Mais de um payment do Reprtoir bate com o mesmo VAT + valor desta linha. "
+            "Resolva manualmente no Reprtoir (ou ajuste a planilha) para evitar marcar o "
+            "payment errado."
+        )
+        for amb in resultado.ambiguos:
+            st.markdown(f"**{amb.linha.rightsholder}** — VAT {amb.linha.vat} — R$ {amb.linha.amount:,.2f}")
+            st.dataframe(
+                [{"Payment (nome)": p["name"], "Status": p["status"]["text"], "Criado em": p["created_at"],
+                  "uuid": p["uuid"]}
+                 for p in amb.candidatos],
+                use_container_width=True,
+                hide_index=True,
             )
 
 if resultado.conflitos:
