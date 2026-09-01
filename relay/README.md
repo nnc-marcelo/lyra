@@ -27,15 +27,16 @@ pagamentos" no Lyra.** Fora isso, pode ficar desligado.
    grátis, e configure o authtoken (`ngrok config add-authtoken <seu-token>`,
    disponível no dashboard da conta).
 
-4. **Reservar um domínio fixo grátis**: no dashboard do ngrok
-   (Cloud Edge → Domains), clique em "Create Domain" — a conta free tem
-   direito a 1 domínio fixo tipo `algo-fixo.ngrok-free.app`. Sem isso, a URL
-   muda toda vez que reiniciar o ngrok, e você teria que atualizar os
-   secrets do Lyra Cloud toda vez.
+4. **Domínio fixo grátis**: toda conta ngrok já vem com um "dev domain"
+   gratuito e fixo (tipo `algo-gerado.ngrok-free.dev`) — veja em
+   https://dashboard.ngrok.com/domains. Sem ele, a URL muda toda vez que
+   reiniciar o ngrok, e você teria que atualizar os secrets do Lyra Cloud
+   toda vez. (Escolher um nome customizado exige plano pago — o dev domain
+   gerado automaticamente já resolve.)
 
 5. **Nos secrets do app no Streamlit Cloud**, adicione:
    ```toml
-   RELAY_URL = "https://algo-fixo.ngrok-free.app"
+   RELAY_URL = "https://algo-gerado.ngrok-free.dev"
    RELAY_TOKEN = "<o mesmo valor do relay/.env>"
    ```
    (E pode remover `REPRTOIR_EMAIL`/`REPRTOIR_PASSWORD` de lá — não são mais
@@ -50,7 +51,7 @@ Dois terminais, rodando a partir da **raiz do repo** (não de dentro de `relay/`
 python -m uvicorn relay.server:app --port 8000
 
 # Terminal 2
-ngrok http --domain=algo-fixo.ngrok-free.app 8000
+ngrok http --url=algo-gerado.ngrok-free.dev 8000
 ```
 
 Deixe os dois abertos enquanto usa a página no Lyra. Pode fechar os dois
@@ -59,7 +60,7 @@ depois.
 ## Diagnóstico
 
 - `GET /health` (sem token) — confirma que o relay está de pé:
-  `curl https://algo-fixo.ngrok-free.app/health`
+  `curl https://algo-gerado.ngrok-free.dev/health`
 - Se a página no Lyra disser "Não consegui alcançar o relay": confira se os
   dois terminais estão rodando e se a URL nos secrets bate com a do ngrok.
 - Se disser "Relay recusou o token": `RELAY_TOKEN` diferente entre
