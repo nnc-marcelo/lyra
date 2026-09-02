@@ -29,27 +29,7 @@ class Pagina:
 
 
 PAGINAS: list[Pagina] = [
-    Pagina(
-        caminho="views/processamento_relatorios.py",
-        titulo="Processamento de relatórios",
-        icone=":material/file_upload:",
-        secao="Processamento",
-        descricao="Transforma relatórios das distribuidoras e prepara-os para o Reprtoir.",
-    ),
-    Pagina(
-        caminho="views/onerpm_pre_processamento.py",
-        titulo="OneRPM pré-processamento",
-        icone=":material/tune:",
-        secao="Processamento",
-        descricao="Normaliza os relatórios OneRPM antes do processamento principal.",
-    ),
-    Pagina(
-        caminho="views/withholding_calculator.py",
-        titulo="Withholding calculator",
-        icone=":material/percent:",
-        secao="Processamento",
-        descricao="Desconta 30% das receitas dos EUA.",
-    ),
+    # Processamento (alfabético)
     Pagina(
         caminho="views/direct_incomes.py",
         titulo="Direct incomes",
@@ -65,6 +45,20 @@ PAGINAS: list[Pagina] = [
         descricao="Calcula os shares do deal e consolida as incomes do EP.",
     ),
     Pagina(
+        caminho="views/onerpm_pre_processamento.py",
+        titulo="OneRPM pré-processamento",
+        icone=":material/tune:",
+        secao="Processamento",
+        descricao="Normaliza os relatórios OneRPM antes do processamento principal.",
+    ),
+    Pagina(
+        caminho="views/processamento_relatorios.py",
+        titulo="Processamento de relatórios",
+        icone=":material/file_upload:",
+        secao="Processamento",
+        descricao="Transforma relatórios das distribuidoras e prepara-os para o Reprtoir.",
+    ),
+    Pagina(
         caminho="views/reconciliacao_pagamentos.py",
         titulo="Reconciliação de pagamentos",
         icone=":material/price_check:",
@@ -72,25 +66,35 @@ PAGINAS: list[Pagina] = [
         descricao="Compara a planilha financeiro × Reprtoir e aplica Paid/data/pendências.",
     ),
     Pagina(
+        caminho="views/withholding_calculator.py",
+        titulo="Withholding calculator",
+        icone=":material/percent:",
+        secao="Processamento",
+        descricao="Desconta 30% das receitas dos EUA.",
+    ),
+    # Catálogo (alfabético)
+    Pagina(
         caminho="views/cruzamento_catalogo.py",
         titulo="Cruzamento com catálogo",
         icone=":material/compare_arrows:",
         secao="Catálogo",
         descricao="Concilia os relatórios recebidos com a base de obras do catálogo.",
     ),
-    Pagina(
-        caminho="views/varredura_lacunas.py",
-        titulo="Varredura de lacunas",
-        icone=":material/search:",
-        secao="Catálogo",
-        descricao="Mostra o relatório de royalties que deixaram de ser recebidos.",
-    ),
+    # Cálculos (alfabético)
     Pagina(
         caminho="views/rr_conciliacao.py",
         titulo="RR — conciliação de recebimentos",
         icone=":material/receipt_long:",
         secao="Cálculos",
         descricao="Abre o recibo da ABRAMUS e diz quanto do crédito é de cada catálogo.",
+    ),
+    # Utilitários (alfabético)
+    Pagina(
+        caminho="views/abramus_int_to_excel.py",
+        titulo="ABRAMUS INT para Excel",
+        icone=":material/table_view:",
+        secao="Utilitários",
+        descricao="Extrai o PDF do demonstrativo internacional da ABRAMUS para planilha.",
     ),
     Pagina(
         caminho="views/organizador_comprovantes.py",
@@ -100,11 +104,11 @@ PAGINAS: list[Pagina] = [
         descricao="Organiza o .zip de comprovantes ABRAMUS/UBC na estrutura da base.",
     ),
     Pagina(
-        caminho="views/abramus_int_to_excel.py",
-        titulo="ABRAMUS INT para Excel",
-        icone=":material/table_view:",
+        caminho="views/varredura_lacunas.py",
+        titulo="Varredura de lacunas",
+        icone=":material/search:",
         secao="Utilitários",
-        descricao="Extrai o PDF do demonstrativo internacional da ABRAMUS para planilha.",
+        descricao="Mostra o relatório de royalties que deixaram de ser recebidos.",
     ),
 ]
 
