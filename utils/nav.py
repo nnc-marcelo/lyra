@@ -83,7 +83,7 @@ PAGINAS: list[Pagina] = [
     # Cálculos (alfabético)
     Pagina(
         caminho="views/rr_conciliacao.py",
-        titulo="RR — conciliação de recebimentos",
+        titulo="RR — Conciliação de recebimentos",
         icone=":material/receipt_long:",
         secao="Cálculos",
         descricao="Abre o recibo da ABRAMUS e diz quanto do crédito é de cada catálogo.",
