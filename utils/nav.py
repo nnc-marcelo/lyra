@@ -29,6 +29,22 @@ class Pagina:
 
 
 PAGINAS: list[Pagina] = [
+    # Cálculos (alfabético)
+    Pagina(
+        caminho="views/rr_conciliacao.py",
+        titulo="RR — Conciliação de recebimentos",
+        icone=":material/receipt_long:",
+        secao="Cálculos",
+        descricao="Abre o recibo da ABRAMUS e diz quanto do crédito é de cada catálogo.",
+    ),
+    # Catálogo (alfabético)
+    Pagina(
+        caminho="views/cruzamento_catalogo.py",
+        titulo="Cruzamento com catálogo",
+        icone=":material/compare_arrows:",
+        secao="Catálogo",
+        descricao="Concilia os relatórios recebidos com a base de obras do catálogo.",
+    ),
     # Processamento (alfabético)
     Pagina(
         caminho="views/direct_incomes.py",
@@ -72,22 +88,6 @@ PAGINAS: list[Pagina] = [
         secao="Processamento",
         descricao="Desconta 30% das receitas dos EUA.",
     ),
-    # Catálogo (alfabético)
-    Pagina(
-        caminho="views/cruzamento_catalogo.py",
-        titulo="Cruzamento com catálogo",
-        icone=":material/compare_arrows:",
-        secao="Catálogo",
-        descricao="Concilia os relatórios recebidos com a base de obras do catálogo.",
-    ),
-    # Cálculos (alfabético)
-    Pagina(
-        caminho="views/rr_conciliacao.py",
-        titulo="RR — Conciliação de recebimentos",
-        icone=":material/receipt_long:",
-        secao="Cálculos",
-        descricao="Abre o recibo da ABRAMUS e diz quanto do crédito é de cada catálogo.",
-    ),
     # Utilitários (alfabético)
     Pagina(
         caminho="views/abramus_int_to_excel.py",
@@ -114,7 +114,7 @@ PAGINAS: list[Pagina] = [
 
 # Ordem em que as seções aparecem no menu. Seção de página não listada aqui
 # vai para o fim.
-ORDEM_SECOES = ["Processamento", "Catálogo", "Cálculos", "Utilitários"]
+ORDEM_SECOES = ["Cálculos", "Catálogo", "Processamento", "Utilitários"]
 
 
 def por_caminho(caminho: str) -> Pagina | None:
