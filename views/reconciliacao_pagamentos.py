@@ -98,6 +98,26 @@ Esta página não fala com o Reprtoir diretamente — o Streamlit Cloud é bloqu
 Reprtoir. Ela fala com um **relay rodando na sua máquina** (veja `relay/README.md` no repo
 para configurar). Sem o relay ligado, o botão "Conectar e comparar" abaixo vai dar erro de
 conexão.
+
+**Como rodar na próxima vez:**
+
+1. Abra um terminal na pasta raiz do projeto e rode o relay:
+   ```
+   cd relay
+   python -m uvicorn server:app --port 8000
+   ```
+
+2. Abra outro terminal (mantenha o primeiro aberto) e rode ngrok:
+   ```
+   ngrok http 8000
+   ```
+
+3. Copie a URL que ngrok gera (tipo `https://abc123.ngrok-free.dev`) e atualize no `.streamlit/secrets.toml`:
+   ```
+   RELAY_URL = "https://abc123.ngrok-free.dev"
+   ```
+
+4. Volte aqui e clique "🔄 Verificar" — deve aparecer "🟢 Relay online".
 """)
 
 if "reconc_resultado" not in st.session_state:
