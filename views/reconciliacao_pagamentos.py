@@ -145,7 +145,12 @@ st.markdown(f"""
             background-color: {bg_color};
             border: 1px solid {border_color};
             border-radius: 0.375rem;
-            padding: 0.5rem 1rem;
+            padding: 0.35rem 1rem;
+        }}
+        .st-key-relay_status_box button {{
+            padding-top: 0.15rem;
+            padding-bottom: 0.15rem;
+            min-height: 0;
         }}
         .st-key-relay_status_box [data-testid="stMarkdownContainer"] p {{
             color: {text_color};
@@ -165,7 +170,7 @@ st.markdown(f"""
         /* Empurra o botão (pequeno, do tamanho do ícone) para a borda direita
            da caixa colorida, em vez de deixá-lo grudado no início da coluna
            estreita. */
-        .st-key-relay_status_box [data-testid="column"]:last-child {{
+        .st-key-relay_status_box [data-testid="stColumn"]:last-child {{
             display: flex;
             justify-content: flex-end;
         }}
