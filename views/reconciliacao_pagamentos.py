@@ -141,24 +141,22 @@ bg_color = "#d1e7dd" if st.session_state.reconc_relay_online else "#f8d7da"
 border_color = "#b6d4cc" if st.session_state.reconc_relay_online else "#f1b0b7"
 text_color = "#0d3622" if st.session_state.reconc_relay_online else "#842029"
 
-col_msg, col_btn = st.columns([5, 1])
+col_msg, col_btn = st.columns([5, 1], gap="small")
 with col_msg:
     st.markdown(f"""
-        <div style="background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 0.375rem; padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+        <div style="background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 0.375rem; padding: 0.75rem 1rem;">
             <span style="color: {text_color}; font-weight: 500;">{status_text}</span>
-            <div style="width: 80px;"></div>
         </div>
     """, unsafe_allow_html=True)
 
 with col_btn:
     st.markdown(f"""
         <style>
-            .relay-btn {{
-                margin-top: -38px;
-                margin-right: -8px;
+            .relay-btn-wrapper {{
+                margin-top: -44px;
             }}
         </style>
-        <div class="relay-btn">
+        <div class="relay-btn-wrapper">
     """, unsafe_allow_html=True)
     if st.button("🔄 Verificar", use_container_width=True):
         _checar_relay()
