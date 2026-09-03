@@ -106,19 +106,13 @@ conexão.
    python -m uvicorn server:app --port 8000
    ```
 
-2. Abra outro terminal (mantenha o primeiro aberto) e rode ngrok:
+2. Abra outro terminal (mantenha o primeiro aberto) e rode ngrok com o seu domínio fixo (veja
+   `relay/README.md` — os secrets do app já apontam pra ele, não precisa mexer):
    ```
-   ngrok http 8000
-   ```
-
-3. Copie a URL que ngrok gera (tipo `https://abc123.ngrok-free.dev`) e atualize nas **Secrets do
-   app no Streamlit Cloud** (⋮ → Settings → Secrets — é lá que o app publicado lê, não no
-   `.streamlit/secrets.toml` local):
-   ```
-   RELAY_URL = "https://abc123.ngrok-free.dev"
+   ngrok http --url=seu-dominio.ngrok-free.dev 8000
    ```
 
-4. Volte aqui e clique "🔄 Verificar" — deve aparecer "🟢 Relay online".
+3. Volte aqui e clique "🔄 Verificar" — deve aparecer "🟢 Relay online".
 """)
 
 if "reconc_resultado" not in st.session_state:
