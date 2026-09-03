@@ -136,17 +136,19 @@ def _checar_relay() -> None:
 if st.session_state.reconc_relay_online is None:
     _checar_relay()
 
-col_msg, col_btn = st.columns([5, 1])
-with col_msg:
-    if st.session_state.reconc_relay_online:
-        st.success("🟢 Relay online")
-    else:
-        st.error("🔴 Relay offline")
-with col_btn:
-    st.write("")  # alinha verticalmente com a mensagem
-    if st.button("🔄 Verificar"):
-        _checar_relay()
-        st.rerun()
+status_text = "🟢 Relay online" if st.session_state.reconc_relay_online else "🔴 Relay offline"
+bg_color = "#d1e7dd" if st.session_state.reconc_relay_online else "#f8d7da"
+border_color = "#b6d4cc" if st.session_state.reconc_relay_online else "#f1b0b7"
+text_color = "#0d3622" if st.session_state.reconc_relay_online else "#842029"
+
+with st.container(border=True):
+    col_msg, col_btn = st.columns([5, 1])
+    with col_msg:
+        st.markdown(f"<span style='color: {text_color}; font-weight: 500;'>{status_text}</span>", unsafe_allow_html=True)
+    with col_btn:
+        if st.button("🔄 Verificar", use_container_width=True):
+            _checar_relay()
+            st.rerun()
 
 # ---------------------------------------------------------------------------
 # 1. Upload da planilha
