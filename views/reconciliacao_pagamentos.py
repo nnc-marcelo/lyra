@@ -162,15 +162,22 @@ st.markdown(f"""
         .st-key-relay_status_box div[data-testid="stVerticalBlockBorderWrapper"] {{
             background-color: transparent;
         }}
+        /* Empurra o botão (pequeno, do tamanho do ícone) para a borda direita
+           da caixa colorida, em vez de deixá-lo grudado no início da coluna
+           estreita. */
+        .st-key-relay_status_box [data-testid="column"]:last-child {{
+            display: flex;
+            justify-content: flex-end;
+        }}
     </style>
 """, unsafe_allow_html=True)
 
 with st.container(key="relay_status_box"):
-    col_msg, col_btn = st.columns([5, 1], vertical_alignment="center")
+    col_msg, col_btn = st.columns([10, 1], vertical_alignment="center")
     with col_msg:
         st.markdown(status_text)
     with col_btn:
-        if st.button("🔄", help="Verificar", use_container_width=True):
+        if st.button("🔄", help="Verificar"):
             _checar_relay()
             st.rerun()
 
