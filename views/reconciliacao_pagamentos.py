@@ -136,13 +136,14 @@ def _checar_relay() -> None:
 if st.session_state.reconc_relay_online is None:
     _checar_relay()
 
-status_col, botao_col = st.columns([5, 1])
-with status_col:
+col_msg, col_btn = st.columns([5, 1])
+with col_msg:
     if st.session_state.reconc_relay_online:
         st.success("🟢 Relay online")
     else:
         st.error("🔴 Relay offline")
-with botao_col:
+with col_btn:
+    st.write("")  # alinha verticalmente com a mensagem
     if st.button("🔄 Verificar"):
         _checar_relay()
         st.rerun()
