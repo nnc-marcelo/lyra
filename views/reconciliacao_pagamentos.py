@@ -112,7 +112,7 @@ conexão.
    ngrok http --url=seu-dominio.ngrok-free.dev 8000
    ```
 
-3. Volte aqui e clique "🔄 Verificar" — deve aparecer "🟢 Relay online".
+3. Volte aqui e clique no botão 🔄 — deve aparecer "🟢 Relay online".
 """)
 
 if "reconc_resultado" not in st.session_state:
@@ -170,7 +170,7 @@ with st.container(key="relay_status_box"):
     with col_msg:
         st.markdown(status_text)
     with col_btn:
-        if st.button("🔄 Verificar", use_container_width=True):
+        if st.button("🔄", help="Verificar", use_container_width=True):
             _checar_relay()
             st.rerun()
 
