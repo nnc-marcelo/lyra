@@ -157,6 +157,13 @@ st.markdown(f"""
             font-weight: 500;
             margin: 0;
         }}
+        /* Streamlit aplica margin-bottom negativo no container do markdown
+           (para colar elementos), o que faz o texto "vazar" para baixo da
+           caixa usada pelo flexbox da coluna para centralizar — zera aqui
+           para o texto ficar alinhado de verdade com o botão ao lado. */
+        .st-key-relay_status_box [data-testid="stMarkdownContainer"] {{
+            margin-bottom: 0 !important;
+        }}
         .st-key-relay_status_box div[data-testid="stVerticalBlockBorderWrapper"] {{
             background-color: transparent;
         }}
