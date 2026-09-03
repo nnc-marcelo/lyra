@@ -101,9 +101,8 @@ conexão.
 
 **Como rodar na próxima vez:**
 
-1. Abra um terminal na pasta raiz do projeto e rode o relay:
+1. Abra um terminal dentro da pasta `relay/` do projeto e rode:
    ```
-   cd relay
    python -m uvicorn server:app --port 8000
    ```
 
