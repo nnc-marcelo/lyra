@@ -112,7 +112,9 @@ conexão.
    ngrok http 8000
    ```
 
-3. Copie a URL que ngrok gera (tipo `https://abc123.ngrok-free.dev`) e atualize no `.streamlit/secrets.toml`:
+3. Copie a URL que ngrok gera (tipo `https://abc123.ngrok-free.dev`) e atualize nas **Secrets do
+   app no Streamlit Cloud** (⋮ → Settings → Secrets — é lá que o app publicado lê, não no
+   `.streamlit/secrets.toml` local):
    ```
    RELAY_URL = "https://abc123.ngrok-free.dev"
    ```
