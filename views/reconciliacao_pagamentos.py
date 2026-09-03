@@ -141,10 +141,7 @@ with status_col:
     if st.session_state.reconc_relay_online:
         st.success("🟢 Relay online")
     else:
-        st.error(
-            "🔴 Relay offline — rode `python -m uvicorn server:app --port 8000` na pasta `relay/` "
-            "e o ngrok na sua máquina antes de usar esta página (veja instruções no ℹ️ acima)."
-        )
+        st.error("🔴 Relay offline")
 with botao_col:
     if st.button("🔄 Verificar"):
         _checar_relay()
