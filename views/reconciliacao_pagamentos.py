@@ -174,6 +174,13 @@ st.markdown(f"""
             display: flex;
             justify-content: flex-end;
         }}
+        /* stVerticalBlock empilha os filhos em coluna (flex-direction: column),
+           então quem controla a posição horizontal dentro dele é align-items,
+           não justify-content — por isso o botão ficava "esticado" à esquerda
+           mesmo com a coluna pai já em flex-end. */
+        .st-key-relay_status_box [data-testid="stColumn"]:last-child [data-testid="stVerticalBlock"] {{
+            align-items: flex-end;
+        }}
     </style>
 """, unsafe_allow_html=True)
 
