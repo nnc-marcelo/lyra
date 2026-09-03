@@ -141,27 +141,36 @@ bg_color = "#d1e7dd" if st.session_state.reconc_relay_online else "#f8d7da"
 border_color = "#b6d4cc" if st.session_state.reconc_relay_online else "#f1b0b7"
 text_color = "#0d3622" if st.session_state.reconc_relay_online else "#842029"
 
-col_msg, col_btn = st.columns([5, 1], gap="small")
-with col_msg:
-    st.markdown(f"""
-        <div style="background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 0.375rem; padding: 0.75rem 1rem;">
-            <span style="color: {text_color}; font-weight: 500;">{status_text}</span>
-        </div>
-    """, unsafe_allow_html=True)
+# CSS mira na classe estável que st.container(key=...) gera (st-key-<key>) para
+# pintar o próprio container do Streamlit — texto e botão ficam de verdade
+# dentro dele, sem gambiarra de posicionamento.
+st.markdown(f"""
+    <style>
+        .st-key-relay_status_box {{
+            background-color: {bg_color};
+            border: 1px solid {border_color};
+            border-radius: 0.375rem;
+            padding: 0.5rem 1rem;
+        }}
+        .st-key-relay_status_box [data-testid="stMarkdownContainer"] p {{
+            color: {text_color};
+            font-weight: 500;
+            margin: 0;
+        }}
+        .st-key-relay_status_box div[data-testid="stVerticalBlockBorderWrapper"] {{
+            background-color: transparent;
+        }}
+    </style>
+""", unsafe_allow_html=True)
 
-with col_btn:
-    st.markdown(f"""
-        <style>
-            .relay-btn-wrapper {{
-                margin-top: -44px;
-            }}
-        </style>
-        <div class="relay-btn-wrapper">
-    """, unsafe_allow_html=True)
-    if st.button("🔄 Verificar", use_container_width=True):
-        _checar_relay()
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+with st.container(key="relay_status_box"):
+    col_msg, col_btn = st.columns([5, 1], vertical_alignment="center")
+    with col_msg:
+        st.markdown(status_text)
+    with col_btn:
+        if st.button("🔄 Verificar", use_container_width=True):
+            _checar_relay()
+            st.rerun()
 
 # ---------------------------------------------------------------------------
 # 1. Upload da planilha
