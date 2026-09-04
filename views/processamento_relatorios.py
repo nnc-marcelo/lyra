@@ -14,7 +14,7 @@ pd.set_option('display.max_colwidth', None)
 
 setup_page(__file__)
 
-template = st.selectbox("STATEMENT TEMPLATE:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell"])
+template = st.selectbox("STATEMENT TEMPLATE:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell", "The Orchard"])
 
 # ============================================================================
 # TEMPLATE: NIKITA DIGITAL
@@ -706,6 +706,180 @@ def render_warner():
 
 
 # ============================================================================
+# TEMPLATE: THE ORCHARD
+# ============================================================================
+
+# Consolida vários relatórios do The Orchard (por catálogo/artista) e aplica o
+# withholding de 30% nas vendas dos EUA — mesma lógica do Withholding Calculator
+# (views/withholding_calculator.py), que aqui é "manter 70%" das linhas dos EUA:
+#   - CSV : receita = "NET SHARE ACCOUNT CURRENCY", território = "SALE COUNTRY"
+#           (EUA = USA / UNITED STATES / UNITED STATES OF AMERICA)
+#   - XLSX: receita = "Label Share Net Receipts", território = "Territory"
+#           (EUA = USA)
+#
+# O CATÁLOGO escolhido só define o slug usado no nome do arquivo de saída
+# (nenhum filtro é aplicado ao conteúdo). Adicione novos catálogos no dict.
+
+ORCHARD_CATALOGOS = {
+    "Luiza Possi": "luiza_possi",
+}
+
+ORCHARD_CSV_NET = "NET SHARE ACCOUNT CURRENCY"
+ORCHARD_CSV_TERRITORY = "SALE COUNTRY"
+ORCHARD_CSV_USA = {"USA", "UNITED STATES", "UNITED STATES OF AMERICA"}
+ORCHARD_XLSX_NET = "Label Share Net Receipts"
+ORCHARD_XLSX_TERRITORY = "Territory"
+
+
+def _orchard_coerce_number(series):
+    """Converte textos tipo '1,234.56', '($12.34)' para número."""
+    return pd.to_numeric(
+        series.astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace("$", "", regex=False)
+        .str.replace("(", "-", regex=False)
+        .str.replace(")", "", regex=False),
+        errors="coerce",
+    ).fillna(0.0)
+
+
+def _orchard_fmt_money(x):
+    return f"US$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _orchard_read_one(name, raw):
+    """Lê um relatório do The Orchard (.csv ou .xlsx).
+    Retorna (df, net_col, territory_col, is_csv, info) ou (None, ..., info)."""
+    is_csv = name.lower().endswith(".csv")
+    try:
+        if is_csv:
+            df = pd.read_csv(io.BytesIO(raw), low_memory=False)
+            net_col, ter_col = ORCHARD_CSV_NET, ORCHARD_CSV_TERRITORY
+        else:
+            df = pd.read_excel(io.BytesIO(raw), engine="openpyxl")
+            net_col, ter_col = ORCHARD_XLSX_NET, ORCHARD_XLSX_TERRITORY
+    except Exception as e:
+        return None, None, None, is_csv, f"❌ erro ao ler: {e}"
+
+    if net_col not in df.columns or ter_col not in df.columns:
+        return None, None, None, is_csv, (
+            f"❌ colunas esperadas não encontradas ('{net_col}' e '{ter_col}')"
+        )
+
+    df[net_col] = _orchard_coerce_number(df[net_col])
+    df[ter_col] = df[ter_col].astype(str).str.strip()
+    total = float(df[net_col].sum())
+    return df, net_col, ter_col, is_csv, f"✅ {len(df):,} linhas · {_orchard_fmt_money(total)}"
+
+
+def _orchard_apply_withholding(df, net_col, ter_col, is_csv):
+    """Mantém 70% da receita das linhas dos EUA. Retorna (df, bruto, liquido, n_us)."""
+    if is_csv:
+        mask = df[ter_col].str.upper().isin(ORCHARD_CSV_USA)
+    else:
+        mask = df[ter_col].eq("USA")
+    bruto = float(df[net_col].sum())
+    out = df.copy()
+    out.loc[mask, net_col] = out.loc[mask, net_col] * 0.70
+    liquido = float(out[net_col].sum())
+    return out, bruto, liquido, int(mask.sum())
+
+
+def render_orchard():
+    st.caption(
+        "Consolida vários relatórios do The Orchard e aplica o withholding de 30% "
+        "nas vendas dos EUA (mesma lógica do Withholding Calculator)."
+    )
+
+    catalogo = st.selectbox("CATÁLOGO:", list(ORCHARD_CATALOGOS.keys()))
+    slug = ORCHARD_CATALOGOS[catalogo]
+
+    uploaded_files = st.file_uploader(
+        "Faça o upload dos relatórios do The Orchard (.csv ou .xlsx)",
+        type=["csv", "xlsx"],
+        accept_multiple_files=True,
+        key="orchard_files",
+    )
+    if not uploaded_files:
+        st.info("📤 Suba um ou mais relatórios do The Orchard para o catálogo selecionado.")
+        return
+
+    frames, resumo = [], []
+    total_bruto = total_liquido = 0.0
+    n_us_linhas = 0
+
+    for f in uploaded_files:
+        df, net_col, ter_col, is_csv, info = _orchard_read_one(f.name, f.getvalue())
+        if df is None:
+            resumo.append((f.name, info, None, None))
+            continue
+        out, bruto, liquido, n_us = _orchard_apply_withholding(df, net_col, ter_col, is_csv)
+        frames.append(out)
+        total_bruto += bruto
+        total_liquido += liquido
+        n_us_linhas += n_us
+        resumo.append((f.name, info, bruto, liquido))
+
+    with st.expander(f"📋 Arquivos lidos ({len(uploaded_files)})", expanded=True):
+        for nome, info, bruto, liquido in resumo:
+            if bruto is None:
+                st.markdown(f"**{nome}** — {info}")
+            else:
+                st.markdown(
+                    f"**{nome}** — {info} · débito US: {_orchard_fmt_money(bruto - liquido)}"
+                )
+
+    if not frames:
+        st.error("❌ Nenhum relatório válido foi reconhecido.")
+        return
+
+    consolidated = pd.concat(frames, ignore_index=True, sort=False)
+    debito = total_bruto - total_liquido
+
+    st.success(
+        f"✅ Consolidado de {catalogo}: {len(consolidated):,} linhas de "
+        f"{len(frames)} relatório(s)."
+    )
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("💰 Total bruto", _orchard_fmt_money(total_bruto))
+    with c2:
+        st.metric("📉 Débito US (30%)", _orchard_fmt_money(debito))
+    with c3:
+        st.metric("✅ Total líquido", _orchard_fmt_money(total_liquido), delta=round(-debito, 2))
+
+    st.caption(
+        f"Linhas com território EUA: {n_us_linhas:,} "
+        "(as demais permanecem inalteradas)."
+    )
+
+    with st.expander("👁️ Visualizar consolidado (100 primeiras linhas)", expanded=False):
+        st.dataframe(consolidated.head(100), use_container_width=True)
+
+    all_csv = all(f.name.lower().endswith(".csv") for f in uploaded_files)
+    if all_csv:
+        data = consolidated.to_csv(index=False).encode("utf-8")
+        fname, mime = f"the_orchard_{slug}_consolidado_withholding.csv", "text/csv"
+    else:
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+            consolidated.to_excel(writer, index=False, sheet_name="Consolidado")
+        data = buffer.getvalue()
+        fname = f"the_orchard_{slug}_consolidado_withholding.xlsx"
+        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+    st.download_button(
+        label="📥 Baixar consolidado (withholding aplicado)",
+        data=data,
+        file_name=fname,
+        mime=mime,
+        use_container_width=True,
+        key="orchard_dl",
+    )
+
+
+# ============================================================================
 # ROTEAMENTO POR TEMPLATE
 # ============================================================================
 
@@ -719,3 +893,5 @@ elif template == "YouTube (Consolidação)":
     render_youtube()
 elif template == "Warner Chappell":
     render_warner()
+elif template == "The Orchard":
+    render_orchard()
