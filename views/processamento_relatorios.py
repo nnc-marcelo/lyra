@@ -722,6 +722,7 @@ def render_warner():
 
 ORCHARD_CATALOGOS = {
     "Luiza Possi": "luiza_possi",
+    "Zeeba": "zeeba",
 }
 
 ORCHARD_CSV_NET = "NET SHARE ACCOUNT CURRENCY"
