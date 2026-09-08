@@ -16,6 +16,7 @@ import streamlit as st
 
 from utils import metrics, nav
 from utils.page import bootstrap
+from utils.ui_components import estado_vazio
 
 bootstrap()
 
@@ -82,7 +83,11 @@ def _painel_pendencias() -> None:
     st.subheader("Pendências")
     itens = metrics.pendencias()
     if not itens:
-        st.success("Nada pendente nas bases.", icon=":material/check_circle:")
+        estado_vazio(
+            "Nada pendente.",
+            "A varredura está em dia, as pastas do Z: seguem o padrão e toda "
+            "conta tem credencial ativa.",
+        )
         return
     for item in itens:
         with st.container(border=True):

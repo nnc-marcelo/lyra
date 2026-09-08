@@ -65,7 +65,7 @@ def _relay() -> RelayClient:
     return RelayClient(_config("RELAY_URL"), _config("RELAY_TOKEN"))
 
 
-with st.expander("ℹ️ O que é esta página e como usar", expanded=False):
+with st.expander("O que é esta página e como usar", expanded=False):
     st.markdown(
 """
 **O que faz**
@@ -112,7 +112,7 @@ conexão.
    ngrok http --url=seu-dominio.ngrok-free.dev 8000
    ```
 
-3. Volte aqui e clique no botão 🔄 — deve aparecer "🟢 Relay online".
+3. Volte aqui e clique no botão de atualizar — deve aparecer "Relay online".
 """)
 
 if "reconc_resultado" not in st.session_state:
@@ -131,7 +131,7 @@ def _checar_relay() -> None:
 if st.session_state.reconc_relay_online is None:
     _checar_relay()
 
-status_text = "🟢 Relay online" if st.session_state.reconc_relay_online else "🔴 Relay offline"
+status_text = "Relay online" if st.session_state.reconc_relay_online else "Relay offline"
 bg_color = "#d1e7dd" if st.session_state.reconc_relay_online else "#f8d7da"
 border_color = "#b6d4cc" if st.session_state.reconc_relay_online else "#f1b0b7"
 text_color = "#0d3622" if st.session_state.reconc_relay_online else "#842029"
@@ -189,7 +189,7 @@ with st.container(key="relay_status_box"):
     with col_msg:
         st.markdown(status_text)
     with col_btn:
-        if st.button("🔄", help="Verificar"):
+        if st.button(":material/refresh:", help="Verificar"):
             _checar_relay()
             st.rerun()
 
@@ -243,7 +243,7 @@ st.caption(
     "(veja `relay/README.md`)."
 )
 
-if st.button("🔄 Conectar e comparar", type="primary"):
+if st.button("Conectar e comparar", type="primary"):
     try:
         relay = _relay()
     except ValueError:
@@ -291,7 +291,7 @@ c5.metric("Sem correspondência", len(sem_correspondencia))
 
 data_padrao = None
 if a_pagar:
-    with st.expander(f"✅ Serão marcados como Paid ({len(a_pagar)})", expanded=True):
+    with st.expander(f"Serão marcados como Paid ({len(a_pagar)})", expanded=True):
         st.dataframe(
             [{"Rights-Holder": m["linha"]["rightsholder"], "VAT": m["linha"]["vat"],
               "Valor": m["linha"]["amount"],
@@ -309,7 +309,7 @@ if a_pagar:
             data_padrao = st.date_input("Data de pagamento (para as linhas sem data na planilha)")
 
 if ja_ok:
-    with st.expander(f"✔️ Já OK, nada a fazer ({len(ja_ok)})", expanded=False):
+    with st.expander(f"Já OK, nada a fazer ({len(ja_ok)})", expanded=False):
         st.dataframe(
             [{"Rights-Holder": m["linha"]["rightsholder"], "VAT": m["linha"]["vat"],
               "Valor": m["linha"]["amount"], "Status no Reprtoir": m["payment"]["status"]["text"],
@@ -321,7 +321,7 @@ if ja_ok:
 
 notas_editadas: dict[str, str] = {}
 if pendentes:
-    with st.expander(f"⏳ Pendências a registrar ({len(pendentes)})", expanded=True):
+    with st.expander(f"Pendências a registrar ({len(pendentes)})", expanded=True):
         st.caption("Edite o texto da nota se quiser — ela fica gravada no payment no Reprtoir.")
         for m in pendentes:
             padrao = m["linha"]["motivo"] or "Pendente — planilha marcou como NÃO pago neste ciclo."
@@ -332,7 +332,7 @@ if pendentes:
             )
 
 if ambiguos:
-    with st.expander(f"🔀 Ambíguos ({len(ambiguos)}) — não aplicado automaticamente", expanded=True):
+    with st.expander(f"Ambíguos ({len(ambiguos)}) — não aplicado automaticamente", expanded=True):
         st.warning(
             "Mais de um payment do Reprtoir bate com o mesmo VAT + valor desta linha. "
             "Resolva manualmente no Reprtoir (ou ajuste a planilha) para evitar marcar o "
@@ -352,7 +352,7 @@ if ambiguos:
             )
 
 if conflitos:
-    with st.expander(f"⚠️ Inconsistências ({len(conflitos)}) — não aplicado automaticamente", expanded=True):
+    with st.expander(f"Inconsistências ({len(conflitos)}) — não aplicado automaticamente", expanded=True):
         st.warning("Planilha diz NÃO pago, mas o Reprtoir já mostra Paid. Confira manualmente.")
         st.dataframe(
             [{"Rights-Holder": m["linha"]["rightsholder"], "VAT": m["linha"]["vat"],
@@ -450,4 +450,4 @@ if st.button("Consultar pendências em aberto"):
                 hide_index=True,
             )
         else:
-            st.success("Nenhuma pendência em aberto no Reprtoir. 🎉")
+            st.success("Nenhuma pendência em aberto no Reprtoir.")

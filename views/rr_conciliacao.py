@@ -36,8 +36,14 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from utils.abramus_recibo import conferencia, ler_recibo, normalizar  # noqa: E402
+from utils.abramus_recibo import (  # noqa: E402
+    TOLERANCIA_CENTAVOS,
+    conferencia,
+    ler_recibo,
+    normalizar,
+)
 from utils.page import setup_page  # noqa: E402
+from utils.ui_components import veredito  # noqa: E402
 from utils.rr_linhas import (  # noqa: E402
     COLUNAS_SAIDA,
     FONTE_ABRAMUS,
@@ -60,7 +66,7 @@ from utils.rr_linhas import (  # noqa: E402
 
 setup_page(__file__)
 
-with st.expander("ℹ️ O que é esta página e como usar", expanded=False):
+with st.expander("O que é esta página e como usar", expanded=False):
     st.markdown(
         """
 **O que faz**
@@ -119,7 +125,7 @@ def para_xlsx(df: pd.DataFrame) -> bytes:
     return buffer.getvalue()
 
 
-tab_conciliar, tab_depara = st.tabs(["🧾 Conciliar recibo", "🔗 De-para de titulares"])
+tab_conciliar, tab_depara = st.tabs(["Conciliar recibo", "De-para de titulares"])
 
 # ---------------------------------------------------------------------------
 # Conciliar
@@ -222,7 +228,7 @@ with tab_conciliar:
                     f"**{arquivo.name}** — competência **{recibo.competencia or '?'}** · "
                     f"recibo {recibo.numero or '?'} · {recibo.titular or ''}"
                 )
-                m1, m2, m3, m4 = st.columns(4)
+                m1, m2, m3 = st.columns(3)
                 m1.metric("Total do recibo", f"R$ {conf['total']:,.2f}",
                           help="É o valor que caiu no banco.")
                 m2.metric("Venda de catálogo", f"R$ {recibo.valor_relacionamento:,.2f}")
@@ -230,10 +236,29 @@ with tab_conciliar:
                           help=f"Execução pública {brl(recibo.valor_ecad)} (rateada pelo "
                                f"relatório agrupado) + exterior {brl(recibo.valor_exterior)} "
                                "(rateado pelo _INT.pdf).")
-                m4.metric("Diferença", f"R$ {conf['diferenca']:,.2f}",
-                          help="Soma do detalhe menos as deduções, contra o TOTAL declarado. O "
-                               "resíduo são as frações abaixo de um centavo que o recibo soma no "
-                               "resumo mas não exibe no detalhe.")
+
+                # O fechamento não é a quarta métrica: é a resposta da página.
+                # Se a soma do detalhe não bate com o TOTAL declarado, nada do
+                # que vem abaixo pode ser lançado na RR — e isso precisa ser
+                # visível antes de o número ser lido, não depois.
+                diferenca = conf["diferenca"]
+                if abs(diferenca) <= TOLERANCIA_CENTAVOS:
+                    veredito(
+                        True,
+                        "Fecha com o crédito bancário.",
+                        f"Resíduo de R$ {diferenca:,.2f} — frações abaixo de um centavo que o "
+                        "recibo soma no resumo e não exibe no detalhe."
+                        if diferenca
+                        else "A soma do detalhe e o TOTAL declarado batem exatamente.",
+                    )
+                else:
+                    veredito(
+                        False,
+                        f"Não fecha: diferença de R$ {diferenca:,.2f}.",
+                        "A soma do detalhe, menos despesas bancárias e IRRF, não bate com o "
+                        "TOTAL declarado no recibo. Confira o PDF antes de lançar na RR.",
+                    )
+
                 for aviso in recibo.avisos:
                     st.warning(aviso, icon=":material/warning:")
 
@@ -312,18 +337,18 @@ with tab_conciliar:
                 file_name=f"rr_{FONTE_ABRAMUS.lower()}_{periodo}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 width="stretch",
-            )
+             icon=":material/download:")
         with col_b:
             st.download_button(
                 "⬇️ Baixar CSV",
                 data=saida.to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig"),
                 file_name=f"rr_{FONTE_ABRAMUS.lower()}_{periodo}.csv",
                 mime="text/csv", width="stretch",
-            )
+             icon=":material/download:")
         with col_c:
             novos = novos_mapeamentos(editado)
             if not novos.empty and st.button(
-                f"💾 Gravar {len(novos)} titular(es) no de-para", width="stretch"
+                f"Gravar {len(novos)} titular(es) no de-para", width="stretch"
             ):
                 mapa = aplicar_mapeamentos(st.session_state["rr_depara"], novos)
                 st.session_state["rr_depara"] = mapa
@@ -343,7 +368,7 @@ with tab_conciliar:
                 help="Uma linha por obra: qual catálogo casou, por ISWC ou por título, e o valor. "
                      "Não inclui execução pública — o relatório agrupado do cruzamento já vem só "
                      "por catálogo, sem o detalhe obra a obra.",
-            )
+             icon=":material/download:")
 
 # ---------------------------------------------------------------------------
 # De-para
@@ -388,4 +413,4 @@ with tab_depara:
                 ensure_ascii=False, indent=2,
             ).encode("utf-8"),
             file_name="rr_titulares_abramus.json", mime="application/json",
-        )
+         icon=":material/download:")

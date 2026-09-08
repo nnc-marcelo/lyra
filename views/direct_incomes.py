@@ -24,7 +24,7 @@ setup_page(
     ),
 )
 
-with st.expander("ℹ️ O que é esta página e como usar", expanded=False):
+with st.expander("O que é esta página e como usar", expanded=False):
     st.markdown(
 """
 **O que faz**
@@ -133,9 +133,9 @@ def save_rules(data):
 def rule_label(r):
     partes = [r.get("catalogo", ""), r.get("fonte", "")]
     if r.get("titular"):
-        partes.append(f"👤 {r['titular']}")
+        partes.append(f"{r['titular']}")
     if r.get("origem"):
-        partes.append(f"🔖 {r['origem']}")
+        partes.append(f"{r['origem']}")
     return "  |  ".join(p for p in partes if p)
 
 
@@ -397,9 +397,9 @@ periodo = st.text_input(
 if periodo != data.get("periodo", ""):
     data["periodo"] = periodo  # calc usa o valor atual; é gravado ao salvar uma regra
 
-st.caption(f"📚 {len(data.get('regras', []))} regras carregadas de `data/direct_incomes/regras.json`")
+st.caption(f"{len(data.get('regras', []))} regras carregadas de `data/direct_incomes/regras.json`")
 
-tab_calc, tab_lista, tab_rules = st.tabs(["🧮 Calcular", "📋 Lista de regras", "⚙️ Editar regras"])
+tab_calc, tab_lista, tab_rules = st.tabs(["Calcular", "Lista de regras", "Editar regras"])
 
 
 # ===========================================================================
@@ -483,9 +483,9 @@ with tab_calc:
                     n_alerta = int(df_cov["Status"].str.startswith("🚨").sum()) if len(df_cov) else 0
                     n_ok = int(df_cov["Status"].str.startswith("✅").sum()) if len(df_cov) else 0
                     n_sem = int(df_cov["Status"].str.startswith("⚪").sum()) if len(df_cov) else 0
-                    titulo_cov = f"🔍 Cobertura de regras em {mes_sel} — {n_ok} rodaram, {n_sem} sem movimento"
+                    titulo_cov = f"Cobertura de regras em {mes_sel} — {n_ok} rodaram, {n_sem} sem movimento"
                     if n_alerta:
-                        titulo_cov += f", {n_alerta} ⚠️ COM DADO MAS NÃO ENTROU"
+                        titulo_cov += f", {n_alerta} com dado mas não entrou"
                     with st.expander(titulo_cov, expanded=bool(n_alerta)):
                         st.caption(
                             "Para cada regra cadastrada (Catálogo + Fonte), confere se ela apareceu nas "
@@ -494,8 +494,8 @@ with tab_calc:
                             "`Motivo Processamento` errado ou vazio na base."
                         )
                         if n_alerta:
-                            st.error(f"🚨 {n_alerta} regra(s) com dado no extrato que não entraram no lote — confira antes de fechar o mês.")
-                        ordem_cov = {"🚨": 0, "⚪": 1, "✅": 2}
+                            st.error(f"{n_alerta} regra(s) com dado no extrato que não entraram no lote — confira antes de fechar o mês.")
+                        ordem_cov = {"": 0, "⚪": 1, "": 2}
                         df_cov_view = df_cov.copy()
                         df_cov_view["_ordem"] = df_cov_view["Status"].str[0].map(ordem_cov).fillna(3)
                         df_cov_view = df_cov_view.sort_values("_ordem").drop(columns="_ordem")
@@ -516,7 +516,7 @@ with tab_calc:
                                     st.session_state[chave_incluir(idx)] = valor
 
                             cbtn1, cbtn2, _ = st.columns([1, 1, 2])
-                            cbtn1.button("☑️ Marcar todas", on_click=_marcar_todas_extra, args=(True,))
+                            cbtn1.button("Marcar todas", on_click=_marcar_todas_extra, args=(True,))
                             cbtn2.button("⬜ Desmarcar todas", on_click=_marcar_todas_extra, args=(False,))
 
                             idx_marcadas = []
@@ -533,7 +533,7 @@ with tab_calc:
                             linhas_incluidas = df_extra.loc[idx_marcadas]
                             if len(linhas_incluidas):
                                 st.caption(
-                                    f"✅ {len(linhas_incluidas)} linha(s) marcada(s) — "
+                                    f"{len(linhas_incluidas)} linha(s) marcada(s) — "
                                     f"R$ {linhas_incluidas['Valor'].sum():,.2f} — entram junto no processamento abaixo."
                                 )
 
@@ -596,9 +596,9 @@ with tab_calc:
             val["Diferença"] = (val["Gross Amount"] - val["Net"]).round(2)
             ok = (val["Diferença"].abs() < 0.01).all()
             if ok:
-                st.success(f"✅ Validação de totais OK ({len(val)}/{len(val)} grupos fecham com o bruto).")
+                st.success(f"Validação de totais OK ({len(val)}/{len(val)} grupos fecham com o bruto).")
             else:
-                st.warning("⚠️ Há grupos cujo Net não fecha com o Gross:")
+                st.warning("Há grupos cujo Net não fecha com o Gross:")
                 st.dataframe(val[val["Diferença"].abs() >= 0.01], use_container_width=True, hide_index=True)
 
             csv_bytes = df_out.to_csv(index=False).encode("utf-8-sig")
@@ -616,19 +616,19 @@ with tab_calc:
             file_name = "_".join(partes_nome) + ".csv"
 
             st.download_button(
-                "📥 Baixar CSV (Reprtoir)",
+                "Baixar CSV (Reprtoir)",
                 data=csv_bytes,
                 file_name=file_name,
                 mime="text/csv",
                 type="primary",
-            )
+             icon=":material/download:")
         else:
             st.info("Nenhuma receita gerada — verifique se há regras para os catálogos do arquivo.")
 
         if len(df_ign):
             n_investigar = int((df_ign["Classe"] == "INVESTIGAR").sum()) if "Classe" in df_ign else 0
             n_gap = int((df_ign["Classe"] == "GAP").sum()) if "Classe" in df_ign else 0
-            st.markdown("##### ⚠️ Grupos ignorados — triagem")
+            st.markdown("##### Grupos ignorados — triagem")
             st.caption(
                 "**ESPERADA** = sabemos que não gera receita aqui, ok ignorar · "
                 "**GAP** = falta cadastrar regra · **INVESTIGAR** = não está em nenhuma lista, "
@@ -639,12 +639,12 @@ with tab_calc:
             df_ign_view["_ordem"] = df_ign_view["Classe"].map(ordem_classe).fillna(3)
             df_ign_view = df_ign_view.sort_values("_ordem").drop(columns="_ordem")
             st.dataframe(df_ign_view, use_container_width=True, hide_index=True)
-            st.caption(f"💰 Total ignorado: R$ {df_ign['Valor'].sum():,.2f}")
+            st.caption(f"Total ignorado: R$ {df_ign['Valor'].sum():,.2f}")
             if n_investigar:
                 st.warning(f"❓ {n_investigar} grupo(s) em INVESTIGAR — confira antes de importar, "
                            "pode ser regra nova ou catálogo mal rotulado no BI.")
             if n_gap:
-                st.warning(f"🟡 {n_gap} grupo(s) em GAP — falta cadastrar regra (aba **Editar regras**).")
+                st.warning(f"{n_gap} grupo(s) em GAP — falta cadastrar regra (aba **Editar regras**).")
 
 
 # ===========================================================================
@@ -678,7 +678,7 @@ with tab_lista:
                     "Soma %": round(soma, 2),
                 })
         if fora:
-            with st.expander(f"⚠️ {len(fora)} regra(s) cujas fatias não somam 100%"):
+            with st.expander(f"{len(fora)} regra(s) cujas fatias não somam 100%"):
                 st.dataframe(pd.DataFrame(fora), use_container_width=True, hide_index=True)
 
         fontes = sorted(df_rules["Fonte"].unique())
@@ -693,7 +693,7 @@ with tab_lista:
 
         for fonte, gdf in view.groupby("Fonte"):
             n_regras = gdf[["Catálogo", "Titular", "Origem"]].drop_duplicates().shape[0]
-            with st.expander(f"🎵 {fonte}  ·  {n_regras} regra(s)"):
+            with st.expander(f"{fonte}  ·  {n_regras} regra(s)"):
                 st.dataframe(
                     gdf.drop(columns=["Fonte"]).reset_index(drop=True),
                     use_container_width=True,
@@ -702,15 +702,15 @@ with tab_lista:
                 )
 
         st.divider()
-        with st.expander("📄 Ver tabela completa (plana)"):
+        with st.expander("Ver tabela completa (plana)"):
             st.dataframe(view, use_container_width=True, hide_index=True, column_config=pct_cfg)
 
         st.download_button(
-            "📥 Baixar lista de regras (CSV)",
+            "Baixar lista de regras (CSV)",
             data=view.to_csv(index=False).encode("utf-8-sig"),
             file_name="direct_incomes_regras.csv",
             mime="text/csv",
-        )
+         icon=":material/download:")
 
 
 # ===========================================================================
@@ -727,7 +727,7 @@ with tab_rules:
 
     regras = data.setdefault("regras", [])
 
-    busca = st.text_input("🔎 Buscar (catálogo, fonte, titular ou origem)", key="di_busca").strip().lower()
+    busca = st.text_input("Buscar (catálogo, fonte, titular ou origem)", key="di_busca").strip().lower()
     idxs = list(range(len(regras)))
     if busca:
         idxs = [i for i in idxs if busca in rule_label(regras[i]).lower()]
@@ -785,7 +785,7 @@ with tab_rules:
             key="di_inc_editor",
         )
 
-        submitted = st.form_submit_button("💾 Salvar regra", type="primary")
+        submitted = st.form_submit_button("Salvar regra", type="primary")
 
     if submitted:
         incomes = []
@@ -838,7 +838,7 @@ with tab_rules:
                 data["periodo"] = periodo
                 save_rules(data)
                 soma = sum(i["org_pct"] + i["rights_pct"] for i in incomes)
-                st.success("Regra salva em disco. ✅")
+                st.success("Regra salva em disco.")
                 if abs(soma - 100) > 0.05:
                     st.warning(f"Atenção: a soma das fatias é {soma:.2f}% (esperado ~100%). Confira os percentuais.")
                 st.rerun()
@@ -846,7 +846,7 @@ with tab_rules:
     if not nova:
         st.divider()
         cda, cdb, _ = st.columns([1, 1, 2])
-        if cda.button("📋 Duplicar regra"):
+        if cda.button("Duplicar regra"):
             copia = json.loads(json.dumps(regras[sel]))
             copia["titular"] = (copia.get("titular") or "") + " (cópia)"
             regras.append(copia)
@@ -854,14 +854,14 @@ with tab_rules:
             st.success("Regra duplicada. Edite a cópia (ajuste titular/origem).")
             st.rerun()
 
-        if cdb.button("🗑️ Excluir regra", type="secondary"):
+        if cdb.button("Excluir regra", type="secondary"):
             regras.pop(sel)
             save_rules(data)
             st.success("Regra excluída.")
             st.rerun()
 
     if not nova and atual.get("incomes"):
-        with st.expander("👁️ Prévia dos nomes com o período aplicado"):
+        with st.expander("Prévia dos nomes com o período aplicado"):
             per = (periodo or "").strip()
             for inc in atual["incomes"]:
                 nome = f"{per} {inc['descricao']}".strip() if per else inc["descricao"]

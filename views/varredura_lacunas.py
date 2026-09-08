@@ -41,7 +41,7 @@ setup_page(
 
 if not HTML_PATH.exists():
     st.warning(
-        "⚠️ Relatório ainda não gerado.\n\n"
+        "Relatório ainda não gerado.\n\n"
         f"Esperado em:\n`{HTML_PATH}`\n\n"
         "Verifique se a tarefa agendada de varredura já rodou ao menos uma vez."
     )
@@ -56,11 +56,11 @@ age_days = (datetime.now() - mtime).days
 
 if age_days >= STALE_AFTER_DAYS:
     st.warning(
-        f"⚠️ Relatório possivelmente defasado — gerado há {age_days} dia(s) "
+        f"Relatório possivelmente defasado — gerado há {age_days} dia(s) "
         f"({mtime:%d/%m/%Y às %H:%M}). Confira se a tarefa agendada está rodando."
     )
 else:
-    st.success(f"✅ Atualizado em {mtime:%d/%m/%Y às %H:%M}")
+    st.success(f"Atualizado em {mtime:%d/%m/%Y às %H:%M}")
 
 html = HTML_PATH.read_text(encoding="utf-8")
 
@@ -72,7 +72,7 @@ with col1:
         file_name="relatorio_royalties.html",
         mime="text/html",
         use_container_width=True,
-    )
+     icon=":material/download:")
 with col2:
     if CSV_PATH.exists():
         st.download_button(
@@ -81,7 +81,7 @@ with col2:
             file_name="relatorio_royalties.csv",
             mime="text/csv",
             use_container_width=True,
-        )
+         icon=":material/download:")
     else:
         st.button("⬇️ CSV indisponível", disabled=True, use_container_width=True)
 

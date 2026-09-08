@@ -272,11 +272,17 @@ def calcular_validacao(df_incomes, total_processado):
 
 def bloco_validacao(v):
     c1, c2, c3 = st.columns(3)
-    c1.metric("Gross = Total processado", "✅" if v['gross_ok'] else "❌",
-              f"{format_currency(v['gross'])} = {format_currency(v['total_processado'])}")
-    c2.metric("Soma Net = Gross", "✅" if v['soma_net_ok'] else "❌", format_currency(v['soma_net']))
-    c3.metric("Splits = Net", "✅" if v['splits_ok'] else "❌",
-              f"{v['splits_ok_qtd']}/{v['splits_total']} linhas")
+    # O valor da métrica é o veredito em palavra, não um símbolo: antes era
+    # "✅"/"❌", que só funciona para quem já sabe o que a checagem faz. O número
+    # de apoio vai como delta com delta_color="off" — ele é contexto, não
+    # variação, e não deve sair verde ou vermelho com seta.
+    c1.metric("Gross = Total processado", "confere" if v['gross_ok'] else "não confere",
+              f"{format_currency(v['gross'])} = {format_currency(v['total_processado'])}",
+              delta_color="off")
+    c2.metric("Soma Net = Gross", "confere" if v['soma_net_ok'] else "não confere",
+              format_currency(v['soma_net']), delta_color="off")
+    c3.metric("Splits = Net", "confere" if v['splits_ok'] else "não confere",
+              f"{v['splits_ok_qtd']}/{v['splits_total']} linhas", delta_color="off")
 
 
 def validacao_ok(v):
@@ -291,21 +297,22 @@ def exibir_lado(titulo, d, lado):
     c3.metric("Adquiridas", format_currency(d['total_adquiridas']))
     c4.metric("Não adquiridas", format_currency(d['total_nao_adquiridas']), delta_color="inverse")
     if d['total_nao_processado'] > 0.01:
-        st.warning(f"⚠️ {format_currency(d['total_nao_processado'])} em obras NÃO cadastradas "
+        st.warning(f"{format_currency(d['total_nao_processado'])} em obras NÃO cadastradas "
                    f"(não processadas). Verifique a lista de obras.")
     st.subheader("Linhas de Income")
     st.dataframe(d['df_incomes'], hide_index=True, use_container_width=True)
-    st.caption("🔍 Validação")
+    st.caption("Validação")
     bloco_validacao(d['validacao'])
 
     extrato = d.get('extrato')
     if extrato:
         diff_ok = abs(extrato['valor'] - round(d['total_processado'], 2)) < 0.02
         data_fmt = extrato['data'].strftime('%d/%m/%Y') if pd.notna(extrato['data']) else "-"
-        st.caption("💳 Validação com o extrato RR (BI)")
+        st.caption("Validação com o extrato RR (BI)")
         e1, e2, e3 = st.columns(3)
-        e1.metric("Extrato = Processado", "✅" if diff_ok else "❌",
-                  f"{format_currency(extrato['valor'])} = {format_currency(d['total_processado'])}")
+        e1.metric("Extrato = Processado", "confere" if diff_ok else "não confere",
+                  f"{format_currency(extrato['valor'])} = {format_currency(d['total_processado'])}",
+                  delta_color="off")
         e2.metric("Data de recebimento", data_fmt)
         e3.metric("Linhas no extrato", extrato['qtd'])
     elif d.get('extrato_carregado'):
@@ -328,7 +335,7 @@ setup_page(
     ),
 )
 
-with st.expander("ℹ️ O que é esta página e como usar", expanded=False):
+with st.expander("O que é esta página e como usar", expanded=False):
     st.markdown(
 """
 **Para que serve**
@@ -348,7 +355,7 @@ Douglas é calculado aqui e **fica de fora** do processamento geral de Direct In
 **Lista de obras**
 
 Usa `data/catalogs/douglas-cezar/obras-cadastradas-DOUGLAS-CEZAR.xlsx`, onde cada obra é marcada como
-adquirida (`Y`) ou não (`N`). ⚠️ **Obra que não estiver nessa lista é ignorada** (aparece como
+adquirida (`Y`) ou não (`N`). **Obra que não estiver nessa lista é ignorada** (aparece como
 "não processado") — mantenha a lista atualizada a cada obra nova ou mudança de status.
 
 **Como usar**
@@ -369,8 +376,8 @@ ultima_exec = execution_log.ultima("douglas_cezar_ep")
 if ultima_exec is not None:
     todos_ok = all(validacao_ok(lado['validacao']) for lado in ultima_exec.resumo.values())
     quando_fmt = ultima_exec.quando.replace("T", " ")
-    rotulo = "✅ validações ok" if todos_ok else "⚠️ conferir validações"
-    with st.expander(f"🕘 Última execução registrada: {ultima_exec.periodo} em {quando_fmt} ({rotulo})",
+    rotulo = "validações ok" if todos_ok else "conferir validações"
+    with st.expander(f"Última execução registrada: {ultima_exec.periodo} em {quando_fmt} ({rotulo})",
                       expanded=False):
         st.json(ultima_exec.resumo)
 
@@ -471,10 +478,10 @@ if st.session_state.get('douglas_dados'):
     partes = [dados[k]['df_incomes'] for k in ('writer', 'publisher') if k in dados]
     if partes:
         df_final = pd.concat(partes, ignore_index=True)
-        st.header("📥 Exportar incomes consolidadas")
+        st.header("Exportar incomes consolidadas")
         st.dataframe(df_final, hide_index=True, use_container_width=True)
         buf = BytesIO()
         df_final.to_csv(buf, index=False, encoding='utf-8-sig')
-        st.download_button("📥 Download CSV", data=buf.getvalue(),
+        st.download_button("Download CSV", data=buf.getvalue(),
                            file_name=f"incomes_consolidadas_DouglasCezar_{periodo}.csv",
-                           mime="text/csv")
+                           mime="text/csv", icon=":material/download:")

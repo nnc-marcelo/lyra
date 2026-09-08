@@ -7,19 +7,23 @@
  * utils/ui_components, por exemplo, que antes traziam o off-white em hex
  * literal em dois lugares.
  *
- * Ao mudar uma cor da marca, mude nos DOIS: config.toml e aqui. */
+ * Ao mudar uma cor da marca, mude nos DOIS: config.toml e aqui. A terracota
+ * também é o `orangeColor` do tema (config.toml) — os marcadores :orange[...]
+ * do Streamlit usam essa mesma cor. */
 
 :root {
-  --nn-azul: #003fbc;
+  --nn-azul: #003fbc;         /* ação: link, botão, foco — só o que se clica */
   --nn-navy: #13213f;
   --nn-offwhite: #fff7e9;
   --nn-branco: #ffffff;
+  --nn-terracota: #d3744f;    /* acento da marca nova: atenção, filete, rótulo de
+                                 seção. Nada clicável — isso é o azul. */
 
   --nn-verde: #1d9e75;
   --nn-cinza: #888780;
 
   --nn-borda: rgba(128, 128, 128, 0.3);
-  --nn-raio: 6px;
+  --nn-raio: 4px;             /* casa com baseRadius = "small" do config.toml */
 }
 
 /* Cabeçalho de página: menos espaço morto no topo que o padrão do Streamlit,
@@ -28,17 +32,33 @@
   padding-top: 3rem;
 }
 
-/* Título e legenda do chassi (utils/page.py:setup_page). */
+/* Título e legenda do chassi (utils/page.py:setup_page). O título agora sai no
+   headingFont (Newsreader) — peso 500 deixa a serifa respirar. */
 .block-container h1 {
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 500;
   color: var(--nn-navy);
 }
 
+/* Filete curto de terracota sob o título da página — a mesma marca que abre as
+   seções desta folha. É estrutura, não decoração: diz "aqui começa a página". */
+.block-container h1::after {
+  content: "";
+  display: block;
+  width: 2.5rem;
+  height: 2px;
+  margin-top: 0.4rem;
+  background: var(--nn-terracota);
+}
+
 /* Seções do menu lateral (st.navigation) — rótulo discreto, não concorre com
-   os itens clicáveis. */
+   os itens clicáveis. Terracota: é etiqueta de grupo, não link (link é azul). */
 [data-testid="stSidebarNav"] ul span {
   letter-spacing: 0.02em;
+}
+[data-testid="stSidebarNav"] > ul > span,
+[data-testid="stNavSectionHeader"] {
+  color: var(--nn-terracota);
+  font-weight: 600;
 }
 
 /* Itens do painel de pendências do Home: st.container(border=True) com um
@@ -50,6 +70,92 @@
 .stMain [data-testid="stLayoutWrapper"]:has([data-testid="stPageLink"]) [data-testid="stPageLink"] a {
   font-size: 0.875rem;
   padding-left: 0;
+}
+
+/* Algarismos de largura fixa em tudo que é número.
+   O app é de royalties: quase toda tela é dinheiro em coluna, e a conferência
+   costuma ser "R$ 3.132,82 bate com R$ 3.132,81?". Com algarismo proporcional
+   (o padrão do Source Sans) o 1 é mais estreito que o 8 e as casas não se
+   alinham entre linhas, o que torna essa comparação mais lenta do que precisa.
+   Não alcança o st.dataframe — ele desenha num canvas, fora do CSS; lá o
+   alinhamento vem do format= do st.column_config.NumberColumn. */
+[data-testid="stMetricValue"],
+[data-testid="stMetricDelta"],
+.nn-tabela,
+.stMain p,
+.stMain li,
+.stMain [data-testid="stCaptionContainer"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Estado vazio do painel de pendências (ui_components.estado_vazio).
+   Fundo off-white em vez de borda: os itens de pendência são cards com borda,
+   e "nada pendente" não deve parecer mais um deles. A lira entra apagada — é
+   uma marca de respiro, não uma ilustração. */
+.nn-vazio {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  background: var(--nn-offwhite);
+  border-radius: var(--nn-raio);
+}
+
+.nn-vazio svg {
+  flex: none;
+  width: 44px;
+  height: auto;
+  color: var(--nn-terracota);
+  opacity: 0.45;
+}
+
+.nn-vazio p {
+  margin: 0;
+}
+
+.nn-vazio-titulo {
+  font-weight: 600;
+  color: var(--nn-navy);
+}
+
+.nn-vazio-detalhe {
+  font-size: 0.85rem;
+  color: var(--nn-cinza);
+}
+
+/* Veredito (ui_components.veredito): a conta fecha ou não fecha.
+   A cor carrega o estado antes do texto — verde fecha, terracota não fecha —
+   e o filete à esquerda separa isso das métricas descritivas acima, que são
+   dados, não resposta. */
+.nn-veredito {
+  --cor: var(--nn-cinza);
+  border-left: 3px solid var(--cor);
+  border-radius: var(--nn-raio);
+  background: color-mix(in srgb, var(--cor) 7%, var(--nn-branco));
+  padding: 0.7rem 1rem;
+}
+
+.nn-veredito--ok {
+  --cor: var(--nn-verde);
+}
+
+.nn-veredito--atencao {
+  --cor: var(--nn-terracota);
+}
+
+.nn-veredito p {
+  margin: 0;
+}
+
+.nn-veredito-titulo {
+  font-weight: 600;
+  color: var(--cor);
+}
+
+.nn-veredito-detalhe {
+  font-size: 0.82rem;
+  color: var(--nn-cinza);
+  margin-top: 0.15rem !important;
 }
 
 /* Tabelas HTML de utils/ui_components. */

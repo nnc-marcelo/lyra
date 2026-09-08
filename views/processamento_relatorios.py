@@ -14,7 +14,7 @@ pd.set_option('display.max_colwidth', None)
 
 setup_page(__file__)
 
-template = st.selectbox("STATEMENT TEMPLATE:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell", "The Orchard"])
+template = st.selectbox("Selecione o template do relatório:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell", "The Orchard"])
 
 # ============================================================================
 # TEMPLATE: NIKITA DIGITAL
@@ -67,7 +67,7 @@ def render_nikita():
             file_name=f"{base_name}_{label}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"nikita_{label}",
-        )
+         icon=":material/download:")
 
 
 # ============================================================================
@@ -120,17 +120,17 @@ def ler_arquivo_backoffice(file):
     header_pos = detectar_formato_arquivo(file)
 
     if header_pos is None:
-        return None, "❌ Arquivo muito pequeno ou formato inválido", False
+        return None, "Arquivo muito pequeno ou formato inválido", False
 
     try:
         file.seek(0)
         df = pd.read_excel(file, header=header_pos)
         if len(df) == 0:
-            return None, "⚠️ Arquivo sem dados", False
-        info = f"✅ Lido com sucesso (header={header_pos}, {len(df)} linhas)"
+            return None, "Arquivo sem dados", False
+        info = f"Lido com sucesso (header={header_pos}, {len(df)} linhas)"
         return df, info, True
     except Exception as e:
-        return None, f"❌ Erro ao ler: {str(e)}", False
+        return None, f"Erro ao ler: {str(e)}", False
     finally:
         try:
             file.seek(0)
@@ -149,34 +149,34 @@ def render_backoffice():
     )
 
     if not uploaded_files:
-        st.info("📤 Aguardando upload dos arquivos...")
+        st.info("Aguardando upload dos arquivos...")
         st.markdown("""
-        ### 📝 Instruções:
+        ### Instruções:
 
         **Para Concatenar:**
         - Faça upload de múltiplos arquivos Excel do Backoffice
-        - Clique em "🔗 Concatenar arquivos"
+        - Clique em "Concatenar arquivos"
         - Baixe o arquivo único com todos os dados
 
         **Para Totalizar:**
         - Faça upload de arquivos **ST** (Statements)
-        - Clique em "🧮 Calcular totais"
+        - Clique em "Calcular totais"
         - Visualize o resumo financeiro e baixe os totais
         """)
         return
 
-    st.info(f"📁 {len(uploaded_files)} arquivo(s) carregado(s)")
+    st.info(f"{len(uploaded_files)} arquivo(s) carregado(s)")
 
     col1, col2 = st.columns(2)
     with col1:
-        concat_button = st.button('🔗 Concatenar arquivos', type='secondary', use_container_width=True, key='backoffice_concat')
+        concat_button = st.button('Concatenar arquivos', type='secondary', use_container_width=True, key='backoffice_concat')
     with col2:
-        totals_button = st.button('🧮 Calcular totais', type='primary', use_container_width=True, key='backoffice_totals')
+        totals_button = st.button('Calcular totais', type='primary', use_container_width=True, key='backoffice_totals')
 
     # ---- CONCATENAR ----
     if concat_button:
         st.divider()
-        st.subheader("📊 Processando concatenação...")
+        st.subheader("Processando concatenação...")
 
         dataframes, logs = [], []
         arquivos_sucesso = arquivos_erro = 0
@@ -199,7 +199,7 @@ def render_backoffice():
         progress_bar.empty()
         status_text.empty()
 
-        with st.expander(f"📋 Detalhes do processamento ({arquivos_sucesso} sucesso, {arquivos_erro} erro)", expanded=False):
+        with st.expander(f"Detalhes do processamento ({arquivos_sucesso} sucesso, {arquivos_erro} erro)", expanded=False):
             for log in logs:
                 st.markdown(log)
 
@@ -207,13 +207,13 @@ def render_backoffice():
             try:
                 concatenated_df = pd.concat(dataframes, ignore_index=True)
                 st.success(f"""
-                ✅ **Concatenação concluída com sucesso!**
+                **Concatenação concluída com sucesso!**
                 - Arquivos processados: {arquivos_sucesso}/{len(uploaded_files)}
                 - Total de linhas: {len(concatenated_df):,}
                 - Total de colunas: {len(concatenated_df.columns)}
                 """)
 
-                with st.expander("👁️ Visualizar dados concatenados", expanded=False):
+                with st.expander("Visualizar dados concatenados", expanded=False):
                     st.dataframe(concatenated_df.head(100), use_container_width=True)
 
                 buffer = BytesIO()
@@ -221,21 +221,21 @@ def render_backoffice():
                     concatenated_df.to_excel(writer, index=False, sheet_name='Dados Concatenados')
 
                 st.download_button(
-                    label="📥 Baixar arquivo concatenado",
+                    label="Baixar arquivo concatenado",
                     data=buffer.getvalue(),
                     file_name="backoffice_concatenado.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
-                )
+                , icon=":material/download:")
             except Exception as e:
-                st.error(f"❌ Erro ao concatenar os arquivos: {str(e)}")
+                st.error(f"Erro ao concatenar os arquivos: {str(e)}")
         else:
-            st.error("❌ Nenhum arquivo pôde ser processado com sucesso!")
+            st.error("Nenhum arquivo pôde ser processado com sucesso!")
 
     # ---- CALCULAR TOTAIS ----
     if totals_button:
         st.divider()
-        st.subheader("💰 Calculando totais...")
+        st.subheader("Calculando totais...")
 
         results = []
         arquivos_processados = 0
@@ -271,18 +271,18 @@ def render_backoffice():
                         results.append((file.name, total_royalties))
                         arquivos_processados += 1
                     else:
-                        arquivos_ignorados.append((file.name, "❌ Coluna de royalties não encontrada"))
+                        arquivos_ignorados.append((file.name, "Coluna de royalties não encontrada"))
 
                 except Exception as e:
-                    arquivos_ignorados.append((file.name, f"❌ Erro: {str(e)}"))
+                    arquivos_ignorados.append((file.name, f"Erro: {str(e)}"))
             else:
-                arquivos_ignorados.append((file.name, "⚠️ Não é arquivo ST (Statement)"))
+                arquivos_ignorados.append((file.name, "Não é arquivo ST (Statement)"))
 
         progress_bar.empty()
         status_text.empty()
 
         if arquivos_ignorados:
-            with st.expander(f"⚠️ Arquivos ignorados ({len(arquivos_ignorados)})", expanded=False):
+            with st.expander(f"Arquivos ignorados ({len(arquivos_ignorados)})", expanded=False):
                 for nome, motivo in arquivos_ignorados:
                     st.markdown(f"**{nome}** - {motivo}")
 
@@ -295,26 +295,26 @@ def render_backoffice():
                 lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             )
 
-            st.success(f"✅ {arquivos_processados} arquivo(s) totalizado(s) com sucesso!")
+            st.success(f"{arquivos_processados} arquivo(s) totalizado(s) com sucesso!")
             st.dataframe(df_results, use_container_width=True, hide_index=True)
 
             st.divider()
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric(
-                    label="💰 Total Bruto",
+                    label="Total Bruto",
                     value=f"R$ {total_royalties_sum:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 )
             desconto_r3 = (total_royalties_sum * 0.025).round(2)
             with col2:
                 st.metric(
-                    label="📉 Desconto R3 (2,5%)",
+                    label="Desconto R3 (2,5%)",
                     value=f"R$ {desconto_r3:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 )
             total_liquido = (total_royalties_sum - desconto_r3).round(2)
             with col3:
                 st.metric(
-                    label="✅ Total Líquido",
+                    label="Total Líquido",
                     value=f"R$ {total_liquido:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 )
 
@@ -327,14 +327,14 @@ def render_backoffice():
                 df_export.to_excel(writer, index=False, sheet_name='Totais')
 
             st.download_button(
-                label="📥 Baixar totais em Excel",
+                label="Baixar totais em Excel",
                 data=buffer.getvalue(),
                 file_name="totais_backoffice.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
-            )
+            , icon=":material/download:")
         else:
-            st.error("❌ Nenhum arquivo válido para totalização foi encontrado.")
+            st.error("Nenhum arquivo válido para totalização foi encontrado.")
 
 
 # ============================================================================
@@ -416,7 +416,7 @@ def _yt_read_one(name, raw):
             hdr_i = i
             break
     if hdr_i is None:
-        return None, "❌ cabeçalho (Country/Partner Revenue) não encontrado"
+        return None, "cabeçalho (Country/Partner Revenue) não encontrado"
 
     # Alguns exports (red label) trazem lixo de ";" no fim de cada linha
     # (ex.: "...Partner Revenue;;" no cabeçalho e "...0.00008249951;;" nos dados).
@@ -444,9 +444,9 @@ def _yt_read_one(name, raw):
         if found_splits:
             soma = sum(pd.to_numeric(out[t], errors="coerce").fillna(0) for t in found_splits)
             out["Partner Revenue"] = soma.map(lambda v: format(v, "f"))
-            aviso = f" · ⚠️ sem coluna 'Partner Revenue' — total recalculado a partir de {len(found_splits)} split(s)"
+            aviso = f" · sem coluna 'Partner Revenue' — total recalculado a partir de {len(found_splits)} split(s)"
         else:
-            aviso = " · 🛑 coluna 'Partner Revenue' NÃO encontrada neste arquivo — receita computada como US$ 0,00!"
+            aviso = " · coluna 'Partner Revenue' NÃO encontrada neste arquivo — receita computada como US$ 0,00!"
 
     if "Month" in df.columns:
         layout = "red label (assinatura)"
@@ -456,7 +456,7 @@ def _yt_read_one(name, raw):
         layout = "ads/AdSense (período = data do arquivo)"
 
     file_total = float(pd.to_numeric(out["Partner Revenue"], errors="coerce").fillna(0).sum())
-    return out, f"✅ {len(out):,} linhas · {layout} · {_yt_fmt_money(file_total)}{aviso}"
+    return out, f"{len(out):,} linhas · {layout} · {_yt_fmt_money(file_total)}{aviso}"
 
 
 def _yt_fill_required(df):
@@ -486,7 +486,7 @@ def _yt_consolidate(files):
         try:
             df, info = _yt_read_one(name, raw)
         except Exception as e:
-            df, info = None, f"❌ erro ao ler: {e}"
+            df, info = None, f"erro ao ler: {e}"
         infos.append((name, info))
         if df is not None:
             frames.append(df)
@@ -537,7 +537,7 @@ def render_youtube():
 
     if not uploaded_files:
         st.info(
-            "📤 Suba os relatórios do YouTube (.csv). Aceita os diferentes formatos que o YouTube "
+            "Suba os relatórios do YouTube (.csv). Aceita os diferentes formatos que o YouTube "
             "envia — **asset raw** (por canal), **red label** (assinatura, com a linha 'Asset Summary') "
             "e **ads/AdSense** (sem coluna de período). São detectados automaticamente, unificados no "
             "template asset raw (período `AAAAMMDD`) e os campos exigidos pelo Reprtoir são preenchidos."
@@ -548,50 +548,50 @@ def render_youtube():
     consolidated, infos = _yt_consolidate(files)
 
     arquivos_com_problema = [
-        (nome, info) for nome, info in infos if "🛑" in info or "❌" in info or "⚠️" in info
+        (nome, info) for nome, info in infos if "" in info or "" in info or "" in info
     ]
     if arquivos_com_problema:
         st.warning(
-            f"⚠️ {len(arquivos_com_problema)} arquivo(s) precisam de atenção na leitura da receita "
+            f"{len(arquivos_com_problema)} arquivo(s) precisam de atenção na leitura da receita "
             "— confira o detalhe abaixo antes de conferir o total:"
         )
         for nome, info in arquivos_com_problema:
             st.markdown(f"**{nome}** — {info}")
 
-    with st.expander(f"📋 Arquivos lidos ({len(infos)})", expanded=bool(arquivos_com_problema)):
+    with st.expander(f"Arquivos lidos ({len(infos)})", expanded=bool(arquivos_com_problema)):
         for nome, info in infos:
             st.markdown(f"**{nome}** — {info}")
 
     if consolidated is None:
-        st.error("❌ Nenhum relatório válido foi reconhecido.")
+        st.error("Nenhum relatório válido foi reconhecido.")
         return
 
     total = _yt_total(consolidated)
     st.success(
-        f"✅ Consolidado gerado: {len(consolidated):,} linhas · "
+        f"Consolidado gerado: {len(consolidated):,} linhas · "
         f"{len(consolidated.columns)} colunas (template asset raw, período AAAAMMDD)."
     )
 
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("💰 Partner Revenue total", _yt_fmt_money(total))
+        st.metric("Partner Revenue total", _yt_fmt_money(total))
     with col2:
-        st.metric("🧾 Linhas consolidadas", f"{len(consolidated):,}")
+        st.metric("Linhas consolidadas", f"{len(consolidated):,}")
 
-    with st.expander("👁️ Visualizar consolidado (100 primeiras linhas)", expanded=False):
+    with st.expander("Visualizar consolidado (100 primeiras linhas)", expanded=False):
         st.dataframe(consolidated.head(100), use_container_width=True)
 
     st.download_button(
-        label="📥 Baixar consolidado (sem débito)",
+        label="Baixar consolidado (sem débito)",
         data=_yt_to_csv_bytes(consolidated),
         file_name="YouTube_consolidado_asset_raw_template.csv",
         mime="text/csv",
         use_container_width=True,
         key="yt_dl_consolidado",
-    )
+     icon=":material/download:")
 
     st.divider()
-    if st.button("📉 Calcular débito de 30% (US)", type="primary", use_container_width=True):
+    if st.button("Calcular débito de 30% (US)", type="primary", use_container_width=True):
         st.session_state["yt_debit_done"] = True
 
     if st.session_state.get("yt_debit_done"):
@@ -601,22 +601,22 @@ def render_youtube():
 
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric("💰 Total original", _yt_fmt_money(total))
+            st.metric("Total original", _yt_fmt_money(total))
         with c2:
-            st.metric("📉 Débito US (30%)", _yt_fmt_money(debito))
+            st.metric("Débito US (30%)", _yt_fmt_money(debito))
         with c3:
-            st.metric("✅ Total debitado", _yt_fmt_money(total_deb), delta=round(-debito, 2))
+            st.metric("Total debitado", _yt_fmt_money(total_deb), delta=round(-debito, 2))
 
         st.caption(f"Linhas com Country = US: {n_us:,} (as de receita 0 permanecem inalteradas)")
 
         st.download_button(
-            label="📥 Baixar consolidado DEBITADO (US -30%)",
+            label="Baixar consolidado DEBITADO (US -30%)",
             data=_yt_to_csv_bytes(debited),
             file_name="YouTube_consolidado_asset_raw_template_DEBITADO.csv",
             mime="text/csv",
             use_container_width=True,
             key="yt_dl_debitado",
-        )
+         icon=":material/download:")
 
 
 # ============================================================================
@@ -665,14 +665,14 @@ def render_warner():
 
     uploaded = st.file_uploader("Upload do statement (.csv)", type=["csv"], key="wc_file")
     if not uploaded:
-        st.info("📤 Suba o statement da Warner Chappell (.csv).")
+        st.info("Suba o statement da Warner Chappell (.csv).")
         return
 
     raw = uploaded.getvalue()
     processed, changes, issues = _wc_fix_periods(raw)
 
     total_alteradas = sum(changes.values())
-    st.success(f"✅ {total_alteradas:,} linha(s) ajustada(s).")
+    st.success(f"{total_alteradas:,} linha(s) ajustada(s).")
 
     if changes:
         df_map = pd.DataFrame(
@@ -683,11 +683,11 @@ def render_warner():
 
     if issues:
         st.warning(
-            f"⚠️ {issues} linha(s) não reconhecida(s) (campo inicial não numérico) — "
+            f"{issues} linha(s) não reconhecida(s) (campo inicial não numérico) — "
             "mantidas como estavam."
         )
 
-    with st.expander("👁️ Visualizar (100 primeiras linhas)", expanded=False):
+    with st.expander("Visualizar (100 primeiras linhas)", expanded=False):
         preview = pd.read_csv(
             io.BytesIO(processed), dtype=str, keep_default_na=False,
             encoding="latin-1", nrows=100,
@@ -696,13 +696,13 @@ def render_warner():
 
     base = uploaded.name.rsplit(".", 1)[0]
     st.download_button(
-        label="📥 Baixar statement processado",
+        label="Baixar statement processado",
         data=processed,
         file_name=f"{base}_processado.csv",
         mime="text/csv",
         use_container_width=True,
         key="wc_dl",
-    )
+     icon=":material/download:")
 
 
 # ============================================================================
@@ -760,17 +760,17 @@ def _orchard_read_one(name, raw):
             df = pd.read_excel(io.BytesIO(raw), engine="openpyxl")
             net_col, ter_col = ORCHARD_XLSX_NET, ORCHARD_XLSX_TERRITORY
     except Exception as e:
-        return None, None, None, is_csv, f"❌ erro ao ler: {e}"
+        return None, None, None, is_csv, f"erro ao ler: {e}"
 
     if net_col not in df.columns or ter_col not in df.columns:
         return None, None, None, is_csv, (
-            f"❌ colunas esperadas não encontradas ('{net_col}' e '{ter_col}')"
+            f"colunas esperadas não encontradas ('{net_col}' e '{ter_col}')"
         )
 
     df[net_col] = _orchard_coerce_number(df[net_col])
     df[ter_col] = df[ter_col].astype(str).str.strip()
     total = float(df[net_col].sum())
-    return df, net_col, ter_col, is_csv, f"✅ {len(df):,} linhas · {_orchard_fmt_money(total)}"
+    return df, net_col, ter_col, is_csv, f"{len(df):,} linhas · {_orchard_fmt_money(total)}"
 
 
 def _orchard_apply_withholding(df, net_col, ter_col, is_csv):
@@ -792,7 +792,7 @@ def render_orchard():
         "nas vendas dos EUA (mesma lógica do Withholding Calculator)."
     )
 
-    catalogo = st.selectbox("CATÁLOGO:", list(ORCHARD_CATALOGOS.keys()))
+    catalogo = st.selectbox("Selecione o catálogo:", list(ORCHARD_CATALOGOS.keys()))
     slug = ORCHARD_CATALOGOS[catalogo]
 
     uploaded_files = st.file_uploader(
@@ -802,7 +802,7 @@ def render_orchard():
         key="orchard_files",
     )
     if not uploaded_files:
-        st.info("📤 Suba um ou mais relatórios do The Orchard para o catálogo selecionado.")
+        st.info("Suba um ou mais relatórios do The Orchard para o catálogo selecionado.")
         return
 
     frames, resumo = [], []
@@ -821,7 +821,7 @@ def render_orchard():
         n_us_linhas += n_us
         resumo.append((f.name, info, bruto, liquido))
 
-    with st.expander(f"📋 Arquivos lidos ({len(uploaded_files)})", expanded=True):
+    with st.expander(f"Arquivos lidos ({len(uploaded_files)})", expanded=True):
         for nome, info, bruto, liquido in resumo:
             if bruto is None:
                 st.markdown(f"**{nome}** — {info}")
@@ -831,31 +831,31 @@ def render_orchard():
                 )
 
     if not frames:
-        st.error("❌ Nenhum relatório válido foi reconhecido.")
+        st.error("Nenhum relatório válido foi reconhecido.")
         return
 
     consolidated = pd.concat(frames, ignore_index=True, sort=False)
     debito = total_bruto - total_liquido
 
     st.success(
-        f"✅ Consolidado de {catalogo}: {len(consolidated):,} linhas de "
+        f"Consolidado de {catalogo}: {len(consolidated):,} linhas de "
         f"{len(frames)} relatório(s)."
     )
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("💰 Total bruto", _orchard_fmt_money(total_bruto))
+        st.metric("Total bruto", _orchard_fmt_money(total_bruto))
     with c2:
-        st.metric("📉 Débito US (30%)", _orchard_fmt_money(debito))
+        st.metric("Débito US (30%)", _orchard_fmt_money(debito))
     with c3:
-        st.metric("✅ Total líquido", _orchard_fmt_money(total_liquido), delta=round(-debito, 2))
+        st.metric("Total líquido", _orchard_fmt_money(total_liquido), delta=round(-debito, 2))
 
     st.caption(
         f"Linhas com território EUA: {n_us_linhas:,} "
         "(as demais permanecem inalteradas)."
     )
 
-    with st.expander("👁️ Visualizar consolidado (100 primeiras linhas)", expanded=False):
+    with st.expander("Visualizar consolidado (100 primeiras linhas)", expanded=False):
         st.dataframe(consolidated.head(100), use_container_width=True)
 
     all_csv = all(f.name.lower().endswith(".csv") for f in uploaded_files)
@@ -871,13 +871,13 @@ def render_orchard():
         mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
     st.download_button(
-        label="📥 Baixar consolidado (withholding aplicado)",
+        label="Baixar consolidado (withholding aplicado)",
         data=data,
         file_name=fname,
         mime=mime,
         use_container_width=True,
         key="orchard_dl",
-    )
+     icon=":material/download:")
 
 
 # ============================================================================

@@ -4,11 +4,32 @@ showErrorDetails = true
 [server]
 maxUploadSize = 500
 
-# Tema da marca Nas Nuvens (lyra)
+# Tema da marca Nas Nuvens (lyra) — direção Lyra 2.0
 [theme]
 base = "light"
 primaryColor = "#003fbc"               # azul da marca — botões, links, sliders, foco
 backgroundColor = "#ffffff"            # branco no conteúdo (tabelas legíveis)
 secondaryBackgroundColor = "#fff7e9"   # off-white da marca — sidebar, cards, expanders
 textColor = "#13213f"                  # navy escuro (mais quente que preto puro)
+
+# Tipos: o corpo, os dados e os controles seguem no sans padrão; só os títulos
+# (h1–h6, rótulo de st.metric) ganham a voz serifada da marca nova. Newsreader
+# é gratuita (Google Fonts) e cobre os acentos do português — as fontes Elza do
+# kit são trial e sem acento.
 font = "sans serif"
+headingFont = "Newsreader:https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap"
+
+# Acento da marca. A terracota entra como o `orange` do tema: os marcadores
+# :orange[▲] do painel de pendências, a legenda :orange[Desatualizada] e o traço
+# dos avisos passam a usá-la, no lugar da laranja genérica do Streamlit. O azul
+# fica reservado para o que se clica.
+orangeColor = "#d3744f"
+
+baseRadius = "small"                   # cantos mais secos, no espírito do traço fino da lira
+linkColor = "#003fbc"                  # link segue o azul da marca (explícito)
+
+# O app tem dois sistemas de tabela lado a lado: as tabelas HTML de
+# utils/ui_components (classe .nn-tabela, cabeçalho no off-white da marca) e o
+# st.dataframe nativo, que vinha com cabeçalho cinza padrão. Isso deixava uma
+# emenda visível em páginas que usam os dois. Aqui os dois passam a combinar.
+dataframeHeaderBackgroundColor = "#fff7e9"

@@ -32,7 +32,7 @@ from utils.bases import (
 # o aviso de indisponibilidade, sem tentar consultar a API.
 REPRTOIR_DISPONIVEL = False
 REPRTOIR_MSG_DESATIVADO = (
-    "🚧 A busca no Reprtoir está **temporariamente desativada** e será reativada em breve."
+    "A busca no Reprtoir está **temporariamente desativada** e será reativada em breve."
 )
 try:
     from utils.reprtoir_lookup import ReprtorirClient, lookup_obra, match_catalogo_interno  # noqa: F401
@@ -41,7 +41,7 @@ except Exception:
 
 setup_page(__file__)
 
-with st.expander("ℹ️ O que é esta página e como usar", expanded=False):
+with st.expander("O que é esta página e como usar", expanded=False):
     st.markdown(
         """
 **O que faz**
@@ -68,7 +68,7 @@ não casou.
 
 **As abas do resultado**
 
-- **Agrupado por Catálogo** — o número final (total de `RATEIO` por catálogo). Conflitos vêm com ⚠️ e um bloco "Requer revisão".
+- **Agrupado por Catálogo** — o número final (total de `RATEIO` por catálogo). Conflitos vêm marcados com ▲ e um bloco "Requer revisão".
 - **Detalhado** — uma linha por execução, com o catálogo resolvido; baixa em XLSX.
 - **Não Mapeados** — o que não casou, agrupado por obra e ordenado por valor. É a lista de trabalho.
 - **Revisar** (ABRAMUS) — casou só pelo ISWC/ISRC (código não bateu — ver coluna `CÓD. NA BASE`) e conflitos.
@@ -247,7 +247,7 @@ def render_ultima_gravacao(gh_config: dict, path: str, state_key: str, item_labe
     try:
         commits = github_commits_do_arquivo(gh_config, path=path, quantidade=2)
     except Exception as e:
-        st.caption(f"⚠️ Não foi possível consultar o histórico da base: {e}")
+        st.caption(f"Não foi possível consultar o histórico da base: {e}")
         return
 
     if not commits:
@@ -255,7 +255,7 @@ def render_ultima_gravacao(gh_config: dict, path: str, state_key: str, item_labe
 
     ultimo = commits[0]
     st.info(
-        f"🕒 **Última gravação na base:** {_formata_data_commit(ultimo['data'])} "
+        f"**Última gravação na base:** {_formata_data_commit(ultimo['data'])} "
         f"por {ultimo['autor']} — [ver no GitHub]({ultimo['url']})  \n"
         f"`{ultimo['mensagem']}`"
     )
@@ -281,7 +281,7 @@ def render_ultima_gravacao(gh_config: dict, path: str, state_key: str, item_labe
     )
     col_sim, col_nao = st.columns(2)
     with col_sim:
-        if st.button("✅ Confirmar desfazer", type="primary", key=f"btn_undo_ok_{state_key}"):
+        if st.button("Confirmar desfazer", type="primary", key=f"btn_undo_ok_{state_key}"):
             try:
                 with st.spinner("Restaurando versão anterior..."):
                     github_restaurar_versao(
@@ -290,11 +290,11 @@ def render_ultima_gravacao(gh_config: dict, path: str, state_key: str, item_labe
                     )
                 st.session_state[confirmar_key] = False
                 st.success(
-                    "✅ Base restaurada à versão anterior. "
+                    "Base restaurada à versão anterior. "
                     "O app vai reiniciar em instantes com o mapeamento de volta ao que era."
                 )
             except Exception as e:
-                st.error(f"❌ Erro ao restaurar: {e}")
+                st.error(f"Erro ao restaurar: {e}")
     with col_nao:
         if st.button("Cancelar", key=f"btn_undo_cancel_{state_key}"):
             st.session_state[confirmar_key] = False
@@ -364,7 +364,7 @@ def save_linhas_no_mapeamento(
 
     count_val = df_novas_linhas[count_col].nunique() if count_col in df_novas_linhas.columns else len(df_novas_linhas)
     st.success(
-        f"✅ {count_val} {count_label} "
+        f"{count_val} {count_label} "
         f"({len(df_novas_linhas)} {item_label}) salvos na base de mapeamento! "
         f"O app vai reiniciar em instantes com o mapeamento atualizado."
     )
@@ -1006,7 +1006,7 @@ def get_available_periods_vitale() -> list:
 # UI Principal
 # ---------------------------
 
-st.sidebar.header("⚙️ Configurações")
+st.sidebar.header("Configurações")
 
 # Seleção de fonte
 fonte = st.sidebar.selectbox(
@@ -1022,24 +1022,24 @@ st.sidebar.markdown("---")
 # ---------------------------
 
 if fonte == "ABRAMUS":
-    st.header("📊 ABRAMUS - Processamento de Relatórios")
+    st.header("ABRAMUS - Processamento de Relatórios")
     st.caption("Cruza por CÓD. OBRA ou ISWC (categoria E) / CÓD FONOGRAMA ou ISRC (demais categorias), sempre dentro da mesma categoria da base.")
 
     # --- Base de catálogo ---
     if os.path.exists(CAMINHO_BASE_ABRAMUS):
         base_source_abramus = CAMINHO_BASE_ABRAMUS
-        st.success(f"✅ Base de catálogo carregada: `{CAMINHO_BASE_ABRAMUS}`")
+        st.success(f"Base de catálogo carregada: `{CAMINHO_BASE_ABRAMUS}`")
     else:
-        st.warning("⚠️ Base de catálogo não encontrada no caminho padrão. Faça o upload:")
+        st.warning("Base de catálogo não encontrada no caminho padrão. Faça o upload:")
         _uploaded_base_ab = st.file_uploader("Upload da base de catálogo ABRAMUS (.xlsx)", type=["xlsx"])
         if _uploaded_base_ab is None:
             st.info("Aguardando upload da base de catálogo.")
             st.stop()
         base_source_abramus = _uploaded_base_ab
-        st.success("✅ Base de catálogo carregada via upload.")
+        st.success("Base de catálogo carregada via upload.")
 
     # --- Editar base de catálogo completa ---
-    with st.expander("✏️ Editar base de catálogo completa"):
+    with st.expander("Editar base de catálogo completa"):
         gh_config_mapping_ab = get_github_config()
         sha_mapping_ab = None
         df_mapping_full_ab = None
@@ -1048,12 +1048,12 @@ if fonte == "ABRAMUS":
             try:
                 df_mapping_full_ab, sha_mapping_ab = github_fetch_mapping(gh_config_mapping_ab, path=GITHUB_MAPPING_PATH_ABRAMUS)
             except Exception as e:
-                st.error(f"❌ Erro ao buscar base no GitHub: {e}")
+                st.error(f"Erro ao buscar base no GitHub: {e}")
         elif isinstance(base_source_abramus, str) and os.path.exists(base_source_abramus):
             try:
                 df_mapping_full_ab = read_mapping_xlsx(base_source_abramus)
             except Exception as e:
-                st.error(f"❌ Erro ao carregar base de catálogo: {e}")
+                st.error(f"Erro ao carregar base de catálogo: {e}")
         else:
             st.caption("Edição indisponível: nem GitHub configurado, nem arquivo local encontrado (base veio de upload).")
 
@@ -1072,7 +1072,7 @@ if fonte == "ABRAMUS":
             )
 
             if gh_config_mapping_ab is not None:
-                if st.button("💾 Salvar alterações na base de catálogo", type="primary"):
+                if st.button("Salvar alterações na base de catálogo", type="primary"):
                     try:
                         with st.spinner("Salvando no GitHub..."):
                             github_save_mapping(
@@ -1082,16 +1082,16 @@ if fonte == "ABRAMUS":
                                 commit_message="data: edita base de catálogo ABRAMUS via app",
                                 path=GITHUB_MAPPING_PATH_ABRAMUS,
                             )
-                        st.success("✅ Base de catálogo atualizada! O app vai reiniciar em instantes.")
+                        st.success("Base de catálogo atualizada! O app vai reiniciar em instantes.")
                     except Exception as e:
-                        st.error(f"❌ Erro ao salvar no GitHub: {e}")
+                        st.error(f"Erro ao salvar no GitHub: {e}")
             else:
-                if st.button("💾 Salvar alterações na base de catálogo (arquivo local)", type="primary"):
+                if st.button("Salvar alterações na base de catálogo (arquivo local)", type="primary"):
                     try:
                         df_mapping_editado_ab.to_excel(base_source_abramus, index=False)
-                        st.success("✅ Base de catálogo salva localmente!")
+                        st.success("Base de catálogo salva localmente!")
                     except Exception as e:
-                        st.error(f"❌ Erro ao salvar localmente: {e}")
+                        st.error(f"Erro ao salvar localmente: {e}")
 
     # --- Relatório ---
     periods = get_available_periods_abramus()
@@ -1111,15 +1111,15 @@ if fonte == "ABRAMUS":
             arquivo_selecionado = meses_do_ano[mes_selecionado_idx][3]
 
         mes_num_selecionado = meses_do_ano[mes_selecionado_idx][1]
-        st.info(f"📁 Arquivo selecionado:\n`{arquivo_selecionado}`")
+        st.info(f"Arquivo selecionado:\n`{arquivo_selecionado}`")
         report_source_abramus = arquivo_selecionado
     else:
-        st.warning("⚠️ Relatórios ABRAMUS não encontrados na rede. Faça o upload do arquivo:")
+        st.warning("Relatórios ABRAMUS não encontrados na rede. Faça o upload do arquivo:")
         _uploaded_report_ab = st.file_uploader("Upload do relatório ABRAMUS (_XLS.CSV)", type=["csv"])
         if _uploaded_report_ab is None:
             st.info("Aguardando upload do relatório.")
             st.stop()
-        st.success(f"✅ Arquivo `{_uploaded_report_ab.name}` carregado.")
+        st.success(f"Arquivo `{_uploaded_report_ab.name}` carregado.")
         report_source_abramus = _uploaded_report_ab
         ano_selecionado = 0
         mes_num_selecionado = 0
@@ -1133,7 +1133,7 @@ if fonte == "ABRAMUS":
         period_suffix = re.sub(r"[^A-Za-z0-9_-]", "_", getattr(report_source_abramus, "name", "upload"))
 
     # Botão para processar
-    if st.button("🚀 Processar Cruzamento", type="primary"):
+    if st.button("Processar Cruzamento", type="primary"):
         try:
             with st.spinner("Carregando base de catálogo..."):
                 df_base = read_base_xlsx(base_source_abramus)
@@ -1217,7 +1217,7 @@ if fonte == "ABRAMUS":
             if _n_conflito:
                 _msgs.append(f"{_n_conflito} CONFLITO(s) de catálogo na base")
             if _msgs:
-                st.caption("ℹ️ " + " · ".join(_msgs) + " — ver aba de revisão")
+                st.caption(" · ".join(_msgs) + " — ver aba de revisão")
 
             # Guarda o resultado no session_state: a edição do data_editor abaixo
             # dispara reruns da página, e sem isso o app voltaria pra tela inicial
@@ -1228,7 +1228,7 @@ if fonte == "ABRAMUS":
                 "df_base": df_base,
             }
         except Exception as e:
-            st.error(f"❌ Erro ao processar: {e}")
+            st.error(f"Erro ao processar: {e}")
             import traceback
             st.code(traceback.format_exc())
 
@@ -1238,7 +1238,7 @@ if fonte == "ABRAMUS":
         df_out = resultado["df_out"]
         df_base = resultado["df_base"]
 
-        st.success("✅ Processamento concluído!")
+        st.success("Processamento concluído!")
         st.subheader("Resultado Agrupado por Catálogo")
 
         if "RATEIO" not in df_out.columns:
@@ -1255,9 +1255,9 @@ if fonte == "ABRAMUS":
                 df_so_iswc["CÓD. OBRA"].nunique() if "CÓD. OBRA" in df_so_iswc.columns else len(df_so_iswc)
             )
 
-            _tab_labels = ["📊 Agrupado por Catálogo", "📋 Detalhado", "🔍 Não Mapeados"]
+            _tab_labels = ["Agrupado por Catálogo", "Detalhado", "Não Mapeados"]
             if not df_so_iswc.empty:
-                _tab_labels.append(f"⚠️ Revisar — ISWC/ISRC e conflitos ({_n_obras_iswc})")
+                _tab_labels.append(f"Revisar — ISWC/ISRC e conflitos ({_n_obras_iswc})")
             _tabs = st.tabs(_tab_labels)
             tab_agrupado, tab_detalhado, tab_nao_mapeados = _tabs[0], _tabs[1], _tabs[2]
             tab_so_iswc = _tabs[3] if not df_so_iswc.empty else None
@@ -1270,7 +1270,7 @@ if fonte == "ABRAMUS":
                     ["Catálogo", "RATEIO"],
                     [
                         simple_row([
-                            ("⚠️ " if " | " in str(r["CATÁLOGO"]) else "") + (r["CATÁLOGO"] or "(sem catálogo)"),
+                            ("▲ " if " | " in str(r["CATÁLOGO"]) else "") + (r["CATÁLOGO"] or "(sem catálogo)"),
                             f"R$ {r['RATEIO']:,.2f}",
                         ])
                         for _, r in df_grouped.iterrows()
@@ -1292,9 +1292,9 @@ if fonte == "ABRAMUS":
                     _n_obras = lambda d: d["CÓD. OBRA"].nunique() if _tem_cod_obra else len(d)
                     if not _conf.empty:
                         for _c, _g in _conf.groupby("CATÁLOGO"):
-                            _linhas.append(f"- ⚠️ **{_c}** — R$ {_g['RATEIO'].sum():,.2f} ({_n_obras(_g)} obra(s)) · *catálogo contraditório na base*")
+                            _linhas.append(f"- **{_c}** — R$ {_g['RATEIO'].sum():,.2f} ({_n_obras(_g)} obra(s)) · *catálogo contraditório na base*")
                     if not _isw.empty:
-                        _linhas.append(f"- ℹ️ casadas só pelo ISWC/ISRC — R$ {_isw['RATEIO'].sum():,.2f} ({_n_obras(_isw)} obra(s))")
+                        _linhas.append(f"- casadas só pelo ISWC/ISRC — R$ {_isw['RATEIO'].sum():,.2f} ({_n_obras(_isw)} obra(s))")
                     st.markdown(
                         "**Requer revisão** (detalhe na aba *Revisar*):\n" + "\n".join(_linhas)
                     )
@@ -1305,10 +1305,10 @@ if fonte == "ABRAMUS":
                     data=xlsx_bytes,
                     file_name=f"relatorio_agrupado_abramus_{period_suffix}.xlsx",
                     mime=XLSX_MIME,
-                )
+                 icon=":material/download:")
 
             with tab_detalhado:
-                st.subheader("📋 Download com Detalhes das Obras")
+                st.subheader("Download com Detalhes das Obras")
 
                 df_detalhado = df_out.copy()
 
@@ -1330,11 +1330,11 @@ if fonte == "ABRAMUS":
 
                 col_info1, col_info2, col_info3 = st.columns(3)
                 with col_info1:
-                    st.metric("📊 Total de Obras", total_obras)
+                    st.metric("Total de Obras", total_obras)
                 with col_info2:
-                    st.metric("✅ Mapeadas", obras_mapeadas)
+                    st.metric("Mapeadas", obras_mapeadas)
                 with col_info3:
-                    st.metric("❌ Não Mapeadas", obras_nao_mapeadas)
+                    st.metric("Não Mapeadas", obras_nao_mapeadas)
 
                 preview_dataframe(df_detalhado_export)
 
@@ -1345,11 +1345,11 @@ if fonte == "ABRAMUS":
                     file_name=f"relatorio_detalhado_abramus_{period_suffix}.xlsx",
                     mime=XLSX_MIME,
                     type="primary"
-                )
+                , icon=":material/download:")
 
             if tab_so_iswc is not None:
                 with tab_so_iswc:
-                    st.subheader("⚠️ Obras para revisar")
+                    st.subheader("Obras para revisar")
                     st.markdown(
                         "- **`iswc_isrc`** — o CÓD. OBRA/FONOGRAMA do relatório não existe na base; "
                         "casou pelo ISWC/ISRC. Compare `CÓD. OBRA` (relatório) com `CÓD. NA BASE` — "
@@ -1385,7 +1385,7 @@ if fonte == "ABRAMUS":
                         data=df_to_xlsx_bytes(df_so_iswc_view),
                         file_name=f"abramus_casados_por_iswc_{period_suffix}.xlsx",
                         mime=XLSX_MIME,
-                    )
+                     icon=":material/download:")
 
             with tab_nao_mapeados:
                 df_nao_mapeadas = df_nao_mapeadas_raw
@@ -1413,7 +1413,7 @@ if fonte == "ABRAMUS":
 
                     total_nao_mapeado = df_agrupado["RATEIO_NUM"].sum()
 
-                    st.warning(f"⚠️ **{len(df_agrupado)} obras únicas** não foram mapeadas | **Total: R$ {total_nao_mapeado:,.2f}**")
+                    st.warning(f"**{len(df_agrupado)} obras únicas** não foram mapeadas | **Total: R$ {total_nao_mapeado:,.2f}**")
 
                     df_agrupado = df_agrupado.sort_values("RATEIO_NUM", ascending=False)
 
@@ -1435,7 +1435,7 @@ if fonte == "ABRAMUS":
 
                     # --- RESOLUÇÃO: preencher CATÁLOGO para as obras não mapeadas ---
                     st.markdown("---")
-                    st.subheader("✏️ Resolver Obras Não Mapeadas")
+                    st.subheader("Resolver Obras Não Mapeadas")
 
                     # Estrutura da base nova da ABRAMUS (com ISRC/CATEGORIA, sem
                     # AUTORES). O CATEGORIA é essencial: o cruzamento casa E-com-E,
@@ -1453,12 +1453,12 @@ if fonte == "ABRAMUS":
                     )
                     modo_resolucao_ab = st.radio(
                         "Como preencher o `CATÁLOGO`?",
-                        ["✏️ Editar na tela", "📤 Importar arquivo preenchido"],
+                        ["Editar na tela", "Importar arquivo preenchido"],
                         horizontal=True,
                         key=f"modo_resolucao_abramus_{period_suffix}",
                     )
 
-                    if modo_resolucao_ab == "✏️ Editar na tela":
+                    if modo_resolucao_ab == "Editar na tela":
                         # AUTORES entra como contexto para decidir o catálogo, mas
                         # não é gravado (a base nova não tem essa coluna).
                         colunas_template_ab = ["TÍTULO DA MUSICA", "AUTORES", "CÓD. OBRA", "CÓD FONOGRAMA", "ISWC", "ISRC", "CATEGORIA"]
@@ -1511,14 +1511,14 @@ if fonte == "ABRAMUS":
                                 file_name=f"template_catalogo_abramus_{period_suffix}.xlsx",
                                 mime=XLSX_MIME,
                                 type="secondary"
-                            )
+                            , icon=":material/download:")
 
                         with col_save2_ab:
                             if gh_config_mapping_ab is None:
-                                st.caption("💾 Salvar direto na base de catálogo não está configurado neste ambiente.")
+                                st.caption("Salvar direto na base de catálogo não está configurado neste ambiente.")
                             else:
                                 if st.button(
-                                    f"💾 Salvar {len(preenchidos_ab)} obra(s) na base",
+                                    f"Salvar {len(preenchidos_ab)} obra(s) na base",
                                     type="primary",
                                     disabled=preenchidos_ab.empty,
                                     key=f"btn_save_{editor_key_ab}",
@@ -1536,7 +1536,7 @@ if fonte == "ABRAMUS":
                                             item_label="linha(s)",
                                         )
                                     except Exception as e:
-                                        st.error(f"❌ Erro ao salvar no GitHub: {e}")
+                                        st.error(f"Erro ao salvar no GitHub: {e}")
 
                     else:
                         st.caption(
@@ -1545,7 +1545,7 @@ if fonte == "ABRAMUS":
                         )
 
                         if gh_config_mapping_ab is None:
-                            st.caption("💾 Importar direto para a base de catálogo não está configurado neste ambiente.")
+                            st.caption("Importar direto para a base de catálogo não está configurado neste ambiente.")
                         else:
                             arquivo_importado_ab = st.file_uploader(
                                 "Selecione o template preenchido (.csv ou .xlsx)",
@@ -1563,13 +1563,13 @@ if fonte == "ABRAMUS":
 
                                     colunas_faltando_ab = [c for c in colunas_mapeamento_abramus if c not in df_importado_ab.columns]
                                     if colunas_faltando_ab:
-                                        st.error(f"❌ Colunas faltando no arquivo importado: {colunas_faltando_ab}")
+                                        st.error(f"Colunas faltando no arquivo importado: {colunas_faltando_ab}")
                                         st.caption(f"Colunas encontradas no arquivo: {list(df_importado_ab.columns)}")
                                     else:
                                         df_importado_preenchido_ab = df_importado_ab[
                                             df_importado_ab["CATÁLOGO"].astype(str).str.strip() != ""
                                         ]
-                                        st.info(f"📄 {len(df_importado_preenchido_ab)} de {len(df_importado_ab)} linha(s) têm `CATÁLOGO` preenchido.")
+                                        st.info(f"{len(df_importado_preenchido_ab)} de {len(df_importado_ab)} linha(s) têm `CATÁLOGO` preenchido.")
 
                                         render_status_table(
                                             ["Título", "Catálogo"],
@@ -1588,7 +1588,7 @@ if fonte == "ABRAMUS":
                                         )
 
                                         if st.button(
-                                            f"💾 Salvar {len(df_importado_preenchido_ab)} obra(s) importada(s) na base",
+                                            f"Salvar {len(df_importado_preenchido_ab)} obra(s) importada(s) na base",
                                             type="primary",
                                             disabled=df_importado_preenchido_ab.empty,
                                             key=f"btn_save_import_abramus_{period_suffix}",
@@ -1609,19 +1609,19 @@ if fonte == "ABRAMUS":
                                                     item_label="linha(s)",
                                                 )
                                             except Exception as e:
-                                                st.error(f"❌ Erro ao salvar no GitHub: {e}")
+                                                st.error(f"Erro ao salvar no GitHub: {e}")
                                 except Exception as e:
-                                    st.error(f"❌ Erro ao ler o arquivo importado: {e}")
+                                    st.error(f"Erro ao ler o arquivo importado: {e}")
 
                     # --- SEÇÃO REPRTOIR (ABRAMUS) ---
                     st.markdown("---")
-                    st.subheader("🔎 Buscar no Reprtoir")
+                    st.subheader("Buscar no Reprtoir")
                     if not REPRTOIR_DISPONIVEL:
                         st.info(REPRTOIR_MSG_DESATIVADO)
                     else:
                         st.caption("Consulta a API do Reprtoir para identificar obras não mapeadas via ISWC ou título+autores.")
                         _rep_key_ab = f"reprtoir_abramus_{period_suffix}"
-                        if st.button("🔎 Buscar no Reprtoir"):
+                        if st.button("Buscar no Reprtoir"):
                             try:
                                 _client_rep = ReprtorirClient()
                                 _cats_internos = sorted(df_base["CATÁLOGO"].dropna().astype(str).unique().tolist()) if "CATÁLOGO" in df_base.columns else []
@@ -1647,40 +1647,40 @@ if fonte == "ABRAMUS":
                                 _progress_rep.empty()
                                 st.session_state[_rep_key_ab] = _resultados_rep
                             except Exception as _e_rep:
-                                st.error(f"❌ Erro ao consultar Reprtoir: {_e_rep}")
+                                st.error(f"Erro ao consultar Reprtoir: {_e_rep}")
 
                         if st.session_state.get(_rep_key_ab):
                             _df_rep = pd.DataFrame(st.session_state[_rep_key_ab])
                             _df_com_rep = df_agrupado.merge(_df_rep, on="CHAVE_GRUPO", how="inner")
-                            st.success(f"✅ **{len(_df_com_rep)} obras** identificadas pelo Reprtoir!")
+                            st.success(f"**{len(_df_com_rep)} obras** identificadas pelo Reprtoir!")
                             _cols_rep = ["TÍTULO DA MUSICA", "ISWC", "AUTORES", "CATÁLOGO_REPRTOIR", "CATÁLOGO_INTERNO_SUGERIDO", "CONFIANÇA_REPRTOIR_%", "FONTE_REPRTOIR", "RATEIO_NUM"]
                             _cols_rep_disp = [c for c in _cols_rep if c in _df_com_rep.columns]
                             preview_dataframe(
                                 _df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False))
                             _xlsx_rep = df_to_xlsx_bytes(_df_com_rep[_cols_rep_disp])
-                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_abramus_{period_suffix}.xlsx", mime=XLSX_MIME)
+                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_abramus_{period_suffix}.xlsx", mime=XLSX_MIME, icon=":material/download:")
 
                 else:
-                    st.success("✅ Todas as obras foram mapeadas com sucesso!")
+                    st.success("Todas as obras foram mapeadas com sucesso!")
 
 # ---------------------------
 # SONY
 # ---------------------------
 elif fonte == "SONY":
-    st.header("🎵 SONY MUSIC PUBLISHING - Processamento de Relatórios")
+    st.header("SONY MUSIC PUBLISHING - Processamento de Relatórios")
 
     # --- Base de mapeamento ---
     if os.path.exists(CAMINHO_BASE_SONY):
         base_source_sony = CAMINHO_BASE_SONY
-        st.success(f"✅ Base de mapeamento carregada: `{CAMINHO_BASE_SONY}`")
+        st.success(f"Base de mapeamento carregada: `{CAMINHO_BASE_SONY}`")
     else:
-        st.warning("⚠️ Base de mapeamento não encontrada no caminho padrão. Faça o upload:")
+        st.warning("Base de mapeamento não encontrada no caminho padrão. Faça o upload:")
         _uploaded_base_so = st.file_uploader("Upload da base de mapeamento Sony (.xlsx)", type=["xlsx"])
         if _uploaded_base_so is None:
             st.info("Aguardando upload da base de mapeamento.")
             st.stop()
         base_source_sony = _uploaded_base_so
-        st.success("✅ Base de mapeamento carregada via upload.")
+        st.success("Base de mapeamento carregada via upload.")
 
     # --- Relatório ---
     periods = get_available_periods_sony()
@@ -1700,21 +1700,21 @@ elif fonte == "SONY":
             arquivo_selecionado = meses_do_ano[mes_selecionado_idx][3]
 
         mes_num_selecionado = meses_do_ano[mes_selecionado_idx][1]
-        st.info(f"📁 Arquivo selecionado:\n`{arquivo_selecionado}`")
+        st.info(f"Arquivo selecionado:\n`{arquivo_selecionado}`")
         report_source_sony = arquivo_selecionado
     else:
-        st.warning("⚠️ Relatórios SONY não encontrados na rede. Faça o upload do arquivo:")
+        st.warning("Relatórios SONY não encontrados na rede. Faça o upload do arquivo:")
         _uploaded_report_so = st.file_uploader("Upload do relatório SONY (.xlsx)", type=["xlsx"])
         if _uploaded_report_so is None:
             st.info("Aguardando upload do relatório.")
             st.stop()
-        st.success(f"✅ Arquivo `{_uploaded_report_so.name}` carregado.")
+        st.success(f"Arquivo `{_uploaded_report_so.name}` carregado.")
         report_source_sony = _uploaded_report_so
         ano_selecionado = 0
         mes_num_selecionado = 0
 
     # Botão para processar
-    if st.button("🚀 Processar Cruzamento", type="primary"):
+    if st.button("Processar Cruzamento", type="primary"):
         try:
             with st.spinner("Carregando base de mapeamento Sony..."):
                 df_base_sony = read_mapping_sony(base_source_sony)
@@ -1725,7 +1725,7 @@ elif fonte == "SONY":
 
                 # Verifica colunas necessárias
                 if "Song No." not in df_base_sony.columns or "CATÁLOGO" not in df_base_sony.columns:
-                    st.error(f"❌ Base de mapeamento não contém as colunas necessárias")
+                    st.error(f"Base de mapeamento não contém as colunas necessárias")
                     st.error(f"Colunas encontradas: {list(df_base_sony.columns)}")
                     st.stop()
 
@@ -1733,14 +1733,14 @@ elif fonte == "SONY":
                 df_report = read_excel_xml(report_source_sony)
                 
                 if "Song No." not in df_report.columns:
-                    st.error("❌ Relatório não contém a coluna 'Song No.'")
+                    st.error("Relatório não contém a coluna 'Song No.'")
                     st.error(f"Colunas encontradas: {list(df_report.columns)}")
                     st.stop()
 
             # Cria lookup Song No. -> Catálogo
             song_lookup = build_lookup(df_base_sony, "Song No.")
             
-            st.info(f"📚 Lookup criado: {len(song_lookup)} músicas mapeadas")
+            st.info(f"Lookup criado: {len(song_lookup)} músicas mapeadas")
 
             # Normaliza Song No. no relatório
             df_report["Song No."] = df_report["Song No."].astype(str).str.strip()
@@ -1749,7 +1749,7 @@ elif fonte == "SONY":
             df_out = df_report.copy()
             df_out["CATÁLOGO"] = df_out["Song No."].map(song_lookup).fillna("")
 
-            st.success("✅ Processamento concluído!")
+            st.success("Processamento concluído!")
             st.subheader("Resultado Agrupado por Catálogo")
             
             if "RoyAmt" in df_out.columns:
@@ -1773,11 +1773,11 @@ elif fonte == "SONY":
                     data=xlsx_bytes,
                     file_name=f"relatorio_agrupado_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
                     mime=XLSX_MIME,
-                )
+                 icon=":material/download:")
                 
                 # --- NOVO: Download resultado DETALHADO ---
                 st.markdown("---")
-                st.subheader("📋 Download com Detalhes das Músicas")
+                st.subheader("Download com Detalhes das Músicas")
 
                 # Prepara dados detalhados
                 df_detalhado = df_out.copy()
@@ -1804,11 +1804,11 @@ elif fonte == "SONY":
 
                 col_info1, col_info2, col_info3 = st.columns(3)
                 with col_info1:
-                    st.metric("📊 Total de Registros", total_musicas)
+                    st.metric("Total de Registros", total_musicas)
                 with col_info2:
-                    st.metric("✅ Mapeados", musicas_mapeadas)
+                    st.metric("Mapeados", musicas_mapeadas)
                 with col_info3:
-                    st.metric("❌ Não Mapeados", musicas_nao_mapeadas)
+                    st.metric("Não Mapeados", musicas_nao_mapeadas)
 
                 # Preview do detalhado
                 preview_dataframe(df_detalhado_export)
@@ -1821,11 +1821,11 @@ elif fonte == "SONY":
                     file_name=f"relatorio_detalhado_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
                     mime=XLSX_MIME,
                     type="primary"
-                )
+                , icon=":material/download:")
                 
                 # --- SEÇÃO DE OBRAS NÃO MAPEADAS ---
                 st.markdown("---")
-                st.subheader("🔍 Músicas Não Mapeadas")
+                st.subheader("Músicas Não Mapeadas")
                 
                 df_nao_mapeadas = df_out[df_out["CATÁLOGO"].isin(["", "nan"]) | df_out["CATÁLOGO"].isna()].copy()
                 
@@ -1843,7 +1843,7 @@ elif fonte == "SONY":
                     
                     total_nao_mapeado = df_agrupado["RoyAmt_NUM"].sum()
                     
-                    st.warning(f"⚠️ **{len(df_agrupado)} músicas únicas** não foram mapeadas | **Total: ${total_nao_mapeado:,.2f}**")
+                    st.warning(f"**{len(df_agrupado)} músicas únicas** não foram mapeadas | **Total: ${total_nao_mapeado:,.2f}**")
                     
                     df_agrupado = df_agrupado.sort_values("RoyAmt_NUM", ascending=False)
                     
@@ -1862,7 +1862,7 @@ elif fonte == "SONY":
                         file_name=f"obras_nao_mapeadas_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
                         mime=XLSX_MIME,
                         type="secondary"
-                    )
+                    , icon=":material/download:")
                     
                     # Estatísticas por Source
                     if "Source" in df_agrupado.columns:
@@ -1875,7 +1875,7 @@ elif fonte == "SONY":
                     
                     # --- SEÇÃO DE SUGESTÕES INTELIGENTES ---
                     st.markdown("---")
-                    st.subheader("🤖 Sugestões Inteligentes de Catálogo")
+                    st.subheader("Sugestões Inteligentes de Catálogo")
                     
                     if "Writer" in df_nao_mapeadas.columns:
                         st.info("Analisando padrões de autores na base de mapeamento...")
@@ -1907,7 +1907,7 @@ elif fonte == "SONY":
                                                 autor_catalogo_map[writer][catalogo] = 0
                                             autor_catalogo_map[writer][catalogo] += 1
                             
-                            st.success(f"✅ Dicionário criado: {len(autor_catalogo_map)} autores mapeados")
+                            st.success(f"Dicionário criado: {len(autor_catalogo_map)} autores mapeados")
                             
                             def sugerir_catalogo(writers_str):
                                 if not writers_str or writers_str == "nan":
@@ -1994,7 +1994,7 @@ elif fonte == "SONY":
                                 st.dataframe(sug_stats, use_container_width=True)
                             
                             st.markdown("---")
-                            st.markdown("### 📥 Download Completo")
+                            st.markdown("### Download Completo")
                             
                             colunas_download = [
                                 "Song No.", "Song", "Writer", "CATÁLOGO_SUGERIDO", "AUTORES_MATCH", 
@@ -2017,7 +2017,7 @@ elif fonte == "SONY":
                             
                             xlsx_completo = df_to_xlsx_bytes(df_download_completo)
 
-                            st.info(f"📊 Este arquivo contém **{len(df_download_completo)} músicas** ({len(df_com_sugestao)} com sugestão + {len(df_sem_sugestao)} sem sugestão)")
+                            st.info(f"Este arquivo contém **{len(df_download_completo)} músicas** ({len(df_com_sugestao)} com sugestão + {len(df_sem_sugestao)} sem sugestão)")
 
                             st.download_button(
                                 "⬇️ Baixar TODAS as músicas não mapeadas (com e sem sugestões)",
@@ -2025,20 +2025,20 @@ elif fonte == "SONY":
                                 file_name=f"obras_completo_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx",
                                 mime=XLSX_MIME,
                                 type="primary"
-                            )
+                            , icon=":material/download:")
                         
                         else:
-                            st.warning("⚠️ Coluna 'Writer' não encontrada na base de mapeamento.")
+                            st.warning("Coluna 'Writer' não encontrada na base de mapeamento.")
 
                     # --- SEÇÃO REPRTOIR (SONY) ---
                     st.markdown("---")
-                    st.subheader("🔎 Buscar no Reprtoir")
+                    st.subheader("Buscar no Reprtoir")
                     if not REPRTOIR_DISPONIVEL:
                         st.info(REPRTOIR_MSG_DESATIVADO)
                     else:
                         st.caption("Consulta a API do Reprtoir para identificar músicas não mapeadas via título+autores.")
                         _rep_key_so = f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}"
-                        if st.button("🔎 Buscar no Reprtoir"):
+                        if st.button("Buscar no Reprtoir"):
                             try:
                                 _client_rep = ReprtorirClient()
                                 _cats_internos = sorted(df_base_sony["CATÁLOGO"].dropna().astype(str).unique().tolist()) if "CATÁLOGO" in df_base_sony.columns else []
@@ -2069,28 +2069,28 @@ elif fonte == "SONY":
                                 _progress_rep.empty()
                                 st.session_state[_rep_key_so] = _resultados_rep
                             except Exception as _e_rep:
-                                st.error(f"❌ Erro ao consultar Reprtoir: {_e_rep}")
+                                st.error(f"Erro ao consultar Reprtoir: {_e_rep}")
 
                         if st.session_state.get(_rep_key_so):
                             _df_rep = pd.DataFrame(st.session_state[_rep_key_so])
                             _df_com_rep = df_agrupado.merge(_df_rep, on="Song No.", how="inner")
-                            st.success(f"✅ **{len(_df_com_rep)} músicas** identificadas pelo Reprtoir!")
+                            st.success(f"**{len(_df_com_rep)} músicas** identificadas pelo Reprtoir!")
                             _cols_rep = ["Song No.", "Song", "Writer", "CATÁLOGO_REPRTOIR", "CATÁLOGO_INTERNO_SUGERIDO", "CONFIANÇA_REPRTOIR_%", "FONTE_REPRTOIR", "RoyAmt_NUM"]
                             _cols_rep_disp = [c for c in _cols_rep if c in _df_com_rep.columns]
                             preview_dataframe(
                                 _df_com_rep[_cols_rep_disp].sort_values("CONFIANÇA_REPRTOIR_%", ascending=False))
                             _xlsx_rep = df_to_xlsx_bytes(_df_com_rep[_cols_rep_disp])
-                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx", mime=XLSX_MIME)
+                            st.download_button("⬇️ Baixar resultados Reprtoir (XLSX)", data=_xlsx_rep, file_name=f"reprtoir_sony_{ano_selecionado}_{mes_num_selecionado:02d}.xlsx", mime=XLSX_MIME, icon=":material/download:")
 
                 else:
-                    st.success("✅ Todas as músicas foram mapeadas com sucesso!")
+                    st.success("Todas as músicas foram mapeadas com sucesso!")
 
             else:
                 st.warning("Coluna 'RoyAmt' não encontrada no relatório.")
                 st.dataframe(df_out, use_container_width=True, height=520)
 
         except Exception as e:
-            st.error(f"❌ Erro ao processar: {e}")
+            st.error(f"Erro ao processar: {e}")
             import traceback
             st.code(traceback.format_exc())
 
@@ -2098,20 +2098,20 @@ elif fonte == "SONY":
 # IRMÃOS VITALE
 # ---------------------------
 elif fonte == "IRMÃOS VITALE":
-    st.header("🎼 IRMÃOS VITALE - Processamento de Relatórios")
+    st.header("IRMÃOS VITALE - Processamento de Relatórios")
 
     # --- Base de catálogo ---
     if os.path.exists(CAMINHO_BASE_VITALE):
         base_source_vitale = CAMINHO_BASE_VITALE
-        st.success(f"✅ Base de catálogo carregada: `{CAMINHO_BASE_VITALE}`")
+        st.success(f"Base de catálogo carregada: `{CAMINHO_BASE_VITALE}`")
     else:
-        st.warning("⚠️ Base de catálogo não encontrada no caminho padrão. Faça o upload:")
+        st.warning("Base de catálogo não encontrada no caminho padrão. Faça o upload:")
         _uploaded_base_vi = st.file_uploader("Upload da base de catálogo Irmãos Vitale (.xlsx)", type=["xlsx"])
         if _uploaded_base_vi is None:
             st.info("Aguardando upload da base de catálogo.")
             st.stop()
         base_source_vitale = _uploaded_base_vi
-        st.success("✅ Base de catálogo carregada via upload.")
+        st.success("Base de catálogo carregada via upload.")
 
     # --- Relatórios (trimestrais) ---
     periods = get_available_periods_vitale()
@@ -2132,9 +2132,9 @@ elif fonte == "IRMÃOS VITALE":
 
         tri_num_selecionado = periodo_sel["tri"]
         vitale_sources = periodo_sel["arquivos"]
-        st.info("📁 Demonstrativos encontrados: " + ", ".join(sorted(vitale_sources.keys())))
+        st.info("Demonstrativos encontrados: " + ", ".join(sorted(vitale_sources.keys())))
     else:
-        st.warning("⚠️ Relatórios Irmãos Vitale não encontrados na rede. Faça o upload dos demonstrativos (.XLS):")
+        st.warning("Relatórios Irmãos Vitale não encontrados na rede. Faça o upload dos demonstrativos (.XLS):")
         _uploaded_reports_vi = st.file_uploader(
             "Upload dos demonstrativos Vitale (DEX / DPV / Terceiros)",
             type=["xls"], accept_multiple_files=True)
@@ -2148,19 +2148,19 @@ elif fonte == "IRMÃOS VITALE":
                 if _tipo.lower() in _low:
                     vitale_sources[_tipo] = _up
         if not vitale_sources:
-            st.error("❌ Não identifiquei DEX/DPV/Terceiros nos nomes dos arquivos enviados.")
+            st.error("Não identifiquei DEX/DPV/Terceiros nos nomes dos arquivos enviados.")
             st.stop()
-        st.success("✅ Demonstrativos carregados: " + ", ".join(sorted(vitale_sources.keys())))
+        st.success("Demonstrativos carregados: " + ", ".join(sorted(vitale_sources.keys())))
         ano_selecionado = 0
         tri_num_selecionado = 0
 
     # Botão para processar
-    if st.button("🚀 Processar Cruzamento", type="primary"):
+    if st.button("Processar Cruzamento", type="primary"):
         try:
             with st.spinner("Carregando base de catálogo..."):
                 df_base = read_base_xlsx(base_source_vitale)
                 titulo_lookup = build_titulo_lookup(df_base)
-            st.info(f"📚 Lookup criado: {len(titulo_lookup)} títulos mapeados na base")
+            st.info(f"Lookup criado: {len(titulo_lookup)} títulos mapeados na base")
 
             partes = []
             for _tipo, _src in vitale_sources.items():
@@ -2177,7 +2177,7 @@ elif fonte == "IRMÃOS VITALE":
             df_all["CATÁLOGO"] = df_all["__key"].map(titulo_lookup).fillna("")
 
             # --- Resultado agrupado por catálogo ---
-            st.success("✅ Processamento concluído!")
+            st.success("Processamento concluído!")
             st.subheader("Resultado Agrupado por Catálogo")
             df_grouped = (
                 df_all.groupby("CATÁLOGO", as_index=False)["VALOR"].sum()
@@ -2195,7 +2195,7 @@ elif fonte == "IRMÃOS VITALE":
                 data=xlsx_bytes,
                 file_name=f"relatorio_agrupado_vitale_{ano_selecionado}_{tri_num_selecionado}T.xlsx",
                 mime=XLSX_MIME,
-            )
+             icon=":material/download:")
 
             # --- Distribuição por demonstrativo ---
             st.markdown("**Distribuição por Demonstrativo:**")
@@ -2208,7 +2208,7 @@ elif fonte == "IRMÃOS VITALE":
 
             # --- Detalhado por obra ---
             st.markdown("---")
-            st.subheader("📋 Download com Detalhes das Obras")
+            st.subheader("Download com Detalhes das Obras")
 
             df_detalhado = (
                 df_all.groupby(["CATÁLOGO", "TÍTULO", "DEMONSTRATIVO"], as_index=False)["VALOR"].sum()
@@ -2222,11 +2222,11 @@ elif fonte == "IRMÃOS VITALE":
 
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.metric("📊 Obras (títulos únicos)", total_obras)
+                st.metric("Obras (títulos únicos)", total_obras)
             with c2:
-                st.metric("✅ Mapeadas", obras_mapeadas)
+                st.metric("Mapeadas", obras_mapeadas)
             with c3:
-                st.metric("❌ Não Mapeadas", obras_nao_mapeadas)
+                st.metric("Não Mapeadas", obras_nao_mapeadas)
 
             preview_dataframe(df_detalhado)
             xlsx_det = df_to_xlsx_bytes(df_detalhado)
@@ -2235,11 +2235,11 @@ elif fonte == "IRMÃOS VITALE":
                 data=xlsx_det,
                 file_name=f"relatorio_detalhado_vitale_{ano_selecionado}_{tri_num_selecionado}T.xlsx",
                 mime=XLSX_MIME, type="primary",
-            )
+             icon=":material/download:")
 
             # --- Obras não mapeadas ---
             st.markdown("---")
-            st.subheader("🔍 Obras Não Mapeadas")
+            st.subheader("Obras Não Mapeadas")
             df_nm = df_all[df_all["CATÁLOGO"] == ""].copy()
             if len(df_nm) > 0:
                 df_nm_grp = (
@@ -2252,7 +2252,7 @@ elif fonte == "IRMÃOS VITALE":
                     .rename(columns={"Valor": "Valor Repassado"})
                 )
                 total_nm = df_nm_grp["Valor Repassado"].sum()
-                st.warning(f"⚠️ **{len(df_nm_grp)} títulos** não mapeados | **Total: R$ {total_nm:,.2f}**")
+                st.warning(f"**{len(df_nm_grp)} títulos** não mapeados | **Total: R$ {total_nm:,.2f}**")
                 preview_dataframe(df_nm_grp)
                 xlsx_nm = df_to_xlsx_bytes(df_nm_grp)
                 st.download_button(
@@ -2260,12 +2260,12 @@ elif fonte == "IRMÃOS VITALE":
                     data=xlsx_nm,
                     file_name=f"obras_nao_mapeadas_vitale_{ano_selecionado}_{tri_num_selecionado}T.xlsx",
                     mime=XLSX_MIME, type="secondary",
-                )
+                 icon=":material/download:")
             else:
-                st.success("✅ Todas as obras foram mapeadas com sucesso!")
+                st.success("Todas as obras foram mapeadas com sucesso!")
 
         except Exception as e:
-            st.error(f"❌ Erro ao processar: {e}")
+            st.error(f"Erro ao processar: {e}")
             import traceback
             st.code(traceback.format_exc())
 
@@ -2273,24 +2273,24 @@ elif fonte == "IRMÃOS VITALE":
 # INGROOVES
 # ---------------------------
 elif fonte == "INGROOVES":
-    st.header("🎧 INGROOVES - Processamento de Relatórios")
+    st.header("INGROOVES - Processamento de Relatórios")
     st.caption("Desconta 30% das receitas dos EUA e cruza por artista com a base de mapeamento. Usa apenas o DSR do label Nas_Nuvens_Catalog.")
 
     # --- Base de mapeamento ---
     if os.path.exists(CAMINHO_BASE_INGROOVES):
         base_source_ingrooves = CAMINHO_BASE_INGROOVES
-        st.success(f"✅ Base de mapeamento carregada: `{CAMINHO_BASE_INGROOVES}`")
+        st.success(f"Base de mapeamento carregada: `{CAMINHO_BASE_INGROOVES}`")
     else:
-        st.warning("⚠️ Base de mapeamento não encontrada no caminho padrão. Faça o upload:")
+        st.warning("Base de mapeamento não encontrada no caminho padrão. Faça o upload:")
         _uploaded_base_ig = st.file_uploader("Upload da base de mapeamento Ingrooves (.xlsx)", type=["xlsx"])
         if _uploaded_base_ig is None:
             st.info("Aguardando upload da base de mapeamento.")
             st.stop()
         base_source_ingrooves = _uploaded_base_ig
-        st.success("✅ Base de mapeamento carregada via upload.")
+        st.success("Base de mapeamento carregada via upload.")
 
     # --- Editar base de mapeamento completa ---
-    with st.expander("✏️ Editar base de mapeamento completa"):
+    with st.expander("Editar base de mapeamento completa"):
         gh_config_mapping = get_github_config()
         sha_mapping = None
         df_mapping_full = None
@@ -2299,13 +2299,13 @@ elif fonte == "INGROOVES":
             try:
                 df_mapping_full, sha_mapping = github_fetch_mapping(gh_config_mapping)
             except Exception as e:
-                st.error(f"❌ Erro ao buscar mapeamento no GitHub: {e}")
+                st.error(f"Erro ao buscar mapeamento no GitHub: {e}")
         elif isinstance(base_source_ingrooves, str) and os.path.exists(base_source_ingrooves):
             try:
                 df_mapping_full = pd.read_excel(base_source_ingrooves, dtype=str)
                 df_mapping_full.columns = [c.strip() for c in df_mapping_full.columns]
             except Exception as e:
-                st.error(f"❌ Erro ao carregar base de mapeamento: {e}")
+                st.error(f"Erro ao carregar base de mapeamento: {e}")
         else:
             st.caption("Edição indisponível: nem GitHub configurado, nem arquivo local encontrado (base veio de upload).")
 
@@ -2324,7 +2324,7 @@ elif fonte == "INGROOVES":
             )
 
             if gh_config_mapping is not None:
-                if st.button("💾 Salvar alterações na base de mapeamento", type="primary"):
+                if st.button("Salvar alterações na base de mapeamento", type="primary"):
                     try:
                         with st.spinner("Salvando no GitHub..."):
                             github_save_mapping(
@@ -2333,16 +2333,16 @@ elif fonte == "INGROOVES":
                                 sha_mapping,
                                 commit_message="data: edita base de mapeamento Ingrooves via app",
                             )
-                        st.success("✅ Base de mapeamento atualizada! O app vai reiniciar em instantes.")
+                        st.success("Base de mapeamento atualizada! O app vai reiniciar em instantes.")
                     except Exception as e:
-                        st.error(f"❌ Erro ao salvar no GitHub: {e}")
+                        st.error(f"Erro ao salvar no GitHub: {e}")
             else:
-                if st.button("💾 Salvar alterações na base de mapeamento (arquivo local)", type="primary"):
+                if st.button("Salvar alterações na base de mapeamento (arquivo local)", type="primary"):
                     try:
                         df_mapping_editado.to_excel(base_source_ingrooves, index=False)
-                        st.success("✅ Base de mapeamento salva localmente!")
+                        st.success("Base de mapeamento salva localmente!")
                     except Exception as e:
-                        st.error(f"❌ Erro ao salvar localmente: {e}")
+                        st.error(f"Erro ao salvar localmente: {e}")
 
     # --- Relatório ---
     periods = get_available_periods_ingrooves()
@@ -2362,15 +2362,15 @@ elif fonte == "INGROOVES":
             arquivo_selecionado = meses_do_ano[mes_selecionado_idx][3]
 
         mes_num_selecionado = meses_do_ano[mes_selecionado_idx][1]
-        st.info(f"📁 Arquivo selecionado:\n`{arquivo_selecionado}`")
+        st.info(f"Arquivo selecionado:\n`{arquivo_selecionado}`")
         report_source_ingrooves = arquivo_selecionado
     else:
-        st.warning("⚠️ Relatórios Ingrooves não encontrados na rede. Faça o upload do arquivo:")
+        st.warning("Relatórios Ingrooves não encontrados na rede. Faça o upload do arquivo:")
         _uploaded_report_ig = st.file_uploader("Upload do relatório Ingrooves (Nas_Nuvens_Catalog_*_DSR.xlsx)", type=["xlsx"])
         if _uploaded_report_ig is None:
             st.info("Aguardando upload do relatório.")
             st.stop()
-        st.success(f"✅ Arquivo `{_uploaded_report_ig.name}` carregado.")
+        st.success(f"Arquivo `{_uploaded_report_ig.name}` carregado.")
         report_source_ingrooves = _uploaded_report_ig
         ano_selecionado = 0
         mes_num_selecionado = 0
@@ -2384,7 +2384,7 @@ elif fonte == "INGROOVES":
         period_suffix = re.sub(r"[^A-Za-z0-9_-]", "_", getattr(report_source_ingrooves, "name", "upload"))
 
     # Botão para processar
-    if st.button("🚀 Processar Cruzamento", type="primary"):
+    if st.button("Processar Cruzamento", type="primary"):
         try:
             with st.spinner("Carregando base de mapeamento Ingrooves..."):
                 df_base_ig = read_base_ingrooves(base_source_ingrooves)
@@ -2393,7 +2393,7 @@ elif fonte == "INGROOVES":
                 df_report = read_ingrooves_dsr(report_source_ingrooves)
 
             if "Net Dollars after Fees" not in df_report.columns:
-                st.error(f"❌ Relatório não contém a coluna 'Net Dollars after Fees'. Colunas: {list(df_report.columns)}")
+                st.error(f"Relatório não contém a coluna 'Net Dollars after Fees'. Colunas: {list(df_report.columns)}")
                 st.stop()
 
             # Desconto de 30% nas receitas dos EUA
@@ -2440,7 +2440,7 @@ elif fonte == "INGROOVES":
                 "total_withheld": total_withheld,
             }
         except Exception as e:
-            st.error(f"❌ Erro ao processar: {e}")
+            st.error(f"Erro ao processar: {e}")
             import traceback
             st.code(traceback.format_exc())
 
@@ -2453,7 +2453,7 @@ elif fonte == "INGROOVES":
         discounted_total = resultado["discounted_total"]
         total_withheld = resultado["total_withheld"]
 
-        st.success("✅ Processamento concluído!")
+        st.success("Processamento concluído!")
         st.write(f"O valor Original é **USD {original_total:,.2f}**")
         st.write(f"O total de withholding aplicado (30% EUA) é **USD {total_withheld:,.2f}**")
         st.write(f":red[O valor Net menos withholding é **USD {discounted_total:,.2f}**]")
@@ -2481,7 +2481,7 @@ elif fonte == "INGROOVES":
         df_nao_mapeadas = df_nao_mapeadas_raw[~mask_sem_artist]
 
         tab_agrupado, tab_detalhado, tab_nao_mapeados = st.tabs([
-            "📊 Agrupado por Catálogo", "📋 Detalhado", "🔍 Não Mapeados"
+            "Agrupado por Catálogo", "Detalhado", "Não Mapeados"
         ])
 
         with tab_agrupado:
@@ -2526,7 +2526,7 @@ elif fonte == "INGROOVES":
                 data=xlsx_bytes,
                 file_name=f"relatorio_agrupado_ingrooves_{period_suffix}.xlsx",
                 mime=XLSX_MIME,
-            )
+             icon=":material/download:")
 
         with tab_detalhado:
             colunas_detalhadas = [
@@ -2548,11 +2548,11 @@ elif fonte == "INGROOVES":
 
             col_info1, col_info2, col_info3 = st.columns(3)
             with col_info1:
-                st.metric("📊 Total de Linhas", total_linhas)
+                st.metric("Total de Linhas", total_linhas)
             with col_info2:
-                st.metric("✅ Mapeadas", linhas_mapeadas)
+                st.metric("Mapeadas", linhas_mapeadas)
             with col_info3:
-                st.metric("❌ Não Mapeadas", linhas_nao_mapeadas)
+                st.metric("Não Mapeadas", linhas_nao_mapeadas)
 
             preview_dataframe(df_detalhado_export)
 
@@ -2563,22 +2563,22 @@ elif fonte == "INGROOVES":
                 file_name=f"relatorio_detalhado_ingrooves_{period_suffix}.xlsx",
                 mime=XLSX_MIME,
                 type="primary"
-            )
+            , icon=":material/download:")
 
         with tab_nao_mapeados:
             if len(df_sem_artist) > 0:
                 total_sem_artist = df_sem_artist["Net Dollars after Fees"].sum()
                 st.info(
-                    f"ℹ️ **{len(df_sem_artist)} linha(s)** do relatório vieram sem nome de artista preenchido "
+                    f"**{len(df_sem_artist)} linha(s)** do relatório vieram sem nome de artista preenchido "
                     f"(não é possível mapear sem essa informação) | **Total: USD {total_sem_artist:,.2f}**"
                 )
 
             if len(df_nao_mapeadas) > 0:
                 df_nm_grp = df_nao_mapeadas.groupby("Artist", as_index=False)["Net Dollars after Fees"].sum()
                 total_nao_mapeado = df_nm_grp["Net Dollars after Fees"].sum()
-                st.warning(f"⚠️ **{len(df_nm_grp)} artistas únicos** não foram encontrados na base de mapeamento | **Total: USD {total_nao_mapeado:,.2f}**")
+                st.warning(f"**{len(df_nm_grp)} artistas únicos** não foram encontrados na base de mapeamento | **Total: USD {total_nao_mapeado:,.2f}**")
             elif len(df_sem_artist) == 0:
-                st.success("✅ Todos os artistas foram mapeados com sucesso!")
+                st.success("Todos os artistas foram mapeados com sucesso!")
 
             st.markdown("---")
             render_ultima_gravacao(
@@ -2587,12 +2587,12 @@ elif fonte == "INGROOVES":
             )
             modo_resolucao = st.radio(
                 "Como preencher o `Tag_Artista`?",
-                ["✏️ Editar na tela", "📤 Importar arquivo preenchido"],
+                ["Editar na tela", "Importar arquivo preenchido"],
                 horizontal=True,
                 key=f"modo_resolucao_{period_suffix}",
             )
 
-            if modo_resolucao == "✏️ Editar na tela":
+            if modo_resolucao == "Editar na tela":
                 if len(df_nao_mapeadas) == 0:
                     st.caption("Nenhum artista pendente neste relatório.")
                 else:
@@ -2648,14 +2648,14 @@ elif fonte == "INGROOVES":
                             file_name=f"template_mapeamento_ingrooves_{period_suffix}.xlsx",
                             mime=XLSX_MIME,
                             type="secondary"
-                        )
+                        , icon=":material/download:")
 
                     with col_save2:
                         if gh_config is None:
-                            st.caption("💾 Salvar direto na base de mapeamento não está configurado neste ambiente.")
+                            st.caption("Salvar direto na base de mapeamento não está configurado neste ambiente.")
                         else:
                             if st.button(
-                                f"💾 Salvar {len(preenchidos)} faixa(s) no mapeamento",
+                                f"Salvar {len(preenchidos)} faixa(s) no mapeamento",
                                 type="primary",
                                 disabled=preenchidos.empty,
                                 key=f"btn_save_{editor_key}",
@@ -2668,7 +2668,7 @@ elif fonte == "INGROOVES":
                                         commit_message=f"data: adiciona {df_novas_linhas['Artist'].nunique()} artista(s) ao mapeamento Ingrooves via app",
                                     )
                                 except Exception as e:
-                                    st.error(f"❌ Erro ao salvar no GitHub: {e}")
+                                    st.error(f"Erro ao salvar no GitHub: {e}")
 
             else:
                 st.caption(
@@ -2677,7 +2677,7 @@ elif fonte == "INGROOVES":
                 )
 
                 if gh_config is None:
-                    st.caption("💾 Importar direto para o mapeamento não está configurado neste ambiente.")
+                    st.caption("Importar direto para o mapeamento não está configurado neste ambiente.")
                 else:
                     arquivo_importado = st.file_uploader(
                         "Selecione o template preenchido (.csv ou .xlsx)",
@@ -2700,13 +2700,13 @@ elif fonte == "INGROOVES":
 
                             colunas_faltando = [c for c in colunas_mapeamento if c not in df_importado.columns]
                             if colunas_faltando:
-                                st.error(f"❌ Colunas faltando no arquivo importado: {colunas_faltando}")
+                                st.error(f"Colunas faltando no arquivo importado: {colunas_faltando}")
                                 st.caption(f"Colunas encontradas no arquivo: {list(df_importado.columns)}")
                             else:
                                 df_importado_preenchido = df_importado[
                                     df_importado["Tag_Artista"].astype(str).str.strip() != ""
                                 ]
-                                st.info(f"📄 {len(df_importado_preenchido)} de {len(df_importado)} linha(s) têm `Tag_Artista` preenchido.")
+                                st.info(f"{len(df_importado_preenchido)} de {len(df_importado)} linha(s) têm `Tag_Artista` preenchido.")
 
                                 artistas_status_import = df_importado.drop_duplicates(subset=["Artist"])
                                 st.caption(
@@ -2731,7 +2731,7 @@ elif fonte == "INGROOVES":
                                 )
 
                                 if st.button(
-                                    f"💾 Salvar {len(df_importado_preenchido)} faixa(s) importada(s) no mapeamento",
+                                    f"Salvar {len(df_importado_preenchido)} faixa(s) importada(s) no mapeamento",
                                     type="primary",
                                     disabled=df_importado_preenchido.empty,
                                     key=f"btn_save_import_{period_suffix}",
@@ -2747,6 +2747,6 @@ elif fonte == "INGROOVES":
                                             ),
                                         )
                                     except Exception as e:
-                                        st.error(f"❌ Erro ao salvar no GitHub: {e}")
+                                        st.error(f"Erro ao salvar no GitHub: {e}")
                         except Exception as e:
-                            st.error(f"❌ Erro ao ler o arquivo importado: {e}")
+                            st.error(f"Erro ao ler o arquivo importado: {e}")

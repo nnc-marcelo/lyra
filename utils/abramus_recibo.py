@@ -26,6 +26,12 @@ from dataclasses import dataclass, field
 import pandas as pd
 import pdfplumber
 
+# Folga aceita ao conferir uma soma contra o total que o documento declara.
+# São as frações abaixo de um centavo que o recibo soma no resumo e não exibe
+# no detalhe. Usada aqui (conferência por categoria) e na página da RR, no
+# veredito de fechamento — as duas precisam concordar sobre o que é "fecha".
+TOLERANCIA_CENTAVOS = 0.10
+
 # Um valor monetário do recibo: "1.234,56", "0,00", "-12,30".
 _NUM = r"(-?[\d.]+,\d{2})"
 
@@ -285,12 +291,11 @@ def ler_recibo(pdf_file) -> Recibo:
         )
 
     # Confere cada categoria contra o total que o próprio documento declara.
-    # A tolerância de 10 centavos é a folga das frações abaixo de um centavo que
-    # o recibo soma no resumo mas não mostra no detalhe.
+    # Ver TOLERANCIA_CENTAVOS.
     for categoria, debito, credito in totais_categoria:
         bloco = recibo.linhas[recibo.linhas["Categoria"] == categoria]
         dif = round(float(bloco["Valor"].sum()) - (credito - debito), 2)
-        if abs(dif) > 0.10:
+        if abs(dif) > TOLERANCIA_CENTAVOS:
             recibo.avisos.append(
                 f"Categoria {categoria}: soma das linhas difere do total declarado em R$ {dif:,.2f}."
             )

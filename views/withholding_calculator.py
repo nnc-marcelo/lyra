@@ -327,7 +327,7 @@ if uploaded_file is not None:
                     data=st.session_state['orchard_processed_data'],
                     file_name=out_name,
                     mime=out_mime
-                )
+                , icon=":material/download:")
 
                 st.success("Processamento concluído com sucesso!")
 
@@ -405,7 +405,7 @@ if uploaded_file is not None:
                 data=st.session_state['ingrooves_processed_data'],
                 file_name=out_name,
                 mime=out_mime
-            )
+            , icon=":material/download:")
 
     #----------------------------------
     # Processamento CURVE (aceita CSV e Excel)
@@ -495,7 +495,7 @@ if uploaded_file is not None:
                 data=st.session_state['curve_processed_data'],
                 file_name=out_name,
                 mime=out_mime
-            )
+            , icon=":material/download:")
 
     #----------------------------------
     # Processamento ONERPM com separação por moeda
@@ -626,12 +626,12 @@ if uploaded_file is not None:
         
         # Botão para download do ZIP
         st.download_button(
-            label="📦 Baixar todos os arquivos (zip)",
+            label="Baixar todos os arquivos (zip)",
             data=zip_buffer.getvalue(),
             file_name=f"onerpm_processed_files.zip",
             mime="application/zip",
             help="Clique para baixar todos os arquivos processados em um único arquivo ZIP"
-        )
+        , icon=":material/download:")
         
         st.divider()
 
@@ -657,7 +657,7 @@ if uploaded_file is not None:
                 data=output_data,
                 file_name=adjust_file_name_onerpm(f"{sheet}_{currency}"),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            , icon=":material/download:")
 
             st.divider()
 

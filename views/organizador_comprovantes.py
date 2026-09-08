@@ -383,7 +383,7 @@ def render_credentials_table(rows: list, query: str = "", status_filter: str = "
         )
 
     render_html_table(["Artista", "Conta", "ECAD", "Acesso"], rows_html)
-    st.caption(f"{len(filtered)} de {len(rows)} — 🟢 acesa = reconhece automático · apagada = ainda suspensa/sem código")
+    st.caption(f"{len(filtered)} de {len(rows)} — acesa = reconhece automático · apagada = ainda suspensa/sem código")
 
 
 def build_coverage(rows: list, account_counter: dict) -> list:
@@ -628,7 +628,7 @@ def render_orphans(orphans: list, cfg: dict, entity_name: str):
     """Seção 'Códigos não reconhecidos'. Pras entidades com cadastro direto
     habilitado (UBC, Sony) e rodando local, mostra um form de cadastro por
     código; senão, cai na tabela informativa de sempre."""
-    st.subheader("⚠️ Códigos não reconhecidos")
+    st.subheader("Códigos não reconhecidos")
     portal_id = cfg.get("portal_id")
     reg_cfg = REGISTRATION_CONFIG.get(entity_name)
     code_label = (reg_cfg or {}).get("code_label", "Código")
@@ -676,7 +676,7 @@ def render_orphans(orphans: list, cfg: dict, entity_name: str):
         artista = o["artista"] if o["artista"] != "?" else ""
         default_artist = artista or titular
         header_name = titular or artista or "sem palpite"
-        with st.expander(f"🔢 {o['code']} — {header_name}  ·  {o['arquivos']} arq."):
+        with st.expander(f"{o['code']} — {header_name}  ·  {o['arquivos']} arq."):
             default_slug = _slugify_id(default_artist or f"{entity_name.lower()}{o['code']}", existing_ids)
             with st.form(f"reg_{entity_name}_{o['code']}"):
                 c1, c2 = st.columns(2)
@@ -700,7 +700,7 @@ def render_orphans(orphans: list, cfg: dict, entity_name: str):
                 if matches:
                     st.caption("Pastas parecidas em Z:\\: " + "  ·  ".join(matches))
                 st.caption("access_type = **unified** · status = **active** · sem login (usa master)")
-                submitted = st.form_submit_button("✅ Cadastrar e ativar", use_container_width=True)
+                submitted = st.form_submit_button("Cadastrar e ativar", use_container_width=True)
 
             if submitted:
                 if not id_val.strip() or not path_val.strip() or not (artist_val.strip() or account_val.strip()):
@@ -861,7 +861,7 @@ def render_youtube_organizer():
         )
 
     if skipped:
-        st.subheader("⚠️ Arquivos sem data reconhecida")
+        st.subheader("Arquivos sem data reconhecida")
         st.caption(
             "Não tinham um `AAAAMMDD` no nome e ficaram de fora do .zip. "
             "Confira manualmente."
@@ -876,7 +876,7 @@ def render_youtube_organizer():
         file_name=f"relatorios_organizados_youtube_{hoje}.zip",
         mime="application/zip",
         use_container_width=True,
-    )
+     icon=":material/download:")
     st.caption(
         "Depois de baixar: extraia e cole o conteúdo direto em "
         "`Z:\\ROYALTY\\Royalties Statements_Historicals\\` — as pastas já vêm com o "
@@ -887,7 +887,7 @@ def render_youtube_organizer():
 def main():
     setup_page(__file__)
 
-    st.sidebar.header("⚙️ Configurações")
+    st.sidebar.header("Configurações")
     entity_name = st.sidebar.selectbox("Entidade", list(ENTITIES.keys()) + ["YouTube"], index=0)
     st.sidebar.markdown("---")
 
@@ -1016,7 +1016,7 @@ def main():
         file_name=f"comprovantes_organizados_{cfg['folder'].lower()}_{hoje}.zip",
         mime="application/zip",
         use_container_width=True,
-    )
+     icon=":material/download:")
     st.caption(
         "Depois de baixar: extraia e cole o conteúdo direto em "
         "`Z:\\ROYALTY\\Royalties Statements_Historicals\\` — as pastas já vêm com o caminho certo."

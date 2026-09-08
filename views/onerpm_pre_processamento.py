@@ -200,12 +200,12 @@ if uploaded_files:
                 # Download completo (todas as moedas)
                 excel_data_all = to_excel(df_publishing_final)
                 st.download_button(
-                    label="📥 Download Publishing Rights (Todas as moedas)",
+                    label="Download Publishing Rights (Todas as moedas)",
                     data=excel_data_all,
                     file_name=f"Publishing_Rights_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
-                )
+                , icon=":material/download:")
 
                 st.write("")
                 st.write("**Download por moeda:**")
@@ -227,7 +227,7 @@ if uploaded_files:
                             file_name=f"Publishing_Rights_{currency}_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
-                        )
+                        , icon=":material/download:")
         
         # ============================================================================
         # PROCESSAMENTO NAS NUVENS OU ZEIDER (idêntico ao OneRPM original, sem o filtro
@@ -491,13 +491,13 @@ if uploaded_files:
                     # Download completo (todas as moedas)
                     excel_data_all = to_excel(df_masters_final)
                     st.download_button(
-                        label="📥 Download Masters (Todas as moedas)",
+                        label="Download Masters (Todas as moedas)",
                         data=excel_data_all,
                         file_name=f"Masters_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True,
                         key="nn_dl_masters_all"
-                    )
+                    , icon=":material/download:")
 
                     st.write("")
                     st.write("*Por moeda:*")
@@ -514,7 +514,7 @@ if uploaded_files:
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key=f"nn_dl_masters_{currency}"
-                        )
+                        , icon=":material/download:")
 
             # Downloads Youtube
             with col2:
@@ -523,13 +523,13 @@ if uploaded_files:
                     # Download completo (todas as moedas)
                     excel_data_all = to_excel(df_youtube_final)
                     st.download_button(
-                        label="📥 Download Youtube (Todas as moedas)",
+                        label="Download Youtube (Todas as moedas)",
                         data=excel_data_all,
                         file_name=f"Youtube_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True,
                         key="nn_dl_youtube_all"
-                    )
+                    , icon=":material/download:")
 
                     st.write("")
                     st.write("*Por moeda:*")
@@ -546,7 +546,7 @@ if uploaded_files:
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key=f"nn_dl_youtube_{currency}"
-                        )
+                        , icon=":material/download:")
 
             st.divider()
 
@@ -887,13 +887,13 @@ if uploaded_files:
                     if not df_masters_final.empty:
                         excel_data_all = to_excel(df_masters_final)
                         st.download_button(
-                            label="📥 Download Masters (Todas as moedas)",
+                            label="Download Masters (Todas as moedas)",
                             data=excel_data_all,
                             file_name=f"Masters_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="frag_dl_masters_all"
-                        )
+                        , icon=":material/download:")
                         st.write("")
                         st.write("*Por moeda:*")
                         currencies_masters = sorted([str(c) for c in df_masters_final['Currency'].unique() if pd.notna(c)])
@@ -907,20 +907,20 @@ if uploaded_files:
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 key=f"frag_dl_masters_{currency}"
-                            )
+                            , icon=":material/download:")
 
                 with col2:
                     st.write("**Youtube Channels:**")
                     if not df_youtube_final.empty:
                         excel_data_all = to_excel(df_youtube_final)
                         st.download_button(
-                            label="📥 Download Youtube (Todas as moedas)",
+                            label="Download Youtube (Todas as moedas)",
                             data=excel_data_all,
                             file_name=f"Youtube_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="frag_dl_youtube_all"
-                        )
+                        , icon=":material/download:")
                         st.write("")
                         st.write("*Por moeda:*")
                         currencies_youtube = sorted([str(c) for c in df_youtube_final['Currency'].unique() if pd.notna(c)])
@@ -934,20 +934,20 @@ if uploaded_files:
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 key=f"frag_dl_youtube_{currency}"
-                            )
+                            , icon=":material/download:")
 
                 with col3:
                     st.write("**Publishing Rights:**")
                     if not df_publishing_final.empty:
                         excel_data_all = to_excel(df_publishing_final)
                         st.download_button(
-                            label="📥 Download Publishing (Todas as moedas)",
+                            label="Download Publishing (Todas as moedas)",
                             data=excel_data_all,
                             file_name=f"Publishing_Rights_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="frag_dl_pub_all"
-                        )
+                        , icon=":material/download:")
                         st.write("")
                         st.write("*Por moeda:*")
                         currencies_pub = sorted([str(c) for c in df_publishing_final['Currency'].unique() if pd.notna(c)])
@@ -961,7 +961,7 @@ if uploaded_files:
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 key=f"frag_dl_pub_{currency}"
-                            )
+                            , icon=":material/download:")
 
                 st.divider()
 
@@ -1273,12 +1273,12 @@ if uploaded_files:
                     # Download completo (todas as moedas)
                     excel_data_all = to_excel(df_masters_final)
                     st.download_button(
-                        label="📥 Download Masters (Todas as moedas)",
+                        label="Download Masters (Todas as moedas)",
                         data=excel_data_all,
                         file_name=f"Masters_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
-                    )
+                    , icon=":material/download:")
 
                     st.write("")
                     st.write("*Por moeda:*")
@@ -1294,7 +1294,7 @@ if uploaded_files:
                             file_name=f"Masters_{currency}_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
-                        )
+                        , icon=":material/download:")
 
             # Downloads Youtube
             with col2:
@@ -1303,12 +1303,12 @@ if uploaded_files:
                     # Download completo (todas as moedas)
                     excel_data_all = to_excel(df_youtube_final)
                     st.download_button(
-                        label="📥 Download Youtube (Todas as moedas)",
+                        label="Download Youtube (Todas as moedas)",
                         data=excel_data_all,
                         file_name=f"Youtube_COMPLETO_{report_date}{receiver_suffix}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
-                    )
+                    , icon=":material/download:")
 
                     st.write("")
                     st.write("*Por moeda:*")
@@ -1324,7 +1324,7 @@ if uploaded_files:
                             file_name=f"Youtube_{currency}_{report_date}{receiver_suffix}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
-                        )
+                        , icon=":material/download:")
             
             st.divider()
             

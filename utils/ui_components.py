@@ -7,7 +7,9 @@ translúcido + blur. A folha de estilo vive em `assets/theme.css` (classe
 marcação. As cores vêm dos tokens `--nn-*` daquele arquivo, e não em hex
 literal repetido por aqui. Indicadores de status usam uma bolinha
 colorida (verde = ativo/preenchido, cinza = inativo/pendente) em vez de
-texto/emoji em linha — mais rápido de escanear numa lista.
+texto/emoji em linha — mais rápido de escanear numa lista. Ícone no app é
+Material Symbols (o `icon=` dos widgets do Streamlit), nunca emoji: o
+Material é monocromático e assume a cor do tema, o emoji traz a paleta dele.
 
 Este módulo nasceu do Organizador de Comprovantes (views/organizador_comprovantes.py) e deve ser
 reusado por qualquer página que precise do mesmo visual, em vez de duplicar
@@ -15,15 +17,13 @@ a implementação localmente.
 """
 
 import html
+import re
+from functools import lru_cache
+from pathlib import Path
 
 import streamlit as st
 
-ICON_MAPEADO = "🟢"
-ICON_PENDENTE = "⚪"
-ICON_AVISO = "⚠️"
-ICON_INFO = "ℹ️"
-ICON_SUCESSO = "✅"
-ICON_ERRO = "❌"
+_ASSETS = Path(__file__).resolve().parents[1] / "assets"
 
 COR_ATIVO = "var(--nn-verde, #1D9E75)"
 COR_INATIVO = "var(--nn-cinza, #888780)"
@@ -92,3 +92,60 @@ def render_status_table(headers: list[str], rows: list[dict], status_key: str, l
         style = "" if active else "opacity: 0.6;"
         rows_html.append(f'<tr style="{style}">{primeira_celula}{outras_celulas}</tr>')
     render_html_table(headers, rows_html, max_height=max_height, translucent=translucent)
+
+
+# ---------------------------------------------------------------------------
+# Estado vazio e veredito
+# ---------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _lira_svg() -> str:
+    """A lira da marca, pronta para embutir em HTML.
+
+    Lê `assets/lyra_icon.svg` (o desenho fino do kit — não o favicon, que é o
+    corte pesado para 16px) e troca a cor fixa por `currentColor`, para o SVG
+    herdar a cor de quem o contém. Devolve string vazia se o arquivo sumir: um
+    estado vazio sem desenho ainda funciona, um ImportError na home não."""
+    try:
+        svg = (_ASSETS / "lyra_icon.svg").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    svg = re.sub(r'fill="#[0-9a-fA-F]{3,8}"', 'fill="currentColor"', svg)
+    # tira largura/altura fixas para o CSS mandar no tamanho
+    svg = re.sub(r'\s(width|height)="[^"]*"', "", svg, count=2)
+    return svg.strip()
+
+
+def estado_vazio(titulo: str, detalhe: str = "") -> None:
+    """O painel quando não há nada a fazer.
+
+    Existe porque "nada pendente" é o único momento de recompensa do app, e uma
+    caixa verde genérica desperdiça isso. Fica no mesmo recuo dos itens de
+    pendência (não centralizado) para o painel não mudar de eixo quando a lista
+    esvazia."""
+    st.markdown(
+        f'<div class="nn-vazio">{_lira_svg()}'
+        f'<div><p class="nn-vazio-titulo">{html.escape(titulo)}</p>'
+        f'{f"<p class=nn-vazio-detalhe>{html.escape(detalhe)}</p>" if detalhe else ""}'
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def veredito(ok: bool, titulo: str, detalhe: str = "") -> None:
+    """Uma conta que fecha ou não fecha.
+
+    Para números que são a resposta da página, não mais um dado dela — o
+    fechamento do recibo da RR contra o crédito bancário, por exemplo. Como
+    `st.metric` no meio de outras métricas, esse número lê como o quarto de
+    quatro iguais; aqui ele lê como veredito, e a cor carrega o estado (verde
+    fecha, terracota não fecha) antes de o texto ser lido."""
+    estado = "ok" if ok else "atencao"
+    st.markdown(
+        f'<div class="nn-veredito nn-veredito--{estado}">'
+        f'<p class="nn-veredito-titulo">{html.escape(titulo)}</p>'
+        f'{f"<p class=nn-veredito-detalhe>{html.escape(detalhe)}</p>" if detalhe else ""}'
+        "</div>",
+        unsafe_allow_html=True,
+    )
