@@ -236,10 +236,42 @@ class LinhaPlanilha:
     pago: bool
     data_pagamento: str | None  # YYYY-MM-DD, se a planilha trouxer
     motivo: str | None  # texto livre da coluna "Descrição do caso", se houver
+    data_ambigua: bool = False  # data tipo "03/09" — dia e mês ambos <= 12, dá pra ler dos dois jeitos
+    data_pagamento_original: str | None = None  # texto cru da célula, p/ o aviso de data ambígua
 
 
 def _normalizar_vat(vat: str) -> str:
     return "".join(c for c in str(vat) if c.isdigit())
+
+
+def _parse_data_pagamento(valor: object) -> tuple[str | None, bool]:
+    """Converte a célula "Data de pagamento" para ("YYYY-MM-DD", ambigua?).
+
+    A planilha é colaborada e a data quase sempre chega como *texto* no padrão
+    brasileiro dia/mês/ano (vem por fórmula puxando do extrato bancário), daí
+    `dayfirst=True` — sem isso o pandas lê "03/09/2026" (3 de setembro) como
+    9 de março. Se algum dia a célula vier como data de verdade do Excel, o
+    `pd.Timestamp` já resolve sem ambiguidade de formato.
+
+    `ambigua` fica True quando o texto é dd/mm/aaaa com dia e mês ambos <= 12:
+    aí um colaborador com Excel em locale mm/dd teria invertido, e a página
+    mostra um aviso pedindo conferência antes de aplicar.
+    """
+    if isinstance(valor, pd.Timestamp):
+        return valor.strftime("%Y-%m-%d"), False
+    txt = str(valor).strip()
+    if not txt:
+        return None, False
+    # ISO (aaaa-mm-dd) não é ambíguo — parsear sem dayfirst evita o warning do
+    # pandas a cada linha. O resto é o padrão brasileiro dia/mês/ano.
+    ja_iso = bool(re.match(r"^\d{4}-\d{2}-\d{2}", txt))
+    try:
+        iso = pd.to_datetime(txt, dayfirst=not ja_iso).strftime("%Y-%m-%d")
+    except (TypeError, ValueError):
+        return None, False
+    m = re.match(r"^(\d{1,2})[/\-.](\d{1,2})[/\-.]\d{2,4}$", txt)
+    ambigua = bool(m) and int(m.group(1)) <= 12 and int(m.group(2)) <= 12
+    return iso, ambigua
 
 
 def _achar_linha_cabecalho(df_bruto: pd.DataFrame) -> int:
@@ -286,12 +318,11 @@ def carregar_planilha(arquivo) -> list[LinhaPlanilha]:
         except (TypeError, ValueError):
             continue
 
-        data_pagamento = None
+        data_pagamento, data_ambigua = None, False
+        data_pagamento_original = None
         if "data_pagamento" in df.columns and pd.notna(row.get("data_pagamento")):
-            try:
-                data_pagamento = pd.to_datetime(row["data_pagamento"]).strftime("%Y-%m-%d")
-            except (TypeError, ValueError):
-                data_pagamento = None
+            data_pagamento_original = str(row["data_pagamento"]).strip() or None
+            data_pagamento, data_ambigua = _parse_data_pagamento(row["data_pagamento"])
 
         motivo = None
         if "motivo" in df.columns and pd.notna(row.get("motivo")):
@@ -304,6 +335,8 @@ def carregar_planilha(arquivo) -> list[LinhaPlanilha]:
             pago=(pago == "SIM"),
             data_pagamento=data_pagamento,
             motivo=motivo,
+            data_ambigua=data_ambigua,
+            data_pagamento_original=data_pagamento_original,
         ))
     return linhas
 
@@ -329,7 +362,7 @@ class ResultadoMatching:
     a_pagar: list[Match] = field(default_factory=list)       # SIM, hoje Unpaid no Reprtoir
     pendentes: list[Match] = field(default_factory=list)     # NÃO, hoje Unpaid no Reprtoir
     ja_ok: list[Match] = field(default_factory=list)         # já bate (nada a fazer)
-    conflitos: list[Match] = field(default_factory=list)     # NÃO na planilha, mas já Paid no Reprtoir
+    correcoes: list[Match] = field(default_factory=list)     # NÃO na planilha, mas Paid no Reprtoir → reverter p/ Unpaid + nota
     ambiguos: list[Ambiguidade] = field(default_factory=list)  # 2+ candidatos — não aplicado
     sem_correspondencia: list[LinhaPlanilha] = field(default_factory=list)
 
@@ -376,9 +409,12 @@ def cruzar(linhas: list[LinhaPlanilha], payments: list[dict]) -> ResultadoMatchi
         if linha.pago:
             (resultado.ja_ok if status_atual == "paid" else resultado.a_pagar).append(m)
         else:
-            # Planilha diz NÃO pago: se o Reprtoir já mostra Paid é uma
-            # inconsistência a checar manualmente, não uma pendência normal.
-            (resultado.conflitos if status_atual == "paid" else resultado.pendentes).append(m)
+            # Planilha diz NÃO pago. Se o Reprtoir ainda mostra Unpaid é uma
+            # pendência normal (grava nota). Se já mostra Paid, foi marcado
+            # como pago num ciclo anterior e o financeiro depois reviu — vai
+            # para `correcoes`, que reverte para Unpaid (com confirmação
+            # extra na página, nunca automático).
+            (resultado.correcoes if status_atual == "paid" else resultado.pendentes).append(m)
     return resultado
 
 

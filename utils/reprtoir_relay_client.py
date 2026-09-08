@@ -52,9 +52,20 @@ class RelayClient:
     def comparar(self, linhas: list) -> dict:
         return self._chamar("POST", "/comparar", json={"linhas": [asdict(l) for l in linhas]})
 
-    def aplicar(self, marcar_pagos: list[dict], pendencias: list[dict]) -> dict:
+    def aplicar(
+        self,
+        marcar_pagos: list[dict],
+        pendencias: list[dict],
+        correcoes: list[dict] | None = None,
+    ) -> dict:
         return self._chamar(
-            "POST", "/aplicar", json={"marcar_pagos": marcar_pagos, "pendencias": pendencias}
+            "POST",
+            "/aplicar",
+            json={
+                "marcar_pagos": marcar_pagos,
+                "pendencias": pendencias,
+                "correcoes": correcoes or [],
+            },
         )
 
     def pendencias_em_aberto(self) -> list[dict]:

@@ -80,9 +80,14 @@ aplicar qualquer coisa.
   seta a **data de pagamento**.
 - Linhas **NÃO** (não pago) cujo payment ainda está *Unpaid* → grava uma **nota** explicando
   a pendência (editável antes de aplicar) — não muda o status.
-- Linhas sem correspondência, com mais de um payment candidato (ambíguo), ou com status
-  "Paid" mas a planilha dizendo **NÃO** (inconsistência), são só **mostradas**, nunca
-  aplicadas automaticamente.
+- Linhas **NÃO** cujo payment já está *Paid* (foi marcado num ciclo anterior e o financeiro
+  depois reviu) → **Correções**: reverte o status para *Unpaid*, limpa a data de pagamento e
+  grava a nota. Exige um checkbox de confirmação **à parte** — nunca é automático.
+- Linhas sem correspondência ou com mais de um payment candidato (ambíguo) são só
+  **mostradas**, nunca aplicadas automaticamente.
+- Datas de pagamento com dia e mês ambos ≤ 12 (ex.: "03/09") são lidas no padrão brasileiro
+  dia/mês, mas ganham um **aviso** para você conferir — a planilha é colaborada e alguém pode
+  ter usado mês/dia.
 
 **Pendências entre competências**
 
@@ -238,16 +243,17 @@ st.subheader("3. Revisão")
 a_pagar = resultado["a_pagar"]
 pendentes = resultado["pendentes"]
 ja_ok = resultado["ja_ok"]
-conflitos = resultado["conflitos"]
+correcoes = resultado.get("correcoes", resultado.get("conflitos", []))
 ambiguos = resultado["ambiguos"]
 sem_correspondencia = resultado["sem_correspondencia"]
 
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 c1.metric("A marcar como Paid", len(a_pagar))
 c2.metric("Pendências a registrar", len(pendentes))
-c3.metric("Já OK (nada a fazer)", len(ja_ok))
-c4.metric("Ambíguos", len(ambiguos))
-c5.metric("Sem correspondência", len(sem_correspondencia))
+c3.metric("Correções (reverter)", len(correcoes))
+c4.metric("Já OK (nada a fazer)", len(ja_ok))
+c5.metric("Ambíguos", len(ambiguos))
+c6.metric("Sem correspondência", len(sem_correspondencia))
 
 data_padrao = None
 if a_pagar:
@@ -267,6 +273,19 @@ if a_pagar:
                 "padrão para aplicar a todas elas:"
             )
             data_padrao = st.date_input("Data de pagamento (para as linhas sem data na planilha)")
+
+        ambiguas = [m for m in a_pagar if m["linha"].get("data_ambigua")]
+        if ambiguas:
+            st.warning(
+                "Datas em que dia **e** mês são ≤ 12 — não dá pra saber pelo texto se a planilha "
+                "usou dia/mês ou mês/dia. Foram lidas como **dia/mês** (padrão brasileiro); "
+                "confira se bate com o que o financeiro quis dizer antes de aplicar:\n"
+                + "\n".join(
+                    f"- {m['linha']['rightsholder']}: `{m['linha'].get('data_pagamento_original') or '?'}` "
+                    f"lida como **{m['linha']['data_pagamento']}**"
+                    for m in ambiguas
+                )
+            )
 
 if ja_ok:
     with st.expander(f"Já OK, nada a fazer ({len(ja_ok)})", expanded=False):
@@ -311,16 +330,38 @@ if ambiguos:
                 hide_index=True,
             )
 
-if conflitos:
-    with st.expander(f"Inconsistências ({len(conflitos)}) — não aplicado automaticamente", expanded=True):
-        st.warning("Planilha diz NÃO pago, mas o Reprtoir já mostra Paid. Confira manualmente.")
+notas_correcao: dict[str, str] = {}
+if correcoes:
+    with st.expander(f"Correções — reverter para Unpaid ({len(correcoes)})", expanded=True):
+        st.warning(
+            "Estão **Paid** no Reprtoir (marcadas num ciclo anterior), mas a planilha agora diz "
+            "**NÃO** pago. Aplicar vai **reverter o status para Unpaid**, limpar a data de "
+            "pagamento e gravar a nota abaixo. Diferente de marcar como Paid, isso não é inócuo — "
+            "só confirme se o financeiro revisou e tem certeza de que não foram pagas. Há um "
+            "checkbox separado para isso na etapa 4."
+        )
         st.dataframe(
             [{"Rights-Holder": m["linha"]["rightsholder"], "VAT": m["linha"]["vat"],
-              "Valor": m["linha"]["amount"], "Status no Reprtoir": m["payment"]["status"]["text"]}
-             for m in conflitos],
+              "Valor": m["linha"]["amount"],
+              "Estava Paid com data": m["payment"].get("payment_date") or "—"}
+             for m in correcoes],
             use_container_width=True,
             hide_index=True,
         )
+        st.caption("Edite o texto da nota se quiser — fica gravada no payment no Reprtoir.")
+        for m in correcoes:
+            data_antiga = m["payment"].get("payment_date") or "sem data"
+            motivo = (m["linha"]["motivo"] or "").strip()
+            padrao = (
+                f"Correção: financeiro revisou e confirmou que NÃO foi pago "
+                f"(estava Paid com data {data_antiga})."
+                + (f" Motivo: {motivo}." if motivo else "")
+            )
+            notas_correcao[m["payment"]["uuid"]] = st.text_input(
+                f"{m['linha']['rightsholder']} — R$ {m['linha']['amount']:,.2f}",
+                value=padrao,
+                key=f"nota_corr_{m['payment']['uuid']}",
+            )
 
 if sem_correspondencia:
     with st.expander(f"❓ Sem correspondência no Reprtoir ({len(sem_correspondencia)})", expanded=True):
@@ -331,7 +372,7 @@ if sem_correspondencia:
             hide_index=True,
         )
 
-if not a_pagar and not pendentes:
+if not a_pagar and not pendentes and not correcoes:
     st.info("Nada a aplicar — planilha e Reprtoir já estão alinhados.")
     st.stop()
 
@@ -345,6 +386,14 @@ st.subheader("4. Aplicar no Reprtoir")
 st.caption("Ação real, em produção. Confira a revisão acima antes de confirmar.")
 
 confirmar = st.checkbox("Revisei a lista acima e quero aplicar estas mudanças.")
+
+confirmar_correcoes = False
+if correcoes:
+    confirmar_correcoes = st.checkbox(
+        f"Confirmo as {len(correcoes)} correção(ões): o financeiro revisou e tem certeza de que "
+        "NÃO foram pagas — reverter para Unpaid no Reprtoir.",
+    )
+
 if st.button("Aplicar", disabled=not confirmar, type="primary"):
     marcar_pagos = []
     ignorados_sem_data = 0
@@ -365,10 +414,21 @@ if st.button("Aplicar", disabled=not confirmar, type="primary"):
         for m in pendentes
     ]
 
+    correcoes_payload = []
+    if confirmar_correcoes:
+        correcoes_payload = [
+            {
+                "uuid": m["payment"]["uuid"],
+                "name": m["payment"]["name"],
+                "notes": notas_correcao.get(m["payment"]["uuid"], ""),
+            }
+            for m in correcoes
+        ]
+
     try:
         relay = _relay()
         with st.spinner("Aplicando no Reprtoir (via relay)..."):
-            resumo = relay.aplicar(marcar_pagos, pendencias_payload)
+            resumo = relay.aplicar(marcar_pagos, pendencias_payload, correcoes_payload)
     except RelayError as e:
         st.error(str(e))
         st.info(
@@ -378,10 +438,16 @@ if st.button("Aplicar", disabled=not confirmar, type="primary"):
     else:
         st.success(
             f"Concluído: {resumo['marcados_paid']} marcado(s) como Paid, "
-            f"{resumo['pendencias_registradas']} pendência(s) registrada(s)."
+            f"{resumo['pendencias_registradas']} pendência(s) registrada(s), "
+            f"{resumo.get('correcoes_aplicadas', 0)} correção(ões) revertida(s) para Unpaid."
         )
         if ignorados_sem_data:
             st.warning(f"{ignorados_sem_data} linha(s) sem data de pagamento — pulada(s).")
+        if correcoes and not confirmar_correcoes:
+            st.info(
+                f"{len(correcoes)} correção(ões) não aplicada(s) — marque o checkbox de "
+                "confirmação de correções e clique em Aplicar de novo."
+            )
 
         registrar(PAGINA, periodo=arquivo.name, resumo=resumo)
         st.session_state.reconc_resultado = None

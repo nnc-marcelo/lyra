@@ -96,7 +96,11 @@ def comparar(body: ComparaRequest, authorization: str | None = Header(None)):
         "a_pagar": [asdict(m) for m in resultado.a_pagar],
         "pendentes": [asdict(m) for m in resultado.pendentes],
         "ja_ok": [asdict(m) for m in resultado.ja_ok],
-        "conflitos": [asdict(m) for m in resultado.conflitos],
+        "correcoes": [asdict(m) for m in resultado.correcoes],
+        # Alias na transição: a view publicada no Streamlit Cloud ainda pode
+        # estar lendo "conflitos". Remover depois que o deploy da view nova
+        # (que lê "correcoes") estiver no ar.
+        "conflitos": [asdict(m) for m in resultado.correcoes],
         "ambiguos": [asdict(a) for a in resultado.ambiguos],
         "sem_correspondencia": [asdict(l) for l in resultado.sem_correspondencia],
         "total_payments_reprtoir": len(payments),
@@ -116,16 +120,23 @@ class ItemPendencia(BaseModel):
     notes: str
 
 
+class ItemCorrecao(BaseModel):
+    uuid: str
+    name: str
+    notes: str
+
+
 class AplicarRequest(BaseModel):
     marcar_pagos: list[ItemPago] = []
     pendencias: list[ItemPendencia] = []
+    correcoes: list[ItemCorrecao] = []
 
 
 @app.post("/aplicar")
 def aplicar(body: AplicarRequest, authorization: str | None = Header(None)):
     _checar_token(authorization)
     client = _cliente()
-    resumo = {"marcados_paid": 0, "pendencias_registradas": 0}
+    resumo = {"marcados_paid": 0, "pendencias_registradas": 0, "correcoes_aplicadas": 0}
 
     try:
         por_data: dict[str, list[ItemPago]] = {}
@@ -145,6 +156,20 @@ def aplicar(body: AplicarRequest, authorization: str | None = Header(None)):
             nomes = {i.uuid: i.name for i in itens}
             client.update_payments(uuids, name_by_uuid=nomes, status=status, notes=notes)
             resumo["pendencias_registradas"] += len(uuids)
+
+        # Correções: estavam Paid, o financeiro reviu e confirmou que NÃO
+        # foram pagas. Volta status para Unpaid, limpa a data de pagamento
+        # (string vazia = campo apagado no /mass.json) e grava a nota.
+        por_nota_corr: dict[str, list[ItemCorrecao]] = {}
+        for item in body.correcoes:
+            por_nota_corr.setdefault(item.notes, []).append(item)
+        for notes, itens in por_nota_corr.items():
+            uuids = [i.uuid for i in itens]
+            nomes = {i.uuid: i.name for i in itens}
+            client.update_payments(
+                uuids, name_by_uuid=nomes, status="unpaid", payment_date="", notes=notes
+            )
+            resumo["correcoes_aplicadas"] += len(uuids)
     except (ReprtoirLoginError, ReprtoirRequestError) as e:
         # Parcialmente aplicado é esperado e seguro aqui: /comparar sempre
         # busca o estado atual, então rodar de novo só reprocessa o que
@@ -152,7 +177,8 @@ def aplicar(body: AplicarRequest, authorization: str | None = Header(None)):
         raise HTTPException(
             status_code=502,
             detail=f"Parou no meio ({resumo['marcados_paid']} pago(s), "
-                   f"{resumo['pendencias_registradas']} pendência(s) aplicadas antes do erro): {e}",
+                   f"{resumo['pendencias_registradas']} pendência(s), "
+                   f"{resumo['correcoes_aplicadas']} correção(ões) aplicadas antes do erro): {e}",
         )
 
     return resumo
