@@ -87,6 +87,76 @@
   padding-left: 0;
 }
 
+/* Faixa de status de serviço externo — hoje só o relay da Reconciliação de
+   pagamentos (views/reconciliacao_pagamentos.py), que usa st.container(key=...)
+   e por isso ganha a classe estável .st-key-relay_status_box.
+
+   Mora aqui, e não na página, porque a página injetava #d1e7dd / #f8d7da —
+   cores claras literais que viravam um painel aceso no tema escuro. Agora a
+   página só declara --nn-status-cor (o estado); a pintura é toda derivada dela,
+   translúcida, e serve aos dois temas. */
+.st-key-relay_status_box {
+  --nn-status-cor: var(--nn-cinza);
+  background: color-mix(in srgb, var(--nn-status-cor) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nn-status-cor) 40%, transparent);
+  border-radius: var(--nn-raio);
+  padding: 0.35rem 1rem;
+}
+
+/* Streamlit põe margin-bottom negativo no container do markdown (para colar
+   elementos), o que desalinha o texto do botão ao lado. */
+.st-key-relay_status_box [data-testid="stMarkdownContainer"] {
+  margin-bottom: 0 !important;
+}
+
+.st-key-relay_status_box [data-testid="stMarkdownContainer"] p {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Bolinha do estado antes do texto — o mesmo vocabulário das tabelas de
+   utils/ui_components. O estado deixa de depender de distinguir o tom do fundo,
+   o que ajuda nos dois temas e para quem não separa bem verde de vermelho.
+
+   Restrito à primeira coluna: o rótulo do botão também é um stMarkdownContainer,
+   e sem isso o ícone de atualizar ganhava uma bolinha na frente. */
+.st-key-relay_status_box [data-testid="stColumn"]:first-child [data-testid="stMarkdownContainer"] p::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nn-status-cor);
+  margin-right: 9px;
+  vertical-align: middle;
+}
+
+/* Botão de verificar: do tamanho do ícone e sem fundo próprio — com o fundo
+   padrão do tema ele virava um bloco escuro dentro da faixa. */
+.st-key-relay_status_box button {
+  padding-top: 0.15rem;
+  padding-bottom: 0.15rem;
+  min-height: 0;
+  background: transparent;
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+}
+
+.st-key-relay_status_box div[data-testid="stVerticalBlockBorderWrapper"] {
+  background-color: transparent;
+}
+
+/* Empurra o botão para a borda direita da faixa. stVerticalBlock empilha em
+   coluna, então quem manda no eixo horizontal é align-items, não
+   justify-content. */
+.st-key-relay_status_box [data-testid="stColumn"]:last-child {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.st-key-relay_status_box [data-testid="stColumn"]:last-child [data-testid="stVerticalBlock"] {
+  align-items: flex-end;
+}
+
 /* Algarismos de largura fixa em tudo que é número.
    O app é de royalties: quase toda tela é dinheiro em coluna, e a conferência
    costuma ser "R$ 3.132,82 bate com R$ 3.132,81?". Com algarismo proporcional

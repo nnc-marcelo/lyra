@@ -132,57 +132,17 @@ if st.session_state.reconc_relay_online is None:
     _checar_relay()
 
 status_text = "Relay online" if st.session_state.reconc_relay_online else "Relay offline"
-bg_color = "#d1e7dd" if st.session_state.reconc_relay_online else "#f8d7da"
-border_color = "#b6d4cc" if st.session_state.reconc_relay_online else "#f1b0b7"
-text_color = "#0d3622" if st.session_state.reconc_relay_online else "#842029"
 
-# CSS mira na classe estável que st.container(key=...) gera (st-key-<key>) para
-# pintar o próprio container do Streamlit — texto e botão ficam de verdade
-# dentro dele, sem gambiarra de posicionamento.
-st.markdown(f"""
-    <style>
-        .st-key-relay_status_box {{
-            background-color: {bg_color};
-            border: 1px solid {border_color};
-            border-radius: 0.375rem;
-            padding: 0.35rem 1rem;
-        }}
-        .st-key-relay_status_box button {{
-            padding-top: 0.15rem;
-            padding-bottom: 0.15rem;
-            min-height: 0;
-        }}
-        .st-key-relay_status_box [data-testid="stMarkdownContainer"] p {{
-            color: {text_color};
-            font-weight: 500;
-            margin: 0;
-        }}
-        /* Streamlit aplica margin-bottom negativo no container do markdown
-           (para colar elementos), o que faz o texto "vazar" para baixo da
-           caixa usada pelo flexbox da coluna para centralizar — zera aqui
-           para o texto ficar alinhado de verdade com o botão ao lado. */
-        .st-key-relay_status_box [data-testid="stMarkdownContainer"] {{
-            margin-bottom: 0 !important;
-        }}
-        .st-key-relay_status_box div[data-testid="stVerticalBlockBorderWrapper"] {{
-            background-color: transparent;
-        }}
-        /* Empurra o botão (pequeno, do tamanho do ícone) para a borda direita
-           da caixa colorida, em vez de deixá-lo grudado no início da coluna
-           estreita. */
-        .st-key-relay_status_box [data-testid="stColumn"]:last-child {{
-            display: flex;
-            justify-content: flex-end;
-        }}
-        /* stVerticalBlock empilha os filhos em coluna (flex-direction: column),
-           então quem controla a posição horizontal dentro dele é align-items,
-           não justify-content — por isso o botão ficava "esticado" à esquerda
-           mesmo com a coluna pai já em flex-end. */
-        .st-key-relay_status_box [data-testid="stColumn"]:last-child [data-testid="stVerticalBlock"] {{
-            align-items: flex-end;
-        }}
-    </style>
-""", unsafe_allow_html=True)
+# A página só diz qual é o estado; como a faixa é pintada mora em
+# assets/theme.css (.st-key-relay_status_box), que deriva tudo desta variável.
+# Antes as cores vinham em hex literal aqui — claras, e por isso acesas no tema
+# escuro. Verde é o verde de status do app; terracota é o acento de atenção da
+# marca, o mesmo dos marcadores de pendência.
+cor_status = "var(--nn-verde)" if st.session_state.reconc_relay_online else "var(--nn-terracota)"
+st.markdown(
+    f"<style>.st-key-relay_status_box {{ --nn-status-cor: {cor_status}; }}</style>",
+    unsafe_allow_html=True,
+)
 
 with st.container(key="relay_status_box"):
     col_msg, col_btn = st.columns([10, 1], vertical_alignment="center")
