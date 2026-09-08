@@ -5,31 +5,57 @@ showErrorDetails = true
 maxUploadSize = 500
 
 # Tema da marca Nas Nuvens (lyra) — direção Lyra 2.0
+#
+# O que é comum aos dois temas fica em [theme]; a cor fica em [theme.light] e
+# [theme.dark]. Sem `base`, o app segue o ajuste de Aparência do usuário
+# (Claro / Escuro / Sistema) no menu do canto.
 [theme]
-base = "light"
+
+# Tipos: o corpo, os dados e os controles seguem no sans padrão; só os títulos
+# (h1–h6) ganham a voz serifada da marca. Newsreader é gratuita (Google Fonts) e
+# cobre os acentos do português — as fontes Elza do kit são trial e sem acento.
+font = "sans serif"
+headingFont = "Newsreader:https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap"
+
+baseRadius = "small"                   # cantos mais secos, no espírito do traço fino da lira
+
+# --------------------------------------------------------------------------
+# Claro — tinta navy sobre papel quente.
+# --------------------------------------------------------------------------
+[theme.light]
 primaryColor = "#003fbc"               # azul da marca — botões, links, sliders, foco
 backgroundColor = "#ffffff"            # branco no conteúdo (tabelas legíveis)
 secondaryBackgroundColor = "#fff7e9"   # off-white da marca — sidebar, cards, expanders
 textColor = "#13213f"                  # navy escuro (mais quente que preto puro)
+linkColor = "#003fbc"
 
-# Tipos: o corpo, os dados e os controles seguem no sans padrão; só os títulos
-# (h1–h6, rótulo de st.metric) ganham a voz serifada da marca nova. Newsreader
-# é gratuita (Google Fonts) e cobre os acentos do português — as fontes Elza do
-# kit são trial e sem acento.
-font = "sans serif"
-headingFont = "Newsreader:https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap"
-
-# Acento da marca. A terracota entra como o `orange` do tema: os marcadores
-# :orange[▲] do painel de pendências, a legenda :orange[Desatualizada] e o traço
-# dos avisos passam a usá-la, no lugar da laranja genérica do Streamlit. O azul
-# fica reservado para o que se clica.
+# A terracota entra como o `orange` do tema: os marcadores :orange[▲] das
+# pendências e a legenda :orange[Desatualizada] usam essa cor. O azul fica
+# reservado para o que se clica.
 orangeColor = "#d3744f"
 
-baseRadius = "small"                   # cantos mais secos, no espírito do traço fino da lira
-linkColor = "#003fbc"                  # link segue o azul da marca (explícito)
-
-# O app tem dois sistemas de tabela lado a lado: as tabelas HTML de
-# utils/ui_components (classe .nn-tabela, cabeçalho no off-white da marca) e o
-# st.dataframe nativo, que vinha com cabeçalho cinza padrão. Isso deixava uma
-# emenda visível em páginas que usam os dois. Aqui os dois passam a combinar.
+# Junta o st.dataframe com as tabelas .nn-tabela, que já usavam o off-white.
 dataframeHeaderBackgroundColor = "#fff7e9"
+
+# --------------------------------------------------------------------------
+# Escuro — os mesmos dois tons, com os papéis trocados: o off-white da marca
+# vira a tinta e o navy vira o papel. Nenhuma cor nova entra aqui.
+#
+# Só o azul precisou mudar: #003fbc dá 1,99:1 sobre este fundo, ilegível. O
+# substituto é o azul-claro que a paleta da Nas Nuvens já tem (#9ecbf4), que dá
+# 10:1. A terracota fica idêntica — no escuro ela rende 5,2:1, melhor que os
+# 3,3:1 que tem sobre o branco. Verde e cinza sobem um passo só para passar de
+# 4,5:1 como texto.
+# --------------------------------------------------------------------------
+[theme.dark]
+primaryColor = "#9ecbf4"               # azul-claro da marca — o azul escuro não vive aqui
+backgroundColor = "#131b2e"            # navy fundo, derivado do #13213f do texto claro
+secondaryBackgroundColor = "#1c2541"   # um passo acima — sidebar, cards, expanders
+textColor = "#e8ddc8"                  # o off-white da marca, baixado para não brilhar
+linkColor = "#9ecbf4"
+
+orangeColor = "#d3744f"                # a terracota atravessa sem mudar
+greenColor = "#35b98d"
+grayColor = "#9d9b92"
+
+dataframeHeaderBackgroundColor = "#1c2541"

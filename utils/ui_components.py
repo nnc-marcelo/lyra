@@ -37,22 +37,19 @@ def render_html_table(headers: list[str], body_rows_html: list[str], max_height:
     por linha) — use `simple_row` ou `status_dot_html` para montar essas
     linhas.
 
-    `translucent=True` (padrão) dá o efeito vidro fosco (opacidade 0.92 +
-    blur) usado no Organizador de Comprovantes. `translucent=False` deixa o
-    cabeçalho sólido (`#fff7e9` opaco, sem blur) — use em tabelas com muitas
-    linhas visíveis por vez, onde mesmo opacidade alta ainda deixa entrever
-    o texto rolado por baixo."""
+    `translucent=True` (padrão) dá o efeito vidro fosco usado no Organizador de
+    Comprovantes. `translucent=False` reforça a tintura do cabeçalho — use em
+    tabelas com muitas linhas visíveis por vez, onde o blur sozinho ainda deixa
+    entrever o texto rolado por baixo. O estilo mora em assets/theme.css: aqui
+    não entra cor literal, que quebraria no tema escuro."""
     thead_cells = "".join(f"<th>{html.escape(h)}</th>" for h in headers)
-    header_bg = (
-        "background:color-mix(in srgb, var(--nn-offwhite) 92%, transparent); backdrop-filter:blur(6px);"
-        if translucent
-        else ""
-    )
+    classe = "nn-tabela" if translucent else "nn-tabela nn-tabela--solido"
     table_html = (
-        f'<div class="nn-tabela" style="max-height:{max_height};">'
+        f'<div class="{classe}" style="max-height:{max_height};">'
         "<table>"
-        f'<thead style="{header_bg}">'
-        f"<tr>{thead_cells}</tr></thead><tbody>" + "".join(body_rows_html) + "</tbody></table></div>"
+        f"<thead><tr>{thead_cells}</tr></thead><tbody>"
+        + "".join(body_rows_html)
+        + "</tbody></table></div>"
     )
     st.markdown(table_html, unsafe_allow_html=True)
 

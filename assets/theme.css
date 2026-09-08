@@ -9,7 +9,22 @@
  *
  * Ao mudar uma cor da marca, mude nos DOIS: config.toml e aqui. A terracota
  * também é o `orangeColor` do tema (config.toml) — os marcadores :orange[...]
- * do Streamlit usam essa mesma cor. */
+ * do Streamlit usam essa mesma cor.
+ *
+ * REGRA para o que se escreve aqui: o app tem tema claro E escuro
+ * ([theme.light] / [theme.dark] no config.toml), e o Streamlit não expõe qual
+ * está ativo — nem como variável CSS, nem como atributo no DOM. Então nada
+ * aqui pode assumir luminosidade. Na prática:
+ *
+ *   fundo de componente  -> sobreposição translúcida (color-mix com
+ *                           `transparent`), que escurece o claro e clareia o
+ *                           escuro sozinha;
+ *   texto secundário     -> derivado de `currentColor`, não de um cinza fixo;
+ *   texto principal      -> não declarar cor, herdar a do tema.
+ *
+ * `prefers-color-scheme` NÃO serve: erra quando o usuário escolhe Escuro no
+ * menu com o sistema no Claro. As cores literais abaixo (--nn-branco,
+ * --nn-offwhite) seguem como tokens da marca, mas não são fundo de nada. */
 
 :root {
   --nn-azul: #003fbc;         /* ação: link, botão, foco — só o que se clica */
@@ -32,11 +47,11 @@
   padding-top: 3rem;
 }
 
-/* Título e legenda do chassi (utils/page.py:setup_page). O título agora sai no
-   headingFont (Newsreader) — peso 500 deixa a serifa respirar. */
+/* Título e legenda do chassi (utils/page.py:setup_page). O título sai no
+   headingFont (Newsreader) — peso 500 deixa a serifa respirar. Sem `color`:
+   herda o textColor do tema ativo, que é navy no claro e off-white no escuro. */
 .block-container h1 {
   font-weight: 500;
-  color: var(--nn-navy);
 }
 
 /* Filete curto de terracota sob o título da página — a mesma marca que abre as
@@ -97,7 +112,7 @@
   align-items: center;
   gap: 1rem;
   padding: 1.1rem 1.25rem;
-  background: var(--nn-offwhite);
+  background: color-mix(in srgb, var(--nn-terracota) 7%, transparent);
   border-radius: var(--nn-raio);
 }
 
@@ -115,12 +130,11 @@
 
 .nn-vazio-titulo {
   font-weight: 600;
-  color: var(--nn-navy);
 }
 
 .nn-vazio-detalhe {
   font-size: 0.85rem;
-  color: var(--nn-cinza);
+  color: color-mix(in srgb, currentColor 62%, transparent);
 }
 
 /* Veredito (ui_components.veredito): a conta fecha ou não fecha.
@@ -131,7 +145,7 @@
   --cor: var(--nn-cinza);
   border-left: 3px solid var(--cor);
   border-radius: var(--nn-raio);
-  background: color-mix(in srgb, var(--cor) 7%, var(--nn-branco));
+  background: color-mix(in srgb, var(--cor) 13%, transparent);
   padding: 0.7rem 1rem;
 }
 
@@ -154,7 +168,7 @@
 
 .nn-veredito-detalhe {
   font-size: 0.82rem;
-  color: var(--nn-cinza);
+  color: color-mix(in srgb, currentColor 62%, transparent);
   margin-top: 0.15rem !important;
 }
 
@@ -171,10 +185,19 @@
   font-size: 13px;
 }
 
+/* Cabeçalho fixo da tabela. O que esconde as linhas que rolam por baixo é o
+   blur, não a opacidade — por isso o fundo pode ser uma tintura translúcida e
+   funcionar nos dois temas. `--nn-tabela-tinta` sobe em .nn-tabela--solido,
+   para tabelas com muitas linhas visíveis, onde o blur sozinho deixa entrever. */
 .nn-tabela thead {
   position: sticky;
   top: 0;
-  background: var(--nn-offwhite);
+  background: color-mix(in srgb, var(--nn-terracota) var(--nn-tabela-tinta, 10%), transparent);
+  backdrop-filter: blur(6px);
+}
+
+.nn-tabela--solido {
+  --nn-tabela-tinta: 22%;
 }
 
 .nn-tabela th,

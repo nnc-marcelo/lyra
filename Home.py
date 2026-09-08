@@ -15,7 +15,7 @@ que está declarado aqui.
 import streamlit as st
 
 from utils import metrics, nav
-from utils.page import bootstrap
+from utils.page import bootstrap, lockup
 from utils.ui_components import estado_vazio
 
 bootstrap()
@@ -102,7 +102,7 @@ def _painel_pendencias() -> None:
 
 
 def _pagina_inicio():
-    st.image("assets/lyra_lockup_horizontal.png", width=380)
+    st.image(str(lockup()), width=380)
     st.header("Central de royalties e catálogo")
     st.caption(
         "Processe relatórios das distribuidoras, calcule taxas e descontos, "

@@ -32,11 +32,25 @@ def bootstrap() -> None:
         page_icon=str(ASSETS / "lyra_favicon.png"),
         layout="wide",
     )
-    st.logo(
-        str(ASSETS / "lyra_lockup_horizontal.png"),
-        icon_image=str(ASSETS / "lyra_favicon.png"),
-    )
+    st.logo(str(lockup()), icon_image=str(ASSETS / "lyra_favicon.png"))
     _injetar_css()
+
+
+def lockup() -> Path:
+    """O lockup da versão certa para o tema ativo.
+
+    O wordmark é #003fbc, que sobre a barra lateral do tema escuro dá 1,75:1 e
+    some. A versão reversa (wordmark no #9ecbf4 da paleta) está em
+    `_dark.png`, gerada por scripts/gerar_logo_escuro.py.
+
+    `st.context.theme` é inferido pelo Streamlit a partir do fundo, e a
+    documentação avisa que pode vir errado no primeiro carregamento da sessão e
+    logo após a troca pelo menu. Quando isso acontece o logo sai na versão do
+    outro tema por um rerun e se corrige no próximo — preferível a um logo
+    invisível, que é o que dá sem escolher nada. Se o atributo não existir numa
+    versão futura, cai no lockup claro."""
+    escuro = getattr(getattr(st.context, "theme", None), "type", None) == "dark"
+    return ASSETS / ("lyra_lockup_horizontal_dark.png" if escuro else "lyra_lockup_horizontal.png")
 
 
 def _injetar_css() -> None:
