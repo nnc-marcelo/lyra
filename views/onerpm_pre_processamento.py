@@ -92,6 +92,19 @@ if uploaded_files:
             df_publishing = df_publishing[df_publishing['Currency'].notna()].copy()
             df_publishing = df_publishing[df_publishing['Currency'].astype(str).str.strip() != ''].copy()
             df_publishing = df_publishing[df_publishing['Net'].notna()].copy()
+
+            # O Reprtoir lê a coluna 'Accounted Date' como `reporting_date` e recusa
+            # o formato AAAA-MM-DD do relatório ("wrong format"); espera AAAA/MM/DD
+            # (mesmo padrão do fluxo Fragmentado). Converte o que for data e mantém
+            # o valor original no que não for.
+            if 'Accounted Date' in df_publishing.columns:
+                _orig = df_publishing['Accounted Date'].astype(str)
+                _conv = pd.to_datetime(
+                    df_publishing['Accounted Date'], errors='coerce'
+                ).dt.strftime('%Y/%m/%d')
+                df_publishing['Accounted Date'] = _conv.fillna(
+                    _orig.str.replace('-', '/', regex=False)
+                )
             
             st.success(f"{len(uploaded_files)} arquivo(s) carregado(s) e consolidado(s) com sucesso")
             st.divider()
@@ -161,8 +174,44 @@ if uploaded_files:
                 summary_final = df_publishing_final.groupby('Currency')['Net'].sum().reset_index()
                 summary_final.columns = ['Moeda', 'Valor']
                 st.dataframe(summary_final, hide_index=True, use_container_width=True)
-            
+
             st.divider()
+
+            # ================================================================
+            # CÂMBIO USD → BRL
+            # Aplicado DEPOIS das taxas bancárias. Converte apenas a coluna Net
+            # das linhas em USD e passa a moeda para BRL (Gross/Fees ficam no
+            # valor original em USD, de propósito).
+            # ================================================================
+            st.subheader("Câmbio USD → BRL")
+
+            cambio_usd = st.number_input(
+                "Câmbio USD → BRL",
+                min_value=0.0, value=0.0, step=0.01, format="%.4f",
+                help="Multiplica o Net das linhas em USD por este valor e passa a moeda para BRL. "
+                     "Aplicado depois das taxas bancárias. Deixe 0 para não converter."
+            )
+
+            tem_usd = (df_publishing_final['Currency'].astype(str).str.upper() == 'USD').any()
+
+            if cambio_usd > 0 and tem_usd:
+                mask_usd = df_publishing_final['Currency'].astype(str).str.upper() == 'USD'
+                df_publishing_final.loc[mask_usd, 'Net'] = \
+                    df_publishing_final.loc[mask_usd, 'Net'] * cambio_usd
+                df_publishing_final.loc[mask_usd, 'Currency'] = 'BRL'
+
+                st.subheader("Valores após câmbio")
+                if df_publishing_final.empty or df_publishing_final['Net'].sum() == 0:
+                    st.write("*Sem rendimentos*")
+                else:
+                    summary_cambio = df_publishing_final.groupby('Currency')['Net'].sum().reset_index()
+                    summary_cambio.columns = ['Moeda', 'Valor']
+                    st.dataframe(summary_cambio, hide_index=True, use_container_width=True)
+
+                st.divider()
+            elif cambio_usd > 0 and not tem_usd:
+                st.info("Nenhuma linha em USD para converter.")
+                st.divider()
 
             # Downloads
             st.subheader("Download dos resultados finais")
