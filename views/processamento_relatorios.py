@@ -17,7 +17,7 @@ pd.set_option('display.max_colwidth', None)
 
 setup_page(__file__)
 
-template = st.selectbox("Selecione o template do relatório:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell", "The Orchard", "iMusica (OTT)"])
+template = st.selectbox("Selecione o template do relatório:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell", "The Orchard", "iMusica (OTT)", "Claro Música"])
 
 
 # ============================================================================
@@ -1087,28 +1087,44 @@ def render_orchard():
 
 
 # ============================================================================
-# TEMPLATE: IMUSICA (OTT)
+# TEMPLATES DE ABA ÚNICA (iMusica, Claro Música)
 # ============================================================================
 
-# O UnifiedOttReport da iMusica vem com uma aba por player (Apple Music, Deezer,
-# Spotify, YouTube...) mais a aba "Database", que já é a consolidação de todas.
-# Aqui só interessa a "Database": geramos um xlsx contendo apenas essa aba.
+# Alguns relatórios vêm com várias abas (uma por serviço/DSP mais uma de
+# consolidação), e só a de consolidação interessa. O processamento é sempre o
+# mesmo: manter uma aba nomeada, descartar o resto, registrar o período. Cada
+# distribuidora entra em ABA_UNICA com o nome da sua aba.
 
-IMUSICA_SHEET = "Database"
+ABA_UNICA = {
+    "imusica": {
+        "distribuidora": "iMusica (OTT)",
+        "aba": "Database",
+        "descricao": "UnifiedOttReport da iMusica (as abas por player são descartadas)",
+    },
+    "claro": {
+        "distribuidora": "Claro Música",
+        "aba": "Detailed Consumption",
+        "descricao": "Reporte Financeiro da Claro Música (as abas Transaction e Value to Pay são descartadas)",
+    },
+}
 
 
-def _imusica_periodo(preview, nome_arquivo):
-    """Período no formato AAAAMM: pela coluna `Period` da Database (datas tipo
-    01/02/2026), com fallback para o código de 6 dígitos do nome do arquivo."""
-    if "Period" in preview.columns:
-        datas = pd.to_datetime(preview["Period"], dayfirst=True, errors="coerce").dropna()
-        meses = sorted({d.strftime("%Y%m") for d in datas})
+def _periodo_da_coluna(preview, nome_arquivo, coluna="Period"):
+    """Período(s) no formato AAAAMM a partir de uma coluna de data. Aceita
+    `dd/mm/aaaa` (iMusica) e `mm/aaaa` (Claro Música). Fallback: código de
+    6-8 dígitos do nome do arquivo."""
+    if coluna in preview.columns:
+        meses = set()
+        for v in preview[coluna].dropna().astype(str).unique():
+            m = re.search(r"(?:\d{1,2}/)?(\d{1,2})/(\d{4})", v.strip())
+            if m and 1 <= int(m.group(1)) <= 12:
+                meses.add(f"{m.group(2)}{int(m.group(1)):02d}")
         if meses:
-            return " · ".join(meses)
+            return " · ".join(sorted(meses))
     return _periodos_dos_nomes([nome_arquivo])
 
 
-def _imusica_keep_sheet(raw_bytes, keep_name):
+def _manter_aba(raw_bytes, keep_name):
     """Retorna um xlsx em memória contendo apenas a aba `keep_name`."""
     wb = openpyxl.load_workbook(io.BytesIO(raw_bytes))
     for name in list(wb.sheetnames):
@@ -1120,35 +1136,29 @@ def _imusica_keep_sheet(raw_bytes, keep_name):
     return out
 
 
-def render_imusica():
-    st.caption(
-        f"Extrai apenas a aba **{IMUSICA_SHEET}** do UnifiedOttReport da iMusica "
-        "(as abas por player são descartadas)."
-    )
+def render_aba_unica(slug):
+    cfg = ABA_UNICA[slug]
+    aba = cfg["aba"]
+    st.caption(f"Extrai apenas a aba **{aba}** do {cfg['descricao']}.")
 
-    ultima_ex = _painel_ultima("imusica")
+    ultima_ex = _painel_ultima(slug)
 
-    uploaded = st.file_uploader("Upload do relatório (.xlsx)", type=["xlsx"], key="imusica_file")
+    uploaded = st.file_uploader("Upload do relatório (.xlsx)", type=["xlsx"], key=f"{slug}_file")
     if not uploaded:
-        st.info("Suba o UnifiedOttReport da iMusica (.xlsx).")
+        st.info(f"Suba o relatório da {cfg['distribuidora']} (.xlsx).")
         return
 
     raw = uploaded.read()
     sheets = openpyxl.load_workbook(io.BytesIO(raw), read_only=True).sheetnames
 
-    if IMUSICA_SHEET not in sheets:
-        st.error(
-            f"Aba '{IMUSICA_SHEET}' não encontrada. O arquivo tem: {', '.join(sheets)}."
-        )
+    if aba not in sheets:
+        st.error(f"Aba '{aba}' não encontrada. O arquivo tem: {', '.join(sheets)}.")
         return
 
-    preview = pd.read_excel(io.BytesIO(raw), sheet_name=IMUSICA_SHEET)
-    st.success(
-        f"Aba '{IMUSICA_SHEET}' encontrada: {len(preview):,} linhas · "
-        f"{len(preview.columns)} colunas."
-    )
+    preview = pd.read_excel(io.BytesIO(raw), sheet_name=aba)
+    st.success(f"Aba '{aba}' encontrada: {len(preview):,} linhas · {len(preview.columns)} colunas.")
 
-    periodo = _imusica_periodo(preview, uploaded.name)
+    periodo = _periodo_da_coluna(preview, uploaded.name)
     final_value_total = float(
         pd.to_numeric(
             preview.get("FinalValue", pd.Series(dtype=str)).astype(str).str.replace(",", ".", regex=False),
@@ -1158,10 +1168,10 @@ def render_imusica():
     st.caption(f"Período detectado: **{periodo}** · Σ FinalValue: {final_value_total:,.2f}")
     _avisar_reprocesso(ultima_ex, periodo)
     _registrar_uma_vez(
-        "imusica", uploaded.name, periodo,
+        slug, uploaded.name, periodo,
         {
             "arquivo": uploaded.name,
-            "aba": IMUSICA_SHEET,
+            "aba": aba,
             "linhas": int(len(preview)),
             "colunas": int(len(preview.columns)),
             "final_value_total": round(final_value_total, 2),
@@ -1173,12 +1183,12 @@ def render_imusica():
 
     base = uploaded.name.rsplit(".", 1)[0]
     st.download_button(
-        label=f"Baixar aba {IMUSICA_SHEET}",
-        data=_imusica_keep_sheet(raw, IMUSICA_SHEET),
-        file_name=f"{base}_{IMUSICA_SHEET}.xlsx",
+        label=f"Baixar aba {aba}",
+        data=_manter_aba(raw, aba),
+        file_name=f"{base}_{aba}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
-        key="imusica_dl",
+        key=f"{slug}_dl",
      icon=":material/download:")
 
 
@@ -1199,4 +1209,6 @@ elif template == "Warner Chappell":
 elif template == "The Orchard":
     render_orchard()
 elif template == "iMusica (OTT)":
-    render_imusica()
+    render_aba_unica("imusica")
+elif template == "Claro Música":
+    render_aba_unica("claro")
