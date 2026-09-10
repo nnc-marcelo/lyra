@@ -35,15 +35,24 @@ def _log_pagina(slug):
 
 
 def _painel_ultima(slug):
-    """Mostra, no topo do template, a última execução registrada. Retorna o
-    objeto Execucao (ou None) para o chamador poder comparar o período."""
+    """Mostra, no topo do template, a última execução registrada como uma faixa
+    de status (mesmo elemento do relay em views/reconciliacao_pagamentos.py:
+    st.container(key=...) pintado por .st-key-exec_log_* em assets/theme.css).
+    Retorna o objeto Execucao (ou None) para o chamador comparar o período."""
     ex = execution_log.ultima(_log_pagina(slug))
+    chave = f"exec_log_{slug.replace(':', '_')}"
+
     if ex is None:
-        st.caption("Nenhuma execução registrada ainda para este template.")
-        return None
-    quando = ex.quando.replace("T", " ")
-    with st.expander(f"Última execução registrada: **{ex.periodo}** em {quando}", expanded=False):
-        st.json(ex.resumo)
+        cor, texto = "var(--nn-cinza)", "Nenhuma execução registrada ainda"
+    else:
+        cor = "var(--nn-verde)"
+        quando = ex.quando.replace("T", " ")[:16]
+        texto = f"Última execução: **{ex.periodo}**  ·  {quando}"
+
+    st.markdown(f"<style>.st-key-{chave} {{ --nn-status-cor: {cor}; }}</style>",
+                unsafe_allow_html=True)
+    with st.container(key=chave):
+        st.markdown(texto)
     return ex
 
 

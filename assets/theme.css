@@ -87,15 +87,19 @@
   padding-left: 0;
 }
 
-/* Faixa de status de serviço externo — hoje só o relay da Reconciliação de
-   pagamentos (views/reconciliacao_pagamentos.py), que usa st.container(key=...)
-   e por isso ganha a classe estável .st-key-relay_status_box.
+/* Faixa de status — uma linha, fundo translúcido e bolinha de estado antes do
+   texto. Usada em dois lugares, ambos com st.container(key=...) (o que garante
+   uma classe .st-key-<key> estável):
+   - .st-key-relay_status_box: relay online/offline (Reconciliação de pagamentos);
+   - .st-key-exec_log_*: última execução registrada por template
+     (Processamento de relatórios — uma key por template).
 
    Mora aqui, e não na página, porque a página injetava #d1e7dd / #f8d7da —
    cores claras literais que viravam um painel aceso no tema escuro. Agora a
    página só declara --nn-status-cor (o estado); a pintura é toda derivada dela,
    translúcida, e serve aos dois temas. */
-.st-key-relay_status_box {
+.st-key-relay_status_box,
+[class*="st-key-exec_log_"] {
   --nn-status-cor: var(--nn-cinza);
   background: color-mix(in srgb, var(--nn-status-cor) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--nn-status-cor) 40%, transparent);
@@ -105,11 +109,13 @@
 
 /* Streamlit põe margin-bottom negativo no container do markdown (para colar
    elementos), o que desalinha o texto do botão ao lado. */
-.st-key-relay_status_box [data-testid="stMarkdownContainer"] {
+.st-key-relay_status_box [data-testid="stMarkdownContainer"],
+[class*="st-key-exec_log_"] [data-testid="stMarkdownContainer"] {
   margin-bottom: 0 !important;
 }
 
-.st-key-relay_status_box [data-testid="stMarkdownContainer"] p {
+.st-key-relay_status_box [data-testid="stMarkdownContainer"] p,
+[class*="st-key-exec_log_"] [data-testid="stMarkdownContainer"] p {
   margin: 0;
   font-weight: 600;
 }
@@ -118,9 +124,11 @@
    utils/ui_components. O estado deixa de depender de distinguir o tom do fundo,
    o que ajuda nos dois temas e para quem não separa bem verde de vermelho.
 
-   Restrito à primeira coluna: o rótulo do botão também é um stMarkdownContainer,
-   e sem isso o ícone de atualizar ganhava uma bolinha na frente. */
-.st-key-relay_status_box [data-testid="stColumn"]:first-child [data-testid="stMarkdownContainer"] p::before {
+   No relay é restrito à primeira coluna: o rótulo do botão também é um
+   stMarkdownContainer, e sem isso o ícone de atualizar ganhava uma bolinha na
+   frente. A faixa de execução não tem botão, então mira o markdown direto. */
+.st-key-relay_status_box [data-testid="stColumn"]:first-child [data-testid="stMarkdownContainer"] p::before,
+[class*="st-key-exec_log_"] [data-testid="stMarkdownContainer"] p::before {
   content: "";
   display: inline-block;
   width: 8px;
