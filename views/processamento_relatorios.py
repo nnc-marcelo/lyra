@@ -8,13 +8,72 @@ from decimal import Decimal
 import warnings
 
 from utils.page import setup_page
+from utils import execution_log
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 pd.set_option('display.max_colwidth', None)
 
 setup_page(__file__)
 
-template = st.selectbox("Selecione o template do relatório:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell", "The Orchard"])
+template = st.selectbox("Selecione o template do relatório:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell", "The Orchard", "iMusica (OTT)"])
+
+
+# ============================================================================
+# LOG DE EXECUÇÕES
+# ============================================================================
+
+# Cada template roda uma vez por mês e é fácil esquecer qual foi o último
+# período processado. Aqui registramos cada execução em data/logs/execucoes.jsonl
+# (via utils.execution_log) usando uma "página" distinta por template, para o
+# histórico de cada um não se misturar.
+
+PAGINA_BASE = "processamento_relatorios"
+
+
+def _log_pagina(slug):
+    return f"{PAGINA_BASE}:{slug}"
+
+
+def _painel_ultima(slug):
+    """Mostra, no topo do template, a última execução registrada. Retorna o
+    objeto Execucao (ou None) para o chamador poder comparar o período."""
+    ex = execution_log.ultima(_log_pagina(slug))
+    if ex is None:
+        st.caption("Nenhuma execução registrada ainda para este template.")
+        return None
+    quando = ex.quando.replace("T", " ")
+    with st.expander(f"Última execução registrada: **{ex.periodo}** em {quando}", expanded=False):
+        st.json(ex.resumo)
+    return ex
+
+
+def _avisar_reprocesso(ultima_ex, periodo):
+    """Alerta se o período que está sendo processado é igual ao último logado."""
+    if ultima_ex is not None and periodo and str(ultima_ex.periodo) == str(periodo):
+        st.warning(
+            f"O período **{periodo}** já foi processado em "
+            f"{ultima_ex.quando.replace('T', ' ')}. Reprocessando?"
+        )
+
+
+def _registrar_uma_vez(slug, chave, periodo, resumo):
+    """Grava a execução no log só uma vez por (template, chave) dentro da
+    sessão — evita duplicar a cada rerun do Streamlit ou a cada botão de
+    download clicado."""
+    marca = f"_exec_logada::{slug}::{chave}"
+    if st.session_state.get(marca):
+        return
+    execution_log.registrar(_log_pagina(slug), str(periodo), resumo)
+    st.session_state[marca] = True
+
+
+def _periodos_dos_nomes(nomes, default="?"):
+    """Extrai códigos de período (6 a 8 dígitos, ex.: 202602 / 20260215) dos
+    nomes de arquivo. Retorna os distintos juntados por ' · '."""
+    achados = []
+    for n in nomes:
+        achados += re.findall(r"\d{6,8}", n)
+    return " · ".join(sorted(set(achados))) or default
 
 # ============================================================================
 # TEMPLATE: NIKITA DIGITAL
@@ -43,6 +102,8 @@ def build_single_sheet(raw_bytes, keep_idx):
 
 
 def render_nikita():
+    ultima_ex = _painel_ultima("nikita")
+
     uploaded = st.file_uploader("Upload do relatório (.xlsx)", type=["xlsx"])
     if not uploaded:
         return
@@ -53,6 +114,10 @@ def render_nikita():
 
     st.success(f"Arquivo carregado com {len(sheets)} aba(s). Baixe cada relatório abaixo:")
 
+    periodo = _periodos_dos_nomes([uploaded.name])
+    _avisar_reprocesso(ultima_ex, periodo)
+
+    saidas_ok = []
     for label, rule in NIKITA_OUTPUTS:
         keep_idx = len(sheets) - 1 if rule == "last" else rule - 1
 
@@ -60,6 +125,7 @@ def render_nikita():
             st.warning(f"{label}: aba esperada não encontrada (arquivo tem {len(sheets)} abas).")
             continue
 
+        saidas_ok.append(label)
         data, keep_name = build_single_sheet(raw, keep_idx)
         st.download_button(
             label=f"Baixar {label}  (aba: {keep_name})",
@@ -68,6 +134,11 @@ def render_nikita():
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"nikita_{label}",
          icon=":material/download:")
+
+    _registrar_uma_vez(
+        "nikita", uploaded.name, periodo,
+        {"arquivo": uploaded.name, "abas": len(sheets), "saidas": saidas_ok},
+    )
 
 
 # ============================================================================
@@ -140,6 +211,8 @@ def ler_arquivo_backoffice(file):
 
 def render_backoffice():
     st.caption("Concatena e totaliza os arquivos Backoffice para conferência e inclusão no Repertoir.")
+
+    ultima_ex = _painel_ultima("backoffice")
 
     uploaded_files = st.file_uploader(
         "Faça o upload dos arquivos Excel",
@@ -215,6 +288,20 @@ def render_backoffice():
 
                 with st.expander("Visualizar dados concatenados", expanded=False):
                     st.dataframe(concatenated_df.head(100), use_container_width=True)
+
+                periodo = _periodos_dos_nomes([f.name for f in uploaded_files])
+                _avisar_reprocesso(ultima_ex, periodo)
+                _registrar_uma_vez(
+                    "backoffice",
+                    f"concat::{sorted(f.name for f in uploaded_files)}",
+                    periodo,
+                    {
+                        "acao": "concatenar",
+                        "arquivos": arquivos_sucesso,
+                        "linhas": int(len(concatenated_df)),
+                        "colunas": int(len(concatenated_df.columns)),
+                    },
+                )
 
                 buffer = BytesIO()
                 with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -317,6 +404,21 @@ def render_backoffice():
                     label="Total Líquido",
                     value=f"R$ {total_liquido:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 )
+
+            periodo = _periodos_dos_nomes([n for n, _ in results])
+            _avisar_reprocesso(ultima_ex, periodo)
+            _registrar_uma_vez(
+                "backoffice",
+                f"totais::{sorted(n for n, _ in results)}",
+                periodo,
+                {
+                    "acao": "totais",
+                    "arquivos_processados": int(arquivos_processados),
+                    "total_bruto": float(total_royalties_sum),
+                    "desconto_r3": float(desconto_r3),
+                    "total_liquido": float(total_liquido),
+                },
+            )
 
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -528,6 +630,8 @@ def _yt_to_csv_bytes(df):
 def render_youtube():
     st.caption("Consolida os relatórios do YouTube (vários formatos) no template asset raw e calcula o débito de 30% (US).")
 
+    ultima_ex = _painel_ultima("youtube")
+
     uploaded_files = st.file_uploader(
         "Faça o upload dos relatórios do YouTube (.csv)",
         type=["csv"],
@@ -580,6 +684,21 @@ def render_youtube():
 
     with st.expander("Visualizar consolidado (100 primeiras linhas)", expanded=False):
         st.dataframe(consolidated.head(100), use_container_width=True)
+
+    meses = sorted({d[:6] for d in consolidated["Day"].astype(str) if len(d) >= 6 and d[:6].isdigit()})
+    periodo = " · ".join(meses) or _periodos_dos_nomes([n for n, _ in files])
+    _avisar_reprocesso(ultima_ex, periodo)
+    _registrar_uma_vez(
+        "youtube",
+        f"{sorted(n for n, _ in files)}",
+        periodo,
+        {
+            "arquivos": len(infos),
+            "linhas": int(len(consolidated)),
+            "partner_revenue_total": float(total),
+            "com_problema": [nome for nome, _ in arquivos_com_problema],
+        },
+    )
 
     st.download_button(
         label="Baixar consolidado (sem débito)",
@@ -663,6 +782,8 @@ def render_warner():
         "decimais são preservados exatamente."
     )
 
+    ultima_ex = _painel_ultima("warner")
+
     uploaded = st.file_uploader("Upload do statement (.csv)", type=["csv"], key="wc_file")
     if not uploaded:
         st.info("Suba o statement da Warner Chappell (.csv).")
@@ -680,6 +801,18 @@ def render_warner():
              for (o, n), c in sorted(changes.items())]
         )
         st.dataframe(df_map, use_container_width=True, hide_index=True)
+
+    periodo = " · ".join(sorted({n for (_o, n) in changes})) or _periodos_dos_nomes([uploaded.name])
+    _avisar_reprocesso(ultima_ex, periodo)
+    _registrar_uma_vez(
+        "warner", uploaded.name, periodo,
+        {
+            "arquivo": uploaded.name,
+            "linhas_ajustadas": int(total_alteradas),
+            "periodos": {f"{o}->{n}": int(c) for (o, n), c in sorted(changes.items())},
+            "linhas_nao_reconhecidas": int(issues),
+        },
+    )
 
     if issues:
         st.warning(
@@ -795,6 +928,8 @@ def render_orchard():
     catalogo = st.selectbox("Selecione o catálogo:", list(ORCHARD_CATALOGOS.keys()))
     slug = ORCHARD_CATALOGOS[catalogo]
 
+    ultima_ex = _painel_ultima(f"orchard:{slug}")
+
     uploaded_files = st.file_uploader(
         "Faça o upload dos relatórios do The Orchard (.csv ou .xlsx)",
         type=["csv", "xlsx"],
@@ -842,6 +977,22 @@ def render_orchard():
         f"{len(frames)} relatório(s)."
     )
 
+    periodo = _periodos_dos_nomes([f.name for f in uploaded_files])
+    _avisar_reprocesso(ultima_ex, periodo)
+    _registrar_uma_vez(
+        f"orchard:{slug}",
+        f"{catalogo}::{sorted(f.name for f in uploaded_files)}",
+        periodo,
+        {
+            "catalogo": catalogo,
+            "arquivos": len(frames),
+            "linhas": int(len(consolidated)),
+            "total_bruto": float(total_bruto),
+            "debito_us": float(debito),
+            "total_liquido": float(total_liquido),
+        },
+    )
+
     c1, c2, c3 = st.columns(3)
     with c1:
         st.metric("Total bruto", _orchard_fmt_money(total_bruto))
@@ -881,6 +1032,102 @@ def render_orchard():
 
 
 # ============================================================================
+# TEMPLATE: IMUSICA (OTT)
+# ============================================================================
+
+# O UnifiedOttReport da iMusica vem com uma aba por player (Apple Music, Deezer,
+# Spotify, YouTube...) mais a aba "Database", que já é a consolidação de todas.
+# Aqui só interessa a "Database": geramos um xlsx contendo apenas essa aba.
+
+IMUSICA_SHEET = "Database"
+
+
+def _imusica_periodo(preview, nome_arquivo):
+    """Período no formato AAAAMM: pela coluna `Period` da Database (datas tipo
+    01/02/2026), com fallback para o código de 6 dígitos do nome do arquivo."""
+    if "Period" in preview.columns:
+        datas = pd.to_datetime(preview["Period"], dayfirst=True, errors="coerce").dropna()
+        meses = sorted({d.strftime("%Y%m") for d in datas})
+        if meses:
+            return " · ".join(meses)
+    return _periodos_dos_nomes([nome_arquivo])
+
+
+def _imusica_keep_sheet(raw_bytes, keep_name):
+    """Retorna um xlsx em memória contendo apenas a aba `keep_name`."""
+    wb = openpyxl.load_workbook(io.BytesIO(raw_bytes))
+    for name in list(wb.sheetnames):
+        if name != keep_name:
+            del wb[name]
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return out
+
+
+def render_imusica():
+    st.caption(
+        f"Extrai apenas a aba **{IMUSICA_SHEET}** do UnifiedOttReport da iMusica "
+        "(as abas por player são descartadas)."
+    )
+
+    ultima_ex = _painel_ultima("imusica")
+
+    uploaded = st.file_uploader("Upload do relatório (.xlsx)", type=["xlsx"], key="imusica_file")
+    if not uploaded:
+        st.info("Suba o UnifiedOttReport da iMusica (.xlsx).")
+        return
+
+    raw = uploaded.read()
+    sheets = openpyxl.load_workbook(io.BytesIO(raw), read_only=True).sheetnames
+
+    if IMUSICA_SHEET not in sheets:
+        st.error(
+            f"Aba '{IMUSICA_SHEET}' não encontrada. O arquivo tem: {', '.join(sheets)}."
+        )
+        return
+
+    preview = pd.read_excel(io.BytesIO(raw), sheet_name=IMUSICA_SHEET)
+    st.success(
+        f"Aba '{IMUSICA_SHEET}' encontrada: {len(preview):,} linhas · "
+        f"{len(preview.columns)} colunas."
+    )
+
+    periodo = _imusica_periodo(preview, uploaded.name)
+    final_value_total = float(
+        pd.to_numeric(
+            preview.get("FinalValue", pd.Series(dtype=str)).astype(str).str.replace(",", ".", regex=False),
+            errors="coerce",
+        ).fillna(0).sum()
+    )
+    st.caption(f"Período detectado: **{periodo}** · Σ FinalValue: {final_value_total:,.2f}")
+    _avisar_reprocesso(ultima_ex, periodo)
+    _registrar_uma_vez(
+        "imusica", uploaded.name, periodo,
+        {
+            "arquivo": uploaded.name,
+            "aba": IMUSICA_SHEET,
+            "linhas": int(len(preview)),
+            "colunas": int(len(preview.columns)),
+            "final_value_total": round(final_value_total, 2),
+        },
+    )
+
+    with st.expander("Visualizar (100 primeiras linhas)", expanded=False):
+        st.dataframe(preview.head(100), use_container_width=True)
+
+    base = uploaded.name.rsplit(".", 1)[0]
+    st.download_button(
+        label=f"Baixar aba {IMUSICA_SHEET}",
+        data=_imusica_keep_sheet(raw, IMUSICA_SHEET),
+        file_name=f"{base}_{IMUSICA_SHEET}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        key="imusica_dl",
+     icon=":material/download:")
+
+
+# ============================================================================
 # ROTEAMENTO POR TEMPLATE
 # ============================================================================
 
@@ -896,3 +1143,5 @@ elif template == "Warner Chappell":
     render_warner()
 elif template == "The Orchard":
     render_orchard()
+elif template == "iMusica (OTT)":
+    render_imusica()
