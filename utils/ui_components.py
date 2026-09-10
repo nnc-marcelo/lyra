@@ -146,3 +146,26 @@ def veredito(ok: bool, titulo: str, detalhe: str = "") -> None:
         "</div>",
         unsafe_allow_html=True,
     )
+
+
+def retomada(titulo: str, detalhe: str = "", atencao: bool = False) -> None:
+    """Onde você parou da última vez nesta tela.
+
+    Um lembrete de continuidade, não um status: tarefas que se repetem todo mês
+    (processar o relatório de uma distribuidora, p. ex.) e é fácil esquecer qual
+    foi o último período. Diferente do `veredito` — que é a resposta de um
+    cálculo — e da bolinha de `status_dot_html`, que é estado vivo de um serviço.
+    Por isso não usa verde: "tem histórico" não é um estado bom, é só um fato.
+
+    `atencao=True` pinta de terracota e serve ao caso em que o período prestes a
+    ser processado é o mesmo já registrado (está reprocessando). O título sai no
+    headingFont — o período é a informação que se procura aqui, então lê como
+    resposta, não como rótulo."""
+    estado = "atencao" if atencao else "neutro"
+    st.markdown(
+        f'<div class="nn-retomada nn-retomada--{estado}">'
+        f'<p class="nn-retomada-titulo">{html.escape(titulo)}</p>'
+        f'{f"<p class=nn-retomada-detalhe>{html.escape(detalhe)}</p>" if detalhe else ""}'
+        "</div>",
+        unsafe_allow_html=True,
+    )

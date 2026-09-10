@@ -87,19 +87,15 @@
   padding-left: 0;
 }
 
-/* Faixa de status — uma linha, fundo translúcido e bolinha de estado antes do
-   texto. Usada em dois lugares, ambos com st.container(key=...) (o que garante
-   uma classe .st-key-<key> estável):
-   - .st-key-relay_status_box: relay online/offline (Reconciliação de pagamentos);
-   - .st-key-exec_log_*: última execução registrada por template
-     (Processamento de relatórios — uma key por template).
+/* Faixa de status de serviço externo — hoje só o relay da Reconciliação de
+   pagamentos (views/reconciliacao_pagamentos.py), que usa st.container(key=...)
+   e por isso ganha a classe estável .st-key-relay_status_box.
 
    Mora aqui, e não na página, porque a página injetava #d1e7dd / #f8d7da —
    cores claras literais que viravam um painel aceso no tema escuro. Agora a
    página só declara --nn-status-cor (o estado); a pintura é toda derivada dela,
    translúcida, e serve aos dois temas. */
-.st-key-relay_status_box,
-[class*="st-key-exec_log_"] {
+.st-key-relay_status_box {
   --nn-status-cor: var(--nn-cinza);
   background: color-mix(in srgb, var(--nn-status-cor) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--nn-status-cor) 40%, transparent);
@@ -109,13 +105,11 @@
 
 /* Streamlit põe margin-bottom negativo no container do markdown (para colar
    elementos), o que desalinha o texto do botão ao lado. */
-.st-key-relay_status_box [data-testid="stMarkdownContainer"],
-[class*="st-key-exec_log_"] [data-testid="stMarkdownContainer"] {
+.st-key-relay_status_box [data-testid="stMarkdownContainer"] {
   margin-bottom: 0 !important;
 }
 
-.st-key-relay_status_box [data-testid="stMarkdownContainer"] p,
-[class*="st-key-exec_log_"] [data-testid="stMarkdownContainer"] p {
+.st-key-relay_status_box [data-testid="stMarkdownContainer"] p {
   margin: 0;
   font-weight: 600;
 }
@@ -124,11 +118,9 @@
    utils/ui_components. O estado deixa de depender de distinguir o tom do fundo,
    o que ajuda nos dois temas e para quem não separa bem verde de vermelho.
 
-   No relay é restrito à primeira coluna: o rótulo do botão também é um
-   stMarkdownContainer, e sem isso o ícone de atualizar ganhava uma bolinha na
-   frente. A faixa de execução não tem botão, então mira o markdown direto. */
-.st-key-relay_status_box [data-testid="stColumn"]:first-child [data-testid="stMarkdownContainer"] p::before,
-[class*="st-key-exec_log_"] [data-testid="stMarkdownContainer"] p::before {
+   Restrito à primeira coluna: o rótulo do botão também é um stMarkdownContainer,
+   e sem isso o ícone de atualizar ganhava uma bolinha na frente. */
+.st-key-relay_status_box [data-testid="stColumn"]:first-child [data-testid="stMarkdownContainer"] p::before {
   content: "";
   display: inline-block;
   width: 8px;
@@ -245,6 +237,42 @@
 }
 
 .nn-veredito-detalhe {
+  font-size: 0.82rem;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  margin-top: 0.15rem !important;
+}
+
+/* Retomada (ui_components.retomada): onde você parou da última vez nesta tela.
+   Mesmo chassi do veredito — filete à esquerda, fundo tingido, tokens --nn-* —
+   mas sem verde: o estado neutro é cinza (só um lembrete) e o de atenção é
+   terracota (está reprocessando um período já feito). O título sai na serifa
+   (headingFont) porque o dado que se procura aqui — o período — lê como
+   resposta, não como rótulo. */
+.nn-retomada {
+  --cor: var(--nn-cinza);
+  border-left: 3px solid var(--cor);
+  border-radius: var(--nn-raio);
+  background: color-mix(in srgb, var(--cor) 11%, transparent);
+  padding: 0.7rem 1rem;
+}
+
+.nn-retomada--atencao {
+  --cor: var(--nn-terracota);
+}
+
+.nn-retomada p {
+  margin: 0;
+}
+
+.nn-retomada-titulo {
+  /* mesma serifa dos títulos de página (headingFont no config.toml). O
+     Streamlit já carrega a Newsreader; aqui só a nomeamos. */
+  font-family: "Newsreader", Georgia, "Times New Roman", serif;
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.nn-retomada-detalhe {
   font-size: 0.82rem;
   color: color-mix(in srgb, currentColor 62%, transparent);
   margin-top: 0.15rem !important;

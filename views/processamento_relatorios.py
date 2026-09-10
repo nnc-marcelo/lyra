@@ -5,10 +5,12 @@ import io
 import re
 from io import BytesIO
 from decimal import Decimal
+from datetime import datetime
 import warnings
 
 from utils.page import setup_page
 from utils import execution_log
+from utils.ui_components import retomada
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 pd.set_option('display.max_colwidth', None)
@@ -25,43 +27,87 @@ template = st.selectbox("Selecione o template do relatório:", ["Nikita Digital"
 # Cada template roda uma vez por mês e é fácil esquecer qual foi o último
 # período processado. Aqui registramos cada execução em data/logs/execucoes.jsonl
 # (via utils.execution_log) usando uma "página" distinta por template, para o
-# histórico de cada um não se misturar.
+# histórico de cada um não se misturar. Na tela isso aparece como o elemento
+# `retomada` (ui_components) — "onde você parou", não um status.
 
 PAGINA_BASE = "processamento_relatorios"
+
+_MESES_PT = ["jan", "fev", "mar", "abr", "mai", "jun",
+             "jul", "ago", "set", "out", "nov", "dez"]
 
 
 def _log_pagina(slug):
     return f"{PAGINA_BASE}:{slug}"
 
 
+def _periodo_humano(periodo):
+    """`202602` -> `Fev/2026`; um período com vários meses (`202601 · 202602`)
+    vira `Jan–Fev/2026`. O que não for AAAAMM sai como veio."""
+    meses = []
+    for t in re.findall(r"\d{6,8}", str(periodo)):
+        ano, mes = t[:4], t[4:6]
+        i = int(mes) - 1
+        if 0 <= i < 12:
+            meses.append((ano, _MESES_PT[i].capitalize()))
+    if not meses:
+        return str(periodo)
+    if len(meses) == 1:
+        return f"{meses[0][1]}/{meses[0][0]}"
+    anos = {a for a, _ in meses}
+    if len(anos) == 1:
+        return f"{meses[0][1]}–{meses[-1][1]}/{meses[0][0]}"
+    return " · ".join(f"{m}/{a}" for a, m in meses)
+
+
+def _tempo_relativo(iso):
+    """Distância aproximada até agora, em português: `hoje`, `ontem`,
+    `há 4 dias`, `há 1 mês`, `há 3 meses`."""
+    try:
+        quando = datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return ""
+    dias = (datetime.now() - quando).days
+    if dias <= 0:
+        return "hoje"
+    if dias == 1:
+        return "ontem"
+    if dias < 30:
+        return f"há {dias} dias"
+    meses = dias // 30
+    return "há 1 mês" if meses == 1 else f"há {meses} meses"
+
+
 def _painel_ultima(slug):
-    """Mostra, no topo do template, a última execução registrada como uma faixa
-    de status (mesmo elemento do relay em views/reconciliacao_pagamentos.py:
-    st.container(key=...) pintado por .st-key-exec_log_* em assets/theme.css).
-    Retorna o objeto Execucao (ou None) para o chamador comparar o período."""
+    """No topo do template: o que foi processado por último aqui. Elemento
+    `retomada` (não a faixa de status do relay — isto é histórico, não estado
+    vivo). Retorna a Execucao (ou None) para o chamador comparar o período."""
     ex = execution_log.ultima(_log_pagina(slug))
-    chave = f"exec_log_{slug.replace(':', '_')}"
-
     if ex is None:
-        cor, texto = "var(--nn-cinza)", "Nenhuma execução registrada ainda"
-    else:
-        cor = "var(--nn-verde)"
-        quando = ex.quando.replace("T", " ")[:16]
-        texto = f"Última execução: **{ex.periodo}**  ·  {quando}"
+        retomada(
+            "Nenhum período processado ainda",
+            "O registro aparece aqui depois do primeiro arquivo.",
+        )
+        return None
 
-    st.markdown(f"<style>.st-key-{chave} {{ --nn-status-cor: {cor}; }}</style>",
-                unsafe_allow_html=True)
-    with st.container(key=chave):
-        st.markdown(texto)
+    quando = _tempo_relativo(ex.quando)
+    linhas = ex.resumo.get("linhas")
+    detalhe = " · ".join(
+        p for p in (quando, f"{linhas:,} linhas".replace(",", ".") if linhas else "") if p
+    )
+    retomada(f"Último processado · {_periodo_humano(ex.periodo)}", detalhe)
     return ex
 
 
 def _avisar_reprocesso(ultima_ex, periodo):
-    """Alerta se o período que está sendo processado é igual ao último logado."""
+    """Quando o período prestes a ser processado é o mesmo já registrado — é a
+    `retomada` em estado de atenção, no lugar de um aviso solto."""
     if ultima_ex is not None and periodo and str(ultima_ex.periodo) == str(periodo):
-        st.warning(
-            f"O período **{periodo}** já foi processado em "
-            f"{ultima_ex.quando.replace('T', ' ')}. Reprocessando?"
+        quando = _tempo_relativo(ultima_ex.quando)
+        data = datetime.fromisoformat(ultima_ex.quando).strftime("%d/%m")
+        retomada(
+            f"{_periodo_humano(periodo)} já foi processado",
+            f"Rodou em {data} ({quando}). Reprocessando?",
+            atencao=True,
         )
 
 
