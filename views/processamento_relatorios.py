@@ -44,7 +44,9 @@ def _tempo_relativo(iso):
         quando = datetime.fromisoformat(iso)
     except (TypeError, ValueError):
         return ""
-    dias = (datetime.now() - quando).days
+    # Dias do calendário, não blocos de 24h: rodado ontem às 19h ainda não
+    # completou 24h hoje às 18h, e `.days` do intervalo diria "hoje".
+    dias = (datetime.now().date() - quando.date()).days
     if dias <= 0:
         return "hoje"
     if dias == 1:
