@@ -65,7 +65,7 @@ TRIMESTRAIS = {
     "processamento_relatorios:orchard:zeeba",
 }
 
-MESES_NA_GRADE = 12
+MESES_NA_GRADE = 6
 
 # Chaves de `resumo` que servem de "total" na lista, em ordem de preferência —
 # cada página grava o total com o nome que faz sentido para ela.
