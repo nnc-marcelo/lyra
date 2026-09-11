@@ -282,7 +282,7 @@
 .nn-tabela {
   border: 1px solid var(--nn-borda);
   border-radius: var(--nn-raio);
-  overflow-y: auto;
+  overflow: auto;   /* Y para listas longas; X para a grade de meses do Log de execuções */
 }
 
 .nn-tabela table {

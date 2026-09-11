@@ -32,31 +32,9 @@ template = st.selectbox("Selecione o template do relatório:", ["Nikita Digital"
 
 PAGINA_BASE = "processamento_relatorios"
 
-_MESES_PT = ["jan", "fev", "mar", "abr", "mai", "jun",
-             "jul", "ago", "set", "out", "nov", "dez"]
-
 
 def _log_pagina(slug):
     return f"{PAGINA_BASE}:{slug}"
-
-
-def _periodo_humano(periodo):
-    """`202602` -> `Fev/2026`; um período com vários meses (`202601 · 202602`)
-    vira `Jan–Fev/2026`. O que não for AAAAMM sai como veio."""
-    meses = []
-    for t in re.findall(r"\d{6,8}", str(periodo)):
-        ano, mes = t[:4], t[4:6]
-        i = int(mes) - 1
-        if 0 <= i < 12:
-            meses.append((ano, _MESES_PT[i].capitalize()))
-    if not meses:
-        return str(periodo)
-    if len(meses) == 1:
-        return f"{meses[0][1]}/{meses[0][0]}"
-    anos = {a for a, _ in meses}
-    if len(anos) == 1:
-        return f"{meses[0][1]}–{meses[-1][1]}/{meses[0][0]}"
-    return " · ".join(f"{m}/{a}" for a, m in meses)
 
 
 def _tempo_relativo(iso):
@@ -94,7 +72,7 @@ def _painel_ultima(slug):
     detalhe = " · ".join(
         p for p in (quando, f"{linhas:,} linhas".replace(",", ".") if linhas else "") if p
     )
-    retomada(f"Último processado · {_periodo_humano(ex.periodo)}", detalhe)
+    retomada(f"Último processado · {execution_log.periodo_humano(ex.periodo)}", detalhe)
     return ex
 
 
@@ -105,7 +83,7 @@ def _avisar_reprocesso(ultima_ex, periodo):
         quando = _tempo_relativo(ultima_ex.quando)
         data = datetime.fromisoformat(ultima_ex.quando).strftime("%d/%m")
         retomada(
-            f"{_periodo_humano(periodo)} já foi processado",
+            f"{execution_log.periodo_humano(periodo)} já foi processado",
             f"Rodou em {data} ({quando}). Reprocessando?",
             atencao=True,
         )

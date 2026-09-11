@@ -97,6 +97,13 @@ PAGINAS: list[Pagina] = [
         descricao="Extrai o PDF do demonstrativo internacional da ABRAMUS para planilha.",
     ),
     Pagina(
+        caminho="views/log_execucoes.py",
+        titulo="Log de execuções",
+        icone=":material/history:",
+        secao="Utilitários",
+        descricao="O que já foi processado, por página e por mês — e de quem ainda falta.",
+    ),
+    Pagina(
         caminho="views/organizador_comprovantes.py",
         titulo="Organizador de comprovantes",
         icone=":material/folder:",
