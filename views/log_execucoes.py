@@ -36,6 +36,7 @@ ROTULOS = {
     "processamento_relatorios:orchard:zeeba": "The Orchard · Zeeba",
     "processamento_relatorios:imusica": "iMusica (OTT)",
     "processamento_relatorios:claro": "Claro Música",
+    "processamento_relatorios:fuga": "FUGA",
     "douglas_cezar_ep": "Douglas Cezar EP",
     "reconciliacao_pagamentos": "Reconciliação de pagamentos",
 }
