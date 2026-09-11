@@ -142,9 +142,27 @@ def _total(resumo: dict) -> float | None:
     return None
 
 
+def _periodo_ordenavel(periodo: str) -> str:
+    """Chave de ordenação pro período: o mês mais recente que ele cobre
+    (AAAAMM). Período sem mês reconhecível (nome de planilha, na
+    Reconciliação) vai pro fim — string vazia ordena antes de qualquer AAAAMM."""
+    meses = execution_log.meses_do_periodo(periodo)
+    return max(meses) if meses else ""
+
+
 def _lista(execucoes: list[execution_log.Execucao]) -> None:
     rotulos_presentes = sorted({_rotulo(ex.pagina) for ex in execucoes})
     filtro = st.selectbox("Página", ["Todas"] + rotulos_presentes, key="log_filtro")
+
+    # Dois níveis, ambos do mais recente pro mais antigo: quando a execução
+    # rodou primeiro (é o que se vê de cara); entre execuções do mesmo
+    # instante (típico de importação em lote — mesmo segundo pra várias),
+    # o período desempata.
+    ordenadas = sorted(
+        execucoes,
+        key=lambda ex: (ex.quando, _periodo_ordenavel(ex.periodo)),
+        reverse=True,
+    )
 
     linhas = [
         {
@@ -155,7 +173,7 @@ def _lista(execucoes: list[execution_log.Execucao]) -> None:
             "Total": _total(ex.resumo),
             "Resumo": json.dumps(ex.resumo, ensure_ascii=False),
         }
-        for ex in reversed(execucoes)          # mais recente primeiro
+        for ex in ordenadas
         if filtro == "Todas" or _rotulo(ex.pagina) == filtro
     ]
     df = pd.DataFrame(linhas)
