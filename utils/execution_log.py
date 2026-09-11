@@ -120,16 +120,32 @@ def meses_do_periodo(periodo: str) -> list[str]:
     return sorted(meses)
 
 
-def periodo_humano(periodo: str) -> str:
-    """`202602` -> `Fev/2026`; vários meses do mesmo ano -> `Jan–Fev/2026`;
-    anos diferentes -> `Dez/2025 · Jan/2026`. O que não tem mês reconhecível
-    sai como veio."""
+def mes_seguinte(aaaamm: str) -> str:
+    ano, mes = int(aaaamm[:4]), int(aaaamm[4:6]) + 1
+    return f"{ano + 1}01" if mes == 13 else f"{ano}{mes:02d}"
+
+
+def mes_anterior(aaaamm: str) -> str:
+    ano, mes = int(aaaamm[:4]), int(aaaamm[4:6]) - 1
+    return f"{ano - 1}12" if mes == 0 else f"{ano}{mes:02d}"
+
+
+def periodo_codigo(periodo: str) -> str:
+    """`202602` -> `2026M02` (o formato que o Douglas Cezar EP já grava);
+    meses seguidos -> `2025M10–2026M03`; meses soltos -> `2026M01, 2026M03`.
+    Ordena como texto na ordem certa. O que não tem mês reconhecível sai
+    como veio."""
     meses = meses_do_periodo(periodo)
     if not meses:
         return str(periodo)
-    nome = lambda m: MESES_PT[int(m[4:6]) - 1].capitalize()  # noqa: E731
-    if len(meses) == 1:
-        return f"{nome(meses[0])}/{meses[0][:4]}"
-    if len({m[:4] for m in meses}) == 1:
-        return f"{nome(meses[0])}–{nome(meses[-1])}/{meses[0][:4]}"
-    return " · ".join(f"{nome(m)}/{m[:4]}" for m in meses)
+    sequencias = [[meses[0]]]
+    for m in meses[1:]:
+        if m == mes_seguinte(sequencias[-1][-1]):
+            sequencias[-1].append(m)
+        else:
+            sequencias.append([m])
+    codigo = lambda m: f"{m[:4]}M{m[4:6]}"  # noqa: E731
+    return ", ".join(
+        codigo(s[0]) if len(s) == 1 else f"{codigo(s[0])}–{codigo(s[-1])}"
+        for s in sequencias
+    )

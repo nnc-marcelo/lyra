@@ -311,3 +311,186 @@
   text-align: left;
   padding: 6px 10px;
 }
+
+/* Faixa de cobertura do Log de execuções (views/log_execucoes.py): uma linha
+   por página, um mês por coluna. Mês processado é barra na tinta do texto, e
+   meses seguidos se juntam numa barra só — por isso as células de mês não têm
+   borda nem recuo lateral. A cor fica só para a exceção: o ▲ terracota de um
+   mês pulado (o mesmo marcador das Pendências do Home). O círculo vazado é o
+   próximo mês a processar — um lembrete, não um alarme, então vai sem cor.
+
+   O seletor dobrado (.nn-tabela.nn-cobertura) passa na frente do padding de
+   .nn-tabela td e das bordas que o Streamlit põe em toda tabela de markdown. */
+.nn-tabela.nn-cobertura th,
+.nn-tabela.nn-cobertura td {
+  border: 0;
+}
+
+.nn-tabela.nn-cobertura tbody tr + tr {
+  border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+}
+
+/* o nome do grupo e o primeiro item dele são uma coisa só */
+.nn-tabela.nn-cobertura tbody tr.grupo + tr {
+  border-top: 0;
+}
+
+/* Coluna do nome encolhe até o texto; os meses dividem o resto, e a barra
+   ganha comprimento em tela larga. */
+.nn-tabela.nn-cobertura .rotulo {
+  width: 1%;
+  white-space: nowrap;
+  font-weight: 400;
+  padding-right: 1.5rem;
+  vertical-align: bottom;
+}
+
+.nn-tabela.nn-cobertura .rotulo.item {
+  padding-left: 1.6rem;
+}
+
+.nn-tabela.nn-cobertura tr.grupo th {
+  font-weight: 600;
+  padding-bottom: 0;
+}
+
+.nn-tabela.nn-cobertura th.ano,
+.nn-tabela.nn-cobertura th.m {
+  text-align: center;
+  font-weight: 400;
+}
+
+.nn-tabela.nn-cobertura th.ano {
+  font-weight: 600;
+  padding-bottom: 0;
+}
+
+.nn-tabela.nn-cobertura th.m {
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  padding-top: 2px;
+}
+
+.nn-tabela.nn-cobertura td.m {
+  position: relative;
+  min-width: 2.6rem;
+  padding: 7px 0;
+  text-align: center;
+  line-height: 1;
+}
+
+/* Virada do ano: um fio fino que atravessa a grade entre dez e jan. A barra
+   passa por cima dele sem se partir. */
+.nn-tabela.nn-cobertura .virada {
+  box-shadow: inset 1px 0 0 var(--nn-borda);
+}
+
+.nn-tabela.nn-cobertura td.feito::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  background: color-mix(in srgb, currentColor 72%, transparent);
+}
+
+/* Próximo trimestre a processar (páginas trimestrais): a mesma barra, vazada,
+   do comprimento que ela vai ter. É uma peça só — a primeira célula do
+   trimestre a desenha e a estica sobre as seguintes (--meses, posto pela
+   página; as colunas de mês têm a mesma largura). Em três pedaços, as pontas
+   arredondadas saíam antialiasadas e o mês do meio nítido, e o fio fazia
+   degrau na emenda. Fio lateral e raio só onde o trimestre começa ou termina
+   de verdade (.ini/.fim) — cortado pela borda da grade, segue reto. */
+.nn-tabela.nn-cobertura td.previsto::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: calc(-100% * (var(--meses, 1) - 1));
+  top: 50%;
+  height: 7px;
+  transform: translateY(-50%);
+  box-sizing: border-box;
+  border: 1.5px solid color-mix(in srgb, currentColor 72%, transparent);
+  border-left: 0;
+  border-right: 0;
+}
+
+.nn-tabela.nn-cobertura td.previsto.ini::before {
+  border-left: 1.5px solid color-mix(in srgb, currentColor 72%, transparent);
+}
+
+.nn-tabela.nn-cobertura td.previsto.fim::before {
+  right: calc(-100% * (var(--meses, 1) - 1) + 7px);
+  border-right: 1.5px solid color-mix(in srgb, currentColor 72%, transparent);
+}
+
+.nn-tabela.nn-cobertura td.ini::before {
+  left: 7px;
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+
+.nn-tabela.nn-cobertura td.fim::before {
+  right: 7px;
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+
+/* Marcas — as mesmas na grade e na legenda embaixo dela. */
+.nn-marca {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.nn-marca--feito {
+  width: 18px;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, currentColor 72%, transparent);
+}
+
+.nn-marca--buraco {
+  color: var(--nn-terracota);
+  font-size: 0.72rem;
+}
+
+.nn-marca--proximo {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, currentColor 72%, transparent);
+}
+
+.nn-marca--previsto {
+  width: 26px;
+  height: 7px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 1.5px solid color-mix(in srgb, currentColor 72%, transparent);
+}
+
+/* .stMain p.… porque o markdown do Streamlit fixa o tamanho de todo <p> */
+.stMain p.nn-cobertura-nota {
+  font-size: 0.82rem;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  margin: 0.5rem 0 0 !important;
+}
+
+.nn-legenda {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-right: 1.5rem;
+  white-space: nowrap;
+}
+
+/* Texto só para leitor de tela: a barra e as marcas são desenho. */
+.nn-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

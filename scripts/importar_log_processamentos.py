@@ -89,7 +89,7 @@ def _registrar(slug: str, arquivo: str, periodo: str, resumo: dict, quando: str)
         print(f"  já registrado, pulando: {arquivo}")
         return
     execution_log.registrar(pagina, str(periodo), resumo, quando=quando)
-    print(f"  [{slug}] {execution_log.periodo_humano(periodo)} · {arquivo}")
+    print(f"  [{slug}] {execution_log.periodo_codigo(periodo)} · {arquivo}")
 
 
 def _aba_unica(path: Path, slug: str, aba: str, quando_override: str | None = None) -> None:

@@ -72,7 +72,7 @@ def _painel_ultima(slug):
     detalhe = " · ".join(
         p for p in (quando, f"{linhas:,} linhas".replace(",", ".") if linhas else "") if p
     )
-    retomada(f"Último processado · {execution_log.periodo_humano(ex.periodo)}", detalhe)
+    retomada(f"Último processado · {execution_log.periodo_codigo(ex.periodo)}", detalhe)
     return ex
 
 
@@ -83,7 +83,7 @@ def _avisar_reprocesso(ultima_ex, periodo):
         quando = _tempo_relativo(ultima_ex.quando)
         data = datetime.fromisoformat(ultima_ex.quando).strftime("%d/%m")
         retomada(
-            f"{execution_log.periodo_humano(periodo)} já foi processado",
+            f"{execution_log.periodo_codigo(periodo)} já foi processado",
             f"Rodou em {data} ({quando}). Reprocessando?",
             atencao=True,
         )
@@ -532,6 +532,7 @@ def render_backoffice():
                     "total_bruto": float(total_royalties_sum),
                     "desconto_r3": float(desconto_r3),
                     "total_liquido": float(total_liquido),
+                    "moeda": "R$",
                 },
             )
 
@@ -811,6 +812,7 @@ def render_youtube():
             "arquivos": len(infos),
             "linhas": int(len(consolidated)),
             "partner_revenue_total": float(total),
+            "moeda": "US$",
             "com_problema": [nome for nome, _ in arquivos_com_problema],
         },
     )
@@ -1122,6 +1124,7 @@ def render_orchard():
             "total_bruto": float(total_bruto),
             "debito_us": float(debito),
             "total_liquido": float(total_liquido),
+            "moeda": "US$",
         },
     )
 
@@ -1237,6 +1240,7 @@ def render_aba_unica(slug):
             "linhas": int(len(preview)),
             "colunas": int(len(preview.columns)),
             "final_value_total": round(final_value_total, 2),
+            "moeda": "R$",   # Claro traz Currency Code = BRL; iMusica não diz, é OTT brasileira
         },
     )
 
@@ -1321,7 +1325,7 @@ def render_fuga():
 
     for periodo in achados:
         pasta = _fuga_pasta_destino(periodo)
-        st.success(f"**{execution_log.periodo_humano(periodo)}** → guarde em:")
+        st.success(f"**{execution_log.periodo_codigo(periodo)}** → guarde em:")
         st.code(pasta, language=None)
 
     if nao_reconhecidos:

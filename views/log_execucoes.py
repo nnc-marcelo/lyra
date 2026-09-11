@@ -11,14 +11,15 @@ que as páginas gravam.
 import html
 import json
 from datetime import datetime
+from itertools import groupby
 
 import pandas as pd
 import streamlit as st
 
 from utils import execution_log
-from utils.execution_log import MESES_PT
+from utils.execution_log import MESES_PT, mes_anterior, mes_seguinte
 from utils.page import setup_page
-from utils.ui_components import COR_ATIVO, COR_INATIVO, estado_vazio, render_html_table
+from utils.ui_components import estado_vazio
 
 setup_page(__file__)
 
@@ -27,6 +28,9 @@ setup_page(__file__)
 # "processamento_relatorios:<slug>" (e o The Orchard, um slug por catálogo).
 # Ao criar um template novo lá, registre o rótulo aqui — sem isso ele ainda
 # aparece nas duas tabelas, mas com a chave crua.
+#
+# "Grupo · Item" vira um grupo na grade (o grupo numa linha, os itens
+# recuados embaixo); na lista e no filtro o rótulo aparece inteiro.
 ROTULOS = {
     "processamento_relatorios:nikita": "Nikita Digital",
     "processamento_relatorios:backoffice": "Backoffice",
@@ -47,84 +51,238 @@ ROTULOS = {
 # A Reconciliação grava o nome da planilha, então só aparece na lista.
 NA_GRADE = [k for k in ROTULOS if k != "reconciliacao_pagamentos"]
 
+# Páginas que processam por trimestre. Para marcar outra, acrescente a chave
+# dela aqui (a mesma de ROTULOS). Na grade, isso muda duas coisas:
+#   - todo mês gravado vale o trimestre inteiro. A Warner grava só o último
+#     mês (202603 = 1º tri/2026), e sem isso jan e fev sairiam como pulados;
+#   - o próximo a processar é o trimestre seguinte, desenhado como barra
+#     vazada do tamanho que ela vai ter, e não o círculo de um mês.
+# Uma página que muda de cadência (a Luiza Possi foi trimestral em 2025 e é
+# mensal desde jan/2026) fica como é hoje: o que já foi gravado mês a mês
+# continua certo na grade, só o próximo é que segue esta lista.
+TRIMESTRAIS = {
+    "processamento_relatorios:warner",
+    "processamento_relatorios:orchard:zeeba",
+}
+
 MESES_NA_GRADE = 12
 
 # Chaves de `resumo` que servem de "total" na lista, em ordem de preferência —
 # cada página grava o total com o nome que faz sentido para ela.
 CHAVES_TOTAL = ("total_liquido", "final_value_total", "partner_revenue_total", "total_bruto")
 
+# Moeda do total para execuções gravadas antes de o `resumo` trazer "moeda"
+# (as páginas passaram a gravá-la em 09/2026). Orchard e YouTube reportam em
+# dólar; o resto, em real.
+MOEDA_POR_PAGINA = {
+    "processamento_relatorios:youtube": "US$",
+    "processamento_relatorios:orchard:": "US$",   # prefixo: vale para todo catálogo
+}
+MOEDA_PADRAO = "R$"
+
 
 def _rotulo(pagina: str) -> str:
     return ROTULOS.get(pagina, pagina)
 
 
-def _janela_meses(n: int) -> list[str]:
-    """Os últimos `n` meses (AAAAMM), terminando no mês atual, em ordem."""
-    ano, mes = datetime.now().year, datetime.now().month
-    meses = []
-    for _ in range(n):
-        meses.append(f"{ano}{mes:02d}")
-        mes -= 1
-        if mes == 0:
-            mes, ano = 12, ano - 1
+def _grupo_e_nome(rotulo: str) -> tuple[str | None, str]:
+    grupo, sep, nome = rotulo.partition(" · ")
+    return (grupo, nome) if sep else (None, rotulo)
+
+
+# ---------------------------------------------------------------------------
+# Meses (AAAAMM) e datas
+# ---------------------------------------------------------------------------
+
+def _janela_meses(hoje: datetime, n: int) -> list[str]:
+    """Os últimos `n` meses (AAAAMM), terminando no mês de `hoje`, em ordem."""
+    meses = [f"{hoje.year}{hoje.month:02d}"]
+    while len(meses) < n:
+        meses.append(mes_anterior(meses[-1]))
     return list(reversed(meses))
+
+
+def _trimestre(aaaamm: str) -> list[str]:
+    """Os três meses do trimestre civil que contém `aaaamm`."""
+    ano, mes = aaaamm[:4], int(aaaamm[4:6])
+    inicio = mes - (mes - 1) % 3
+    return [f"{ano}{m:02d}" for m in range(inicio, inicio + 3)]
 
 
 def _rotulo_mes(aaaamm: str) -> str:
     return f"{MESES_PT[int(aaaamm[4:6]) - 1]}/{aaaamm[2:4]}"
 
 
-def _ponto(feito: bool) -> str:
-    """Bolinha de status centrada na célula. `status_dot_html` traz margem à
-    direita para sentar antes de um texto; numa célula só de bolinha, isso a
-    tira do centro."""
-    cor = COR_ATIVO if feito else COR_INATIVO
-    return (
-        f'<span style="display:inline-block;width:8px;height:8px;'
-        f'border-radius:50%;background:{cor};"></span>'
-    )
+def _rotulo_trimestre(aaaamm: str) -> str:
+    return f"{(int(aaaamm[4:6]) - 1) // 3 + 1}º trimestre/{aaaamm[:4]}"
 
 
-def _quando_fmt(iso: str, com_hora: bool = True) -> str:
+def _data(iso: str) -> datetime | None:
     try:
-        dt = datetime.fromisoformat(iso)
+        return datetime.fromisoformat(iso)
     except (TypeError, ValueError):
-        return iso
-    return dt.strftime("%d/%m/%Y %H:%M" if com_hora else "%d/%m/%Y")
+        return None
+
+
+def _data_fmt(iso: str) -> str:
+    dt = _data(iso)
+    return dt.strftime("%d/%m/%Y") if dt else str(iso)
 
 
 # ---------------------------------------------------------------------------
-# Grade mensal
+# Grade mensal — uma faixa de cobertura por página
 # ---------------------------------------------------------------------------
+# Meses processados em sequência formam uma barra contínua. A cor fica só para
+# a exceção: um mês pulado entre dois processados quebra a barra com o ▲
+# terracota das Pendências do Home. O próximo a processar — o mês seguinte ao
+# último, ou o trimestre seguinte nas páginas de TRIMESTRAIS — sai vazado: é a
+# `retomada` de cada página, lida de uma vez. Ele diz "é o próximo", nunca
+# "está atrasado": cada distribuidora tem atraso próprio (a Claro chega meses
+# depois), e isso o log não sabe.
+#
+# O desenho mora em assets/theme.css (.nn-cobertura); aqui só a marcação.
+
+def _sr(texto: str) -> str:
+    """Texto só para leitor de tela — a barra e as marcas são desenho."""
+    return f'<span class="nn-sr">{html.escape(texto)}</span>'
+
+
+def _celulas(pagina: str, meses: list[str], cobertos: set[str], quando: dict, trimestral: bool) -> str:
+    primeiro, ultimo = min(cobertos), max(cobertos)
+    proximo = mes_seguinte(ultimo)
+    # Numa página trimestral o último processado sempre fecha um trimestre
+    # (_grade expande cada mês gravado para o trimestre dele), então isto é o
+    # trimestre seguinte inteiro.
+    proximos = [m for m in _trimestre(proximo) if m >= proximo] if trimestral else [proximo]
+    proximos_na_janela = [m for m in proximos if m in meses]
+    rotulo = _rotulo_trimestre if trimestral else _rotulo_mes
+    celulas = []
+    for i, m in enumerate(meses):
+        classes = ["m"]
+        if i and m[:4] != meses[i - 1][:4]:
+            classes.append("virada")
+        titulo = conteudo = estilo = ""
+        if m in cobertos:
+            # A barra só arredonda onde a sequência começa ou termina de
+            # verdade — se o mês vizinho (mesmo fora da janela) também foi
+            # processado, ela segue reta até a borda.
+            classes.append("feito")
+            if mes_anterior(m) not in cobertos:
+                classes.append("ini")
+            if mes_seguinte(m) not in cobertos:
+                classes.append("fim")
+            titulo = f"{rotulo(m)}: processado em {_data_fmt(quando[(pagina, m)])}"
+            conteudo = _sr("processado")
+        elif primeiro < m < ultimo:
+            classes.append("buraco")
+            titulo = f"{rotulo(m)}: pulado, há processamento antes e depois"
+            # Trimestre pulado é uma falta só: um ▲, no mês do meio.
+            if not trimestral or int(m[4:6]) % 3 == 2:
+                conteudo = '<span class="nn-marca nn-marca--buraco" aria-hidden="true">▲</span>'
+            conteudo += _sr("pulado")
+        elif m in proximos and trimestral:
+            titulo = f"{rotulo(m)}: próximo a processar"
+            conteudo = _sr("próximo")
+            # A barra vazada é uma peça só: desenhada na primeira célula do
+            # trimestre e esticada sobre as seguintes (--meses). Em três
+            # pedaços, as pontas arredondadas saíam suavizadas e o mês do meio
+            # nítido, e o fio fazia degrau na emenda.
+            if m == proximos_na_janela[0]:
+                classes.append("previsto")
+                if m == proximos[0]:
+                    classes.append("ini")
+                if proximos_na_janela[-1] == proximos[-1]:
+                    classes.append("fim")
+                estilo = f' style="--meses: {len(proximos_na_janela)}"'
+        elif m in proximos:
+            titulo = f"{rotulo(m)}: próximo a processar"
+            conteudo = '<span class="nn-marca nn-marca--proximo" aria-hidden="true"></span>' + _sr("próximo")
+        atributo_titulo = f' title="{html.escape(titulo)}"' if titulo else ""
+        celulas.append(f'<td class="{" ".join(classes)}"{atributo_titulo}{estilo}>{conteudo}</td>')
+    return "".join(celulas)
+
+
+def _lista_por_extenso(nomes: list[str]) -> str:
+    return nomes[0] if len(nomes) == 1 else f"{', '.join(nomes[:-1])} e {nomes[-1]}"
+
 
 def _grade(execucoes: list[execution_log.Execucao]) -> None:
-    meses = _janela_meses(MESES_NA_GRADE)
+    meses = _janela_meses(datetime.now(), MESES_NA_GRADE)
 
-    # (página, mês) -> quando foi a última execução daquele mês
-    feito: dict[tuple[str, str], str] = {}
+    # (página, mês) -> quando rodou por último para aquele mês. ISO ordena como
+    # texto, então max() basta — e não depende da ordem de gravação, que a
+    # importação de histórico embaralha.
+    # Página trimestral: o mês gravado vale o trimestre todo.
+    quando: dict[tuple[str, str], str] = {}
     for ex in execucoes:
-        for m in execution_log.meses_do_periodo(ex.periodo):
-            feito[(ex.pagina, m)] = ex.quando
+        for mes in execution_log.meses_do_periodo(ex.periodo):
+            for m in _trimestre(mes) if ex.pagina in TRIMESTRAIS else [mes]:
+                quando[(ex.pagina, m)] = max(quando.get((ex.pagina, m), ""), ex.quando)
+
+    cobertos: dict[str, set[str]] = {}
+    for p, m in quando:
+        cobertos.setdefault(p, set()).add(m)
 
     # Linhas: as esperadas, na ordem de ROTULOS, mais qualquer página que
     # apareça no log com um mês reconhecível e não esteja registrada aqui.
-    extras = sorted({p for (p, _m) in feito} - set(ROTULOS))
-    paginas = NA_GRADE + extras
+    # As que nunca gravaram um mês viram uma frase embaixo da grade — uma linha
+    # inteira vazia não diz nada que o nome sozinho não diga.
+    paginas = [p for p in NA_GRADE if p in cobertos] + sorted(set(cobertos) - set(ROTULOS))
+    sem_periodo = [_rotulo(p) for p in NA_GRADE if p not in cobertos]
 
-    headers = ["Página"] + [_rotulo_mes(m) for m in meses]
-    rows = []
-    for p in paginas:
-        celulas = [f"<td>{html.escape(_rotulo(p))}</td>"]
-        for m in meses:
-            quando = feito.get((p, m))
-            titulo = f'title="Processado em {_quando_fmt(quando)}"' if quando else ""
-            celulas.append(f'<td style="text-align:center" {titulo}>{_ponto(quando is not None)}</td>')
-        rows.append("<tr>" + "".join(celulas) + "</tr>")
+    notas = []
+    if paginas:
+        anos = [(ano, len(list(ms))) for ano, ms in groupby(meses, key=lambda m: m[:4])]
+        linha_anos = '<th rowspan="2" class="rotulo" scope="col">Página</th>' + "".join(
+            f'<th colspan="{n}" class="ano{" virada" if i else ""}" scope="colgroup">{ano}</th>'
+            for i, (ano, n) in enumerate(anos)
+        )
+        linha_meses = "".join(
+            f'<th class="m{" virada" if i and m[:4] != meses[i - 1][:4] else ""}" scope="col">'
+            f"{MESES_PT[int(m[4:6]) - 1]}</th>"
+            for i, m in enumerate(meses)
+        )
 
-    render_html_table(headers, rows, max_height="520px", translucent=False)
-    st.caption(
-        "Mês = período do relatório, não a data em que você rodou. Verde: houve "
-        "pelo menos uma execução daquele período — passe o mouse para ver quando."
+        linhas, grupo_atual = [], None
+        for p in paginas:
+            grupo, nome = _grupo_e_nome(_rotulo(p))
+            if grupo and grupo != grupo_atual:
+                linhas.append(
+                    f'<tr class="grupo"><th colspan="{len(meses) + 1}" scope="rowgroup">'
+                    f"{html.escape(grupo)}</th></tr>"
+                )
+            grupo_atual = grupo
+            classe_rotulo = "rotulo item" if grupo else "rotulo"
+            linhas.append(
+                f'<tr><th class="{classe_rotulo}" scope="row">{html.escape(nome)}</th>'
+                f"{_celulas(p, meses, cobertos[p], quando, p in TRIMESTRAIS)}</tr>"
+            )
+
+        st.markdown(
+            '<div class="nn-tabela nn-cobertura"><table>'
+            f"<thead><tr>{linha_anos}</tr><tr>{linha_meses}</tr></thead>"
+            f"<tbody>{''.join(linhas)}</tbody></table></div>",
+            unsafe_allow_html=True,
+        )
+        legenda = [
+            '<span class="nn-marca nn-marca--feito"></span>processado',
+            '<span class="nn-marca nn-marca--buraco">▲</span>mês pulado entre dois processados',
+            '<span class="nn-marca nn-marca--proximo"></span>próximo mês a processar',
+        ]
+        if any(p in TRIMESTRAIS for p in paginas):
+            legenda.append('<span class="nn-marca nn-marca--previsto"></span>próximo trimestre a processar')
+        notas.append("".join(f'<span class="nn-legenda">{item}</span>' for item in legenda))
+        notas.append(
+            "O mês é o do período do relatório, não o dia em que rodou. Passe o "
+            "mouse sobre a barra para ver quando rodou."
+        )
+
+    if sem_periodo:
+        notas.append(f"Sem período registrado ainda: {html.escape(_lista_por_extenso(sem_periodo))}.")
+
+    st.markdown(
+        "".join(f'<p class="nn-cobertura-nota">{n}</p>' for n in notas),
+        unsafe_allow_html=True,
     )
 
 
@@ -140,6 +298,41 @@ def _total(resumo: dict) -> float | None:
             except (TypeError, ValueError):
                 return None
     return None
+
+
+def _moeda(ex: execution_log.Execucao) -> str:
+    if ex.resumo.get("moeda"):
+        return str(ex.resumo["moeda"])
+    for prefixo, moeda in MOEDA_POR_PAGINA.items():
+        if ex.pagina.startswith(prefixo):
+            return moeda
+    return MOEDA_PADRAO
+
+
+def _dinheiro(valor: float | None, moeda: str) -> str:
+    if valor is None:
+        return ""
+    return f"{moeda} " + f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _arquivo(resumo: dict) -> str:
+    """Cada página grava o(s) arquivo(s) de um jeito: um nome em "arquivo", ou
+    em "arquivos" uma lista de nomes ou só a contagem."""
+    if isinstance(resumo.get("arquivo"), str):
+        return resumo["arquivo"]
+    arquivos = resumo.get("arquivos")
+    if isinstance(arquivos, list) and arquivos:
+        return arquivos[0] if len(arquivos) == 1 else f"{arquivos[0]} e mais {len(arquivos) - 1}"
+    if isinstance(arquivos, int) and arquivos:
+        return f"{arquivos} arquivos" if arquivos > 1 else "1 arquivo"
+    return ""
+
+
+def _origem(resumo: dict) -> str:
+    # scripts/importar_log_processamentos.py grava "importado do arquivo (Z:)…";
+    # as páginas não gravam "origem". Só vai para o CSV: na tela, a única
+    # diferença visível era a hora (importado não tem), e a hora saiu.
+    return "Importado" if str(resumo.get("origem", "")).startswith("importado") else "Rodado no Lyra"
 
 
 def _periodo_ordenavel(periodo: str) -> str:
@@ -164,41 +357,55 @@ def _lista(execucoes: list[execution_log.Execucao]) -> None:
         reverse=True,
     )
 
-    linhas = [
-        {
-            "Quando": datetime.fromisoformat(ex.quando),
+    # Duas versões das mesmas linhas: a da tela (legível, total com moeda) e a
+    # do CSV (valores crus, origem e o resumo inteiro, para quem for conferir
+    # no Excel).
+    tela, csv = [], []
+    for ex in ordenadas:
+        if filtro != "Todas" and _rotulo(ex.pagina) != filtro:
+            continue
+        total = _total(ex.resumo)
+        moeda = _moeda(ex) if total is not None else ""
+        comum = {
             "Página": _rotulo(ex.pagina),
-            "Período": execution_log.periodo_humano(ex.periodo),
-            "Linhas": ex.resumo.get("linhas"),
-            "Total": _total(ex.resumo),
-            "Resumo": json.dumps(ex.resumo, ensure_ascii=False),
+            "Período": execution_log.periodo_codigo(ex.periodo),
         }
-        for ex in ordenadas
-        if filtro == "Todas" or _rotulo(ex.pagina) == filtro
-    ]
-    df = pd.DataFrame(linhas)
-    # Página que não grava a chave vem como None; sem isso o st.dataframe
-    # imprime "None" em vez de deixar a célula vazia.
-    for col in ("Linhas", "Total"):
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        tela.append({
+            "Data": _data(ex.quando),
+            **comum,
+            "Total": _dinheiro(total, moeda),
+            "Arquivo": _arquivo(ex.resumo),
+        })
+        csv.append({
+            "Quando": ex.quando,
+            **comum,
+            "Total": total,
+            "Moeda": moeda,
+            "Origem": _origem(ex.resumo),
+            "Arquivo": _arquivo(ex.resumo),
+            "Resumo": json.dumps(ex.resumo, ensure_ascii=False),
+        })
+
+    df = pd.DataFrame(tela)
+    df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
 
     st.dataframe(
         df,
         hide_index=True,
         width="stretch",
         column_config={
-            "Quando": st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm"),
-            "Linhas": st.column_config.NumberColumn(format="%d"),
-            "Total": st.column_config.NumberColumn(format="%.2f"),
-            "Resumo": st.column_config.TextColumn(
-                help="Tudo que a página gravou nessa execução. Clique duas vezes na célula para ver inteiro."
+            "Data": st.column_config.DateColumn(format="DD/MM/YYYY"),
+            "Total": st.column_config.TextColumn(
+                help="Na moeda do relatório — dólar e real não se comparam. É o total "
+                "que cada página grava: líquido no Orchard e no Backoffice, FinalValue "
+                "na iMusica e na Claro, Partner Revenue no YouTube."
             ),
         },
     )
 
     st.download_button(
         "Baixar log em CSV",
-        data=df.to_csv(index=False).encode("utf-8-sig"),
+        data=pd.DataFrame(csv).to_csv(index=False).encode("utf-8-sig"),
         file_name="log_execucoes.csv",
         mime="text/csv",
         icon=":material/download:",
