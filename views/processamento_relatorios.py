@@ -108,6 +108,72 @@ def _periodos_dos_nomes(nomes, default="?"):
         achados += re.findall(r"\d{6,8}", n)
     return " · ".join(sorted(set(achados))) or default
 
+
+# Cada distribuidora grava o período do relatório num formato diferente dentro
+# do próprio conteúdo — nunca no nome do arquivo, que costuma trazer só um ID
+# de deal/statement (foi assim que "202602" nunca apareceu pra Nikita, cujo
+# nome de arquivo é "Polaroides Music-22793_DSP.xlsx"). `_periodo_de_texto`
+# reconhece os formatos vistos nos relatórios reais:
+#   - dd/mm/aaaa e mm/aaaa                  (coluna Period: iMusica, Claro Música)
+#   - aaaaMm / aaaaMmm                      (coluna Period do xlsx: The Orchard)
+#   - mês por extenso + ano ("April 2026")  (coluna STATEMENT PERIOD do csv: The Orchard)
+#   - abreviação de 3 letras + ano de 2 dígitos ("Jan26")  (coluna Período: Nikita)
+#   - AAAAMM/AAAAMMDD cru                   (fallback genérico)
+_MESES_ABREV = {m: i + 1 for i, m in enumerate(execution_log.MESES_PT)}
+_MESES_ABREV.update(feb=2, apr=4, may=5, aug=8, sep=9, oct=10, dec=12)
+_MESES_COMPLETOS = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+    "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3, "abril": 4, "maio": 5, "junho": 6,
+    "julho": 7, "agosto": 8, "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
+}
+
+
+def _periodo_de_texto(v):
+    """Reconhece um período AAAAMM num valor de coluna (ver formatos acima).
+    `None` quando não reconhece — quem chama decide o que fazer (cair para o
+    nome do arquivo, tentar outra coluna, etc.)."""
+    s = str(v).strip()
+    if not s:
+        return None
+    # data com hora ("01/02/2026 00:00:00" — Period do iMusica): tira a hora
+    # antes de comparar, senão o fullmatch da data falha por sobra de texto.
+    s = re.sub(r"\s+\d{1,2}:\d{2}(:\d{2})?$", "", s)
+
+    m = re.fullmatch(r"(\d{4})\s*[Mm]\s*(\d{1,2})", s)
+    if m and 1 <= int(m.group(2)) <= 12:
+        return f"{m.group(1)}{int(m.group(2)):02d}"
+
+    m = re.fullmatch(r"(?:(\d{1,2})/)?(\d{1,2})/(\d{4})", s)
+    if m and 1 <= int(m.group(2)) <= 12:
+        return f"{m.group(3)}{int(m.group(2)):02d}"
+
+    m = re.fullmatch(r"([A-Za-zÀ-ú]+)\.?\s*[/ -]?\s*(\d{2,4})", s)
+    if m:
+        mes = _MESES_COMPLETOS.get(m.group(1).lower()) or _MESES_ABREV.get(m.group(1).lower()[:3])
+        if mes:
+            ano = m.group(2) if len(m.group(2)) == 4 else f"20{m.group(2)}"
+            return f"{ano}{mes:02d}"
+
+    if re.fullmatch(r"\d{6,8}", s) and 1 <= int(s[4:6]) <= 12:
+        return s[:6]
+
+    return None
+
+
+def _periodo_da_coluna(df, colunas):
+    """Período(s) AAAAMM a partir da primeira coluna de `colunas` presente em
+    `df` cujos valores `_periodo_de_texto` reconhece. `None` se nenhuma bater
+    — quem chama cai então para `_periodos_dos_nomes`."""
+    for coluna in colunas:
+        if coluna not in df.columns:
+            continue
+        meses = {m for m in (_periodo_de_texto(v) for v in df[coluna].dropna().unique()) if m}
+        if meses:
+            return " · ".join(sorted(meses))
+    return None
+
+
 # ============================================================================
 # TEMPLATE: NIKITA DIGITAL
 # ============================================================================
@@ -134,6 +200,22 @@ def build_single_sheet(raw_bytes, keep_idx):
     return out, keep_name
 
 
+def _nikita_periodo(raw, sheets, nome_arquivo):
+    """O nome do arquivo do Nikita carrega o ID do deal/statement, não o
+    período (ex.: 'Polaroides Music-22793_DSP.xlsx') — só a coluna 'Período'
+    dentro da planilha tem isso ('Jan26'). Tenta cada aba até achar uma com
+    essa coluna; cai para o nome do arquivo se nenhuma tiver."""
+    for nome_aba in sheets:
+        try:
+            df = pd.read_excel(io.BytesIO(raw), sheet_name=nome_aba, nrows=2000)
+        except Exception:
+            continue
+        periodo = _periodo_da_coluna(df, ("Período", "Period"))
+        if periodo:
+            return periodo
+    return _periodos_dos_nomes([nome_arquivo])
+
+
 def render_nikita():
     ultima_ex = _painel_ultima("nikita")
 
@@ -147,7 +229,7 @@ def render_nikita():
 
     st.success(f"Arquivo carregado com {len(sheets)} aba(s). Baixe cada relatório abaixo:")
 
-    periodo = _periodos_dos_nomes([uploaded.name])
+    periodo = _nikita_periodo(raw, sheets, uploaded.name)
     _avisar_reprocesso(ultima_ex, periodo)
 
     saidas_ok = []
@@ -896,6 +978,14 @@ ORCHARD_CSV_TERRITORY = "SALE COUNTRY"
 ORCHARD_CSV_USA = {"USA", "UNITED STATES", "UNITED STATES OF AMERICA"}
 ORCHARD_XLSX_NET = "Label Share Net Receipts"
 ORCHARD_XLSX_TERRITORY = "Territory"
+# STATEMENT PERIOD / Period: a coluna "de verdade" pro período do relatório —
+# ao contrário de TRANSACTION DATE / Activity Period (linha a linha, cheias de
+# ajuste retroativo de anos anteriores). ORIGINAL STATEMENT PERIOD vem primeiro
+# porque, num arquivo consolidando vários meses, STATEMENT PERIOD some (NaN)
+# nas linhas de ajuste retroativo de um mês anterior — ORIGINAL não, é sempre
+# o período a que a transação pertencia originalmente.
+ORCHARD_CSV_PERIODO = ("ORIGINAL STATEMENT PERIOD", "STATEMENT PERIOD")
+ORCHARD_XLSX_PERIODO = ("Period",)
 
 
 def _orchard_coerce_number(series):
@@ -916,27 +1006,31 @@ def _orchard_fmt_money(x):
 
 def _orchard_read_one(name, raw):
     """Lê um relatório do The Orchard (.csv ou .xlsx).
-    Retorna (df, net_col, territory_col, is_csv, info) ou (None, ..., info)."""
+    Retorna (df, net_col, territory_col, is_csv, info, periodo) ou (None, ..., info, None)."""
     is_csv = name.lower().endswith(".csv")
     try:
         if is_csv:
-            df = pd.read_csv(io.BytesIO(raw), low_memory=False)
-            net_col, ter_col = ORCHARD_CSV_NET, ORCHARD_CSV_TERRITORY
+            # utf-8-sig: os exports do Orchard vêm com BOM, que sem isso gruda
+            # no nome da primeira coluna do arquivo ('STATEMENT PERIOD') e
+            # quebra tanto a leitura por nome quanto a detecção de período.
+            df = pd.read_csv(io.BytesIO(raw), low_memory=False, encoding="utf-8-sig")
+            net_col, ter_col, per_cols = ORCHARD_CSV_NET, ORCHARD_CSV_TERRITORY, ORCHARD_CSV_PERIODO
         else:
             df = pd.read_excel(io.BytesIO(raw), engine="openpyxl")
-            net_col, ter_col = ORCHARD_XLSX_NET, ORCHARD_XLSX_TERRITORY
+            net_col, ter_col, per_cols = ORCHARD_XLSX_NET, ORCHARD_XLSX_TERRITORY, ORCHARD_XLSX_PERIODO
     except Exception as e:
-        return None, None, None, is_csv, f"erro ao ler: {e}"
+        return None, None, None, is_csv, f"erro ao ler: {e}", None
 
     if net_col not in df.columns or ter_col not in df.columns:
         return None, None, None, is_csv, (
             f"colunas esperadas não encontradas ('{net_col}' e '{ter_col}')"
-        )
+        ), None
 
     df[net_col] = _orchard_coerce_number(df[net_col])
     df[ter_col] = df[ter_col].astype(str).str.strip()
     total = float(df[net_col].sum())
-    return df, net_col, ter_col, is_csv, f"{len(df):,} linhas · {_orchard_fmt_money(total)}"
+    periodo = _periodo_da_coluna(df, per_cols) or _periodos_dos_nomes([name])
+    return df, net_col, ter_col, is_csv, f"{len(df):,} linhas · {_orchard_fmt_money(total)}", periodo
 
 
 def _orchard_apply_withholding(df, net_col, ter_col, is_csv):
@@ -976,9 +1070,10 @@ def render_orchard():
     frames, resumo = [], []
     total_bruto = total_liquido = 0.0
     n_us_linhas = 0
+    meses = set()
 
     for f in uploaded_files:
-        df, net_col, ter_col, is_csv, info = _orchard_read_one(f.name, f.getvalue())
+        df, net_col, ter_col, is_csv, info, periodo_arq = _orchard_read_one(f.name, f.getvalue())
         if df is None:
             resumo.append((f.name, info, None, None))
             continue
@@ -988,6 +1083,8 @@ def render_orchard():
         total_liquido += liquido
         n_us_linhas += n_us
         resumo.append((f.name, info, bruto, liquido))
+        if periodo_arq:
+            meses.update(periodo_arq.split(" · "))
 
     with st.expander(f"Arquivos lidos ({len(uploaded_files)})", expanded=True):
         for nome, info, bruto, liquido in resumo:
@@ -1010,7 +1107,7 @@ def render_orchard():
         f"{len(frames)} relatório(s)."
     )
 
-    periodo = _periodos_dos_nomes([f.name for f in uploaded_files])
+    periodo = " · ".join(sorted(meses)) or _periodos_dos_nomes([f.name for f in uploaded_files])
     _avisar_reprocesso(ultima_ex, periodo)
     _registrar_uma_vez(
         f"orchard:{slug}",
@@ -1087,21 +1184,6 @@ ABA_UNICA = {
 }
 
 
-def _periodo_da_coluna(preview, nome_arquivo, coluna="Period"):
-    """Período(s) no formato AAAAMM a partir de uma coluna de data. Aceita
-    `dd/mm/aaaa` (iMusica) e `mm/aaaa` (Claro Música). Fallback: código de
-    6-8 dígitos do nome do arquivo."""
-    if coluna in preview.columns:
-        meses = set()
-        for v in preview[coluna].dropna().astype(str).unique():
-            m = re.search(r"(?:\d{1,2}/)?(\d{1,2})/(\d{4})", v.strip())
-            if m and 1 <= int(m.group(1)) <= 12:
-                meses.add(f"{m.group(2)}{int(m.group(1)):02d}")
-        if meses:
-            return " · ".join(sorted(meses))
-    return _periodos_dos_nomes([nome_arquivo])
-
-
 def _manter_aba(raw_bytes, keep_name):
     """Retorna um xlsx em memória contendo apenas a aba `keep_name`."""
     wb = openpyxl.load_workbook(io.BytesIO(raw_bytes))
@@ -1136,7 +1218,7 @@ def render_aba_unica(slug):
     preview = pd.read_excel(io.BytesIO(raw), sheet_name=aba)
     st.success(f"Aba '{aba}' encontrada: {len(preview):,} linhas · {len(preview.columns)} colunas.")
 
-    periodo = _periodo_da_coluna(preview, uploaded.name)
+    periodo = _periodo_da_coluna(preview, ("Period",)) or _periodos_dos_nomes([uploaded.name])
     final_value_total = float(
         pd.to_numeric(
             preview.get("FinalValue", pd.Series(dtype=str)).astype(str).str.replace(",", ".", regex=False),
