@@ -17,7 +17,7 @@ pd.set_option('display.max_colwidth', None)
 
 setup_page(__file__)
 
-template = st.selectbox("Selecione o template do relatório:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell", "The Orchard", "iMusica (OTT)", "Claro Música"])
+template = st.selectbox("Selecione o template do relatório:", ["Nikita Digital", "Backoffice", "YouTube (Consolidação)", "Warner Chappell", "The Orchard", "iMusica (OTT)", "Claro Música", "FUGA"])
 
 
 # ============================================================================
@@ -1253,6 +1253,94 @@ def render_aba_unica(slug):
 
 
 # ============================================================================
+# TEMPLATE: FUGA
+# ============================================================================
+
+# O FUGA não precisa de nenhum ajuste no arquivo — o valor deste branch é só
+# manter o log enriquecido (retomada + tela de Log de execuções) e agilizar a
+# organização, mostrando de cara a pasta onde o arquivo deve ser guardado.
+#
+# O período aqui é o mês do relatório/fechamento (ex.: "July2026" no nome do
+# arquivo), não o das linhas de venda (Sale Start/End date podem trazer meses
+# anteriores por ajuste retroativo) — por isso é extraído do NOME do arquivo,
+# ao contrário dos outros templates. Reaproveita `_periodo_de_texto`, que já
+# reconhece "July2026" (mês por extenso colado no ano).
+
+FUGA_PASTA_BASE = r"Z:\ROYALTY\_PROCESSAMENTOS_\Arquivos processamento"
+
+
+def _fuga_periodo_do_nome(nome_arquivo):
+    """Período AAAAMM a partir de um token 'MêsPorExtensoAAAA' (ex.: 'July2026')
+    no nome do arquivo. `None` se não achar."""
+    for token in re.findall(r"[A-Za-zÀ-ú]+\d{4}", nome_arquivo):
+        periodo = _periodo_de_texto(token)
+        if periodo:
+            return periodo
+    return None
+
+
+def _fuga_pasta_destino(periodo):
+    """AAAAMM -> caminho 'FUGA_PASTA_BASE\\AAAA\\MM. Mon AA\\FUGA'."""
+    ano, mes = periodo[:4], int(periodo[4:6])
+    mes_abrev = execution_log.MESES_PT[mes - 1].capitalize()
+    return f"{FUGA_PASTA_BASE}\\{ano}\\{mes:02d}. {mes_abrev} {ano[2:]}\\FUGA"
+
+
+def render_fuga():
+    st.caption(
+        "O FUGA não precisa de nenhum ajuste — este passo só identifica o período "
+        "e mostra a pasta onde guardar os arquivos."
+    )
+
+    ultima_ex = _painel_ultima("fuga")
+
+    uploaded_files = st.file_uploader(
+        "Faça o upload dos relatórios do FUGA",
+        accept_multiple_files=True,
+        key="fuga_files",
+    )
+    if not uploaded_files:
+        st.info("Suba um ou mais arquivos do FUGA para ver a pasta de destino.")
+        return
+
+    periodos = {}
+    for f in uploaded_files:
+        periodos[f.name] = _fuga_periodo_do_nome(f.name)
+
+    achados = sorted({p for p in periodos.values() if p})
+    nao_reconhecidos = [nome for nome, p in periodos.items() if p is None]
+
+    if not achados:
+        st.error("Não consegui identificar o período pelo nome do(s) arquivo(s).")
+        return
+
+    if len(achados) > 1:
+        st.warning(f"Os arquivos trazem períodos diferentes: {' · '.join(achados)}.")
+
+    for periodo in achados:
+        pasta = _fuga_pasta_destino(periodo)
+        st.success(f"**{execution_log.periodo_humano(periodo)}** → guarde em:")
+        st.code(pasta, language=None)
+
+    if nao_reconhecidos:
+        st.warning(
+            "Sem período reconhecível no nome: " + " · ".join(nao_reconhecidos)
+        )
+
+    periodo_log = " · ".join(achados)
+    _avisar_reprocesso(ultima_ex, periodo_log)
+    _registrar_uma_vez(
+        "fuga",
+        sorted(f.name for f in uploaded_files),
+        periodo_log,
+        {
+            "arquivos": [f.name for f in uploaded_files],
+            "pastas": {p: _fuga_pasta_destino(p) for p in achados},
+        },
+    )
+
+
+# ============================================================================
 # ROTEAMENTO POR TEMPLATE
 # ============================================================================
 
@@ -1272,3 +1360,5 @@ elif template == "iMusica (OTT)":
     render_aba_unica("imusica")
 elif template == "Claro Música":
     render_aba_unica("claro")
+elif template == "FUGA":
+    render_fuga()
