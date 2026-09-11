@@ -39,16 +39,21 @@ class Execucao:
     resumo: dict[str, Any]
 
 
-def registrar(pagina: str, periodo: str, resumo: dict[str, Any]) -> None:
+def registrar(pagina: str, periodo: str, resumo: dict[str, Any], quando: str | None = None) -> None:
     """Acrescenta uma linha ao log. `resumo` é de livre escolha da página
     (cada uma sabe o que vale registrar), mas precisa ser serializável em
     JSON puro — valores numpy/pandas devem virar float/int antes de chegar
-    aqui, senão o `json.dumps` quebra."""
+    aqui, senão o `json.dumps` quebra.
+
+    `quando` normalmente é omitido (vira "agora"); existe só para os scripts
+    de importação de histórico (ex.: scripts/importar_log_processamentos.py),
+    que reconstroem execuções passadas a partir de arquivos já arquivados e
+    usam a data de modificação do arquivo como proxy de quando rodou."""
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     execucao = Execucao(
         pagina=pagina,
         periodo=periodo,
-        quando=datetime.now().isoformat(timespec="seconds"),
+        quando=quando or datetime.now().isoformat(timespec="seconds"),
         resumo=resumo,
     )
     with LOG_PATH.open("a", encoding="utf-8") as f:
