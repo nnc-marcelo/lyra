@@ -4,15 +4,20 @@ processados manualmente e arquivados em
 Z:\\ROYALTY\\_PROCESSAMENTOS_\\Arquivos processamento — reconstrói o histórico
 que existia antes do log existir.
 
-Só entra o que tem PROVA de ter passado pelo Processamento de relatórios: o
-nome do arquivo bate exatamente com o que aquele template exporta
-("..._Database.xlsx", "..._Detailed Consumption.xlsx",
-"the_orchard_<catálogo>_consolidado_withholding...") — não com o nome do
-arquivo baixado da distribuidora. A pasta de arquivamento mistura os dois:
-tem catálogo do Orchard (Midas, MZA — que nem estão em ORCHARD_CATALOGOS
-ainda) e trimestre da Luiza Possi (2026T02, em Jul/26) com só o download
-bruto ao lado, sem o consolidado_withholding — não foi processado ainda, e
-por isso fica de fora.
+Só entra o que tem PROVA de ter passado por uma das duas ferramentas de
+withholding do app — o nome do arquivo bate com o que cada uma exporta, não
+com o nome baixado da distribuidora:
+  - Processamento de relatórios: "..._Database.xlsx", "..._Detailed
+    Consumption.xlsx", "the_orchard_<catálogo>_consolidado_withholding...";
+  - Withholding calculator (views/withholding_calculator.py): qualquer
+    "<original>_withholding_excluded.csv/.xlsx" — é o padrão dela
+    (`adjust_file_name`), sem catálogo no nome. Pra saber de qual catálogo do
+    Orchard é, usa a pasta em que o arquivo está (ver PASTA_PARA_SLUG) — é
+    assim que Midas, MZA e a Luiza Possi (quando processada por essa
+    ferramenta em vez da outra) entram no log.
+
+Em nenhum dos dois casos o desconto é reaplicado — o arquivo já saiu líquido
+da ferramenta que o gerou; aqui só se lê o total e o período.
 
 Uso:
     python scripts/importar_log_processamentos.py "Z:\\ROYALTY\\_PROCESSAMENTOS_\\Arquivos processamento\\2026\\07. Jul 26"
@@ -39,6 +44,26 @@ from utils import execution_log  # noqa: E402
 from views.processamento_relatorios import _periodo_da_coluna  # noqa: E402
 
 PAGINA_BASE = "processamento_relatorios"
+
+# Só usado pra descobrir o catálogo dos arquivos "*_withholding_excluded"
+# (o padrão do withholding_calculator não inclui o catálogo no nome). Chave
+# em minúsculas do nome da pasta -> slug de ORCHARD_CATALOGOS.
+PASTA_PARA_SLUG = {
+    "luiza possi": "luiza_possi",
+    "zeeba": "zeeba",
+    "midas": "midas",
+    "mza": "mza",
+}
+
+
+def _slug_pela_pasta(path: Path) -> str | None:
+    """Testa a pasta do arquivo e a de cima — cobre tanto 'Midas/arquivo.csv'
+    quanto 'Luiza Possi/2026T02/arquivo.csv' (uma pasta de trimestre no meio)."""
+    for ancestro in (path.parent, path.parent.parent):
+        slug = PASTA_PARA_SLUG.get(ancestro.name.strip().lower())
+        if slug:
+            return slug
+    return None
 
 
 def _quando_do_arquivo(path: Path) -> str:
@@ -81,14 +106,11 @@ def _aba_unica(path: Path, slug: str, aba: str) -> None:
     _registrar(slug, arquivo_original, periodo, resumo, _quando_do_arquivo(path))
 
 
-def _orchard(path: Path) -> None:
-    """The Orchard: o arquivo já é o consolidado com withholding aplicado —
-    não dá pra reconstruir bruto/débito (isso exigiria o(s) arquivo(s) de
-    entrada, que não sobrevivem à consolidação), só o total líquido."""
-    m = re.match(r"the_orchard_(.+?)_consolidado_withholding", path.name)
-    if not m:
-        return
-    slug = m.group(1)
+def _orchard_processado(path: Path, slug: str, origem: str) -> None:
+    """Um arquivo do Orchard que já saiu com o withholding aplicado — de
+    qualquer uma das duas ferramentas. Só lê total líquido e período; NUNCA
+    reaplica o desconto (já está aplicado, reaplicar dobraria o desconto nas
+    linhas dos EUA)."""
     raw = path.read_bytes()
     is_csv = path.suffix.lower() == ".csv"
     try:
@@ -123,7 +145,7 @@ def _orchard(path: Path) -> None:
         "arquivo": path.name,
         "linhas": int(len(df)),
         "total_liquido": round(total_liquido, 2),
-        "origem": "importado do arquivo (Z:) — já consolidado, sem bruto/débito",
+        "origem": origem,
     }
     _registrar(f"orchard:{slug}", path.name, periodo, resumo, _quando_do_arquivo(path))
 
@@ -143,8 +165,17 @@ def importar(pasta: str) -> None:
             encontrados += 1
             _aba_unica(path, "claro", "Detailed Consumption")
         elif nome.startswith("the_orchard_") and "_consolidado_withholding" in nome:
+            m = re.match(r"the_orchard_(.+?)_consolidado_withholding", nome)
+            if m:
+                encontrados += 1
+                _orchard_processado(path, m.group(1), "importado do arquivo (Z:) — Processamento de relatórios")
+        elif nome.endswith("_withholding_excluded.csv") or nome.endswith("_withholding_excluded.xlsx"):
+            slug = _slug_pela_pasta(path)
+            if slug is None:
+                print(f"  [orchard] não sei o catálogo de '{nome}' (pasta '{path.parent.name}'), pulando")
+                continue
             encontrados += 1
-            _orchard(path)
+            _orchard_processado(path, slug, "importado do arquivo (Z:) — Withholding calculator")
     print(f"\n{encontrados} arquivo(s) reconhecido(s) como já processado(s).")
 
 

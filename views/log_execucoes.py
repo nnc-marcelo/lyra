@@ -34,6 +34,8 @@ ROTULOS = {
     "processamento_relatorios:warner": "Warner Chappell",
     "processamento_relatorios:orchard:luiza_possi": "The Orchard · Luiza Possi",
     "processamento_relatorios:orchard:zeeba": "The Orchard · Zeeba",
+    "processamento_relatorios:orchard:midas": "The Orchard · Midas",
+    "processamento_relatorios:orchard:mza": "The Orchard · MZA",
     "processamento_relatorios:imusica": "iMusica (OTT)",
     "processamento_relatorios:claro": "Claro Música",
     "processamento_relatorios:fuga": "FUGA",
