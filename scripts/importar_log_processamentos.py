@@ -22,10 +22,17 @@ da ferramenta que o gerou; aqui só se lê o total e o período.
 Uso:
     python scripts/importar_log_processamentos.py "Z:\\ROYALTY\\_PROCESSAMENTOS_\\Arquivos processamento\\2026\\07. Jul 26"
 
-`quando` de cada entrada usa a data de modificação do arquivo (melhor proxy
-disponível pra "quando foi processado" — o log não existia na época, não tem
-o horário real). Não duplica: se já existe uma execução com esse `arquivo`
-pra aquela página, pula — pode rodar de novo sem medo.
+`quando` de cada entrada usa a data de modificação do arquivo por padrão
+(melhor proxy disponível pra "quando foi processado" — o log não existia na
+época, não tem o horário real). Quando você já sabe a data certa (alguém
+lembrou, ou está num e-mail/planilha), passe `--quando AAAA-MM-DD` pra usar
+essa data em toda execução importada nessa chamada, em vez da data do
+arquivo:
+
+    python scripts/importar_log_processamentos.py "<pasta>" --quando 2026-07-15
+
+Não duplica: se já existe uma execução com esse `arquivo` pra aquela página,
+pula — pode rodar de novo sem medo.
 """
 
 from __future__ import annotations
@@ -66,7 +73,9 @@ def _slug_pela_pasta(path: Path) -> str | None:
     return None
 
 
-def _quando_do_arquivo(path: Path) -> str:
+def _quando_do_arquivo(path: Path, quando_override: str | None = None) -> str:
+    if quando_override:
+        return quando_override
     return datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")
 
 
@@ -83,7 +92,7 @@ def _registrar(slug: str, arquivo: str, periodo: str, resumo: dict, quando: str)
     print(f"  [{slug}] {execution_log.periodo_humano(periodo)} · {arquivo}")
 
 
-def _aba_unica(path: Path, slug: str, aba: str) -> None:
+def _aba_unica(path: Path, slug: str, aba: str, quando_override: str | None = None) -> None:
     """iMusica e Claro Música: o arquivo já É a aba única exportada pelo
     template (`{original}_{aba}.xlsx`). Reconstrói o nome original tirando o
     sufixo, pra ficar igual ao que `render_aba_unica` teria gravado."""
@@ -103,10 +112,10 @@ def _aba_unica(path: Path, slug: str, aba: str) -> None:
         "final_value_total": round(float(fv), 2),
         "origem": "importado do arquivo (Z:)",
     }
-    _registrar(slug, arquivo_original, periodo, resumo, _quando_do_arquivo(path))
+    _registrar(slug, arquivo_original, periodo, resumo, _quando_do_arquivo(path, quando_override))
 
 
-def _orchard_processado(path: Path, slug: str, origem: str) -> None:
+def _orchard_processado(path: Path, slug: str, origem: str, quando_override: str | None = None) -> None:
     """Um arquivo do Orchard que já saiu com o withholding aplicado — de
     qualquer uma das duas ferramentas. Só lê total líquido e período; NUNCA
     reaplica o desconto (já está aplicado, reaplicar dobraria o desconto nas
@@ -147,12 +156,14 @@ def _orchard_processado(path: Path, slug: str, origem: str) -> None:
         "total_liquido": round(total_liquido, 2),
         "origem": origem,
     }
-    _registrar(f"orchard:{slug}", path.name, periodo, resumo, _quando_do_arquivo(path))
+    _registrar(f"orchard:{slug}", path.name, periodo, resumo, _quando_do_arquivo(path, quando_override))
 
 
-def importar(pasta: str) -> None:
+def importar(pasta: str, quando_override: str | None = None) -> None:
     raiz = Path(pasta)
     print(f"Varrendo {raiz} ...")
+    if quando_override:
+        print(f"(quando forçado para {quando_override} em toda execução importada)")
     encontrados = 0
     for path in sorted(raiz.rglob("*")):
         if not path.is_file():
@@ -160,27 +171,35 @@ def importar(pasta: str) -> None:
         nome = path.name
         if nome.endswith("_Database.xlsx"):
             encontrados += 1
-            _aba_unica(path, "imusica", "Database")
+            _aba_unica(path, "imusica", "Database", quando_override)
         elif nome.endswith("_Detailed Consumption.xlsx"):
             encontrados += 1
-            _aba_unica(path, "claro", "Detailed Consumption")
+            _aba_unica(path, "claro", "Detailed Consumption", quando_override)
         elif nome.startswith("the_orchard_") and "_consolidado_withholding" in nome:
             m = re.match(r"the_orchard_(.+?)_consolidado_withholding", nome)
             if m:
                 encontrados += 1
-                _orchard_processado(path, m.group(1), "importado do arquivo (Z:) — Processamento de relatórios")
+                _orchard_processado(
+                    path, m.group(1), "importado do arquivo (Z:) — Processamento de relatórios", quando_override
+                )
         elif nome.endswith("_withholding_excluded.csv") or nome.endswith("_withholding_excluded.xlsx"):
             slug = _slug_pela_pasta(path)
             if slug is None:
                 print(f"  [orchard] não sei o catálogo de '{nome}' (pasta '{path.parent.name}'), pulando")
                 continue
             encontrados += 1
-            _orchard_processado(path, slug, "importado do arquivo (Z:) — Withholding calculator")
+            _orchard_processado(path, slug, "importado do arquivo (Z:) — Withholding calculator", quando_override)
     print(f"\n{encontrados} arquivo(s) reconhecido(s) como já processado(s).")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("uso: python scripts/importar_log_processamentos.py <pasta>")
+    args = sys.argv[1:]
+    quando_arg = None
+    if "--quando" in args:
+        i = args.index("--quando")
+        quando_arg = args[i + 1]
+        del args[i:i + 2]
+    if len(args) != 1:
+        print("uso: python scripts/importar_log_processamentos.py <pasta> [--quando AAAA-MM-DD]")
         sys.exit(1)
-    importar(sys.argv[1])
+    importar(args[0], quando_arg)
